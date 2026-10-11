@@ -1,0 +1,45 @@
+Aufruf: /opt/hostedtoolcache/Python/3.12.15/x64/bin/python -u scripts/fetch_climate_grid.py
+[05:15:01] Konfiguration: {"step": 0.75, "start_date": "2016-01-01", "end_date": "2025-12-31", "batch_points": 12, "chunk_years": 10, "point_days_per_min": 64000, "max_minutes": 285, "test_mode": false}
+[05:15:04] Raster 51x94 = 4794 Punkte, davon Land: 2250
+[05:15:04] Kontrollpunkte: 0 von 188 Blöcken vorhanden, 188 offen (Verzeichnis /home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/data/checkpoints/777a342576)
+[05:15:45]   ! HTTP 429: Rate auf 38400 Punkt-Tage/min gesenkt, 45 s Pause
+[05:17:48]   ! HTTP 429: Rate auf 23040 Punkt-Tage/min gesenkt, 45 s Pause
+[05:20:05]   ! HTTP 429: Rate auf 13824 Punkt-Tage/min gesenkt, 45 s Pause
+[05:21:14]   ! HTTP 429: Rate auf 8294 Punkt-Tage/min gesenkt, 45 s Pause
+[05:23:08]   ! HTTP 429: Rate auf 4977 Punkt-Tage/min gesenkt, 45 s Pause
+[05:25:02]   ! HTTP 429: Rate auf 2986 Punkt-Tage/min gesenkt, 45 s Pause
+[05:28:12]   ! HTTP 429: Rate auf 1792 Punkt-Tage/min gesenkt, 45 s Pause
+[05:33:29]   ! HTTP 429: Rate auf 1075 Punkt-Tage/min gesenkt, 45 s Pause
+[05:42:18]   ! HTTP 429: Rate auf 645 Punkt-Tage/min gesenkt, 45 s Pause
+[05:56:59]   ! HTTP 429: Rate auf 600 Punkt-Tage/min gesenkt, 45 s Pause
+[05:56:59]   ! Block 12..24 2016-01-01..2025-12-31 fehlgeschlagen: Anfrage endgültig fehlgeschlagen: HTTP Error 429: Too Many Requests
+[06:21:29]   5/188 Blöcke (12 Punkte je Block, 797.0 s/Block, noch ca. 2431 min, Rate 600 Punkt-Tage/min, 10 Drosseln)
+[09:23:15]   ! HTTP 429: Rate auf 600 Punkt-Tage/min gesenkt, 45 s Pause
+[10:00:13] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
+[10:05:43] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
+[10:11:13] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
+[10:16:43] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
+[10:22:13] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
+[10:27:43] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
+[10:33:13] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
+[10:36:19]   ! HTTP 429: Rate auf 600 Punkt-Tage/min gesenkt, 45 s Pause
+[10:38:43] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
+[10:44:13] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
+[10:49:43] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
+[10:55:13] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
+[11:00:43] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
+[11:06:13] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
+Traceback (most recent call last):
+  File "/home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/scripts/check_grid.py", line 21, in <module>
+    from app.climate import SCALES, ClimateData, Params  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/app/climate.py", line 24, in <module>
+    from PIL import Image
+ModuleNotFoundError: No module named 'PIL'
+Traceback (most recent call last):
+  File "/home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/scripts/make_docs_image.py", line 16, in <module>
+    from app.climate import ClimateData, Params  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/app/climate.py", line 24, in <module>
+    from PIL import Image
+ModuleNotFoundError: No module named 'PIL'
