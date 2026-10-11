@@ -12,7 +12,7 @@ const state = {
 
 let META = null;             // /api/meta
 let GRID = null;             // letzte /api/map-Antwort
-let map = null, overlay = null, countriesLayer = null, placeLayer = null, hoverTip = null;
+let map = null, overlay = null, countriesLayer = null, placeLayer = null, hoverTip = null, marker = null;
 let seq = 0, hoverQueued = false, refreshTimer = null;
 const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 
@@ -172,6 +172,13 @@ async function selectPlace(lat, lon, name) {
   const np = nearestPoint(lat, lon);
   const gridLat = META.points.lat[np.idx], gridLon = META.points.lon[np.idx];
   state.selected = { lat: gridLat, lon: gridLon, name: name || null };
+  if (map && L.circleMarker) {
+    if (marker) marker.remove();
+    marker = L.circleMarker([gridLat, gridLon], {
+      radius: 7, color: "#fff", weight: 2.5, fillColor: "#ffb454", fillOpacity: 1,
+      className: "city-marker-pick", interactive: false,
+    }).addTo(map);
+  }
   renderDetail({ loading: true });
   try {
     const q = new URLSearchParams({ lat: gridLat, lon: gridLon });
@@ -196,8 +203,13 @@ function renderDetail(opts = {}) {
   if (opts.error) { box.innerHTML = `<h3>Fehler</h3><p class="muted">${opts.error}</p>`; return; }
 
   const rep = sel.report;
-  const monthUnit = state.mode === "month" ? "Tage" : "Ø Tage/Monat";
+  const monthUnit = "Ø Tage je Monat";
   const maxBar = Math.max(1, ...rep.days_per_month);
+  const mIdx = state.month - 1;
+  const headlineValue = state.mode === "month" ? rep.days_per_month[mIdx] : rep.days_per_year;
+  const headlineLabel = state.mode === "month"
+    ? `Tage im ${monthNames[mIdx]}`
+    : "Tage/Jahr";
   const bars = rep.days_per_month.map((v, i) =>
     el("div", {
       class: "bar" + (i === state.month - 1 ? " sel" : ""),
@@ -210,9 +222,13 @@ function renderDetail(opts = {}) {
   box.append(
     el("h3", {},
       el("span", { text: `${sel.name || "Ausgewählter Punkt"}${sel.country ? ", " + sel.country : ""}` }),
-      el("button", { class: "close", title: "schließen", onclick: () => { state.selected = null; box.hidden = true; } }, "✕")),
-    el("div", { class: "big", text: `${fmtDays(rep.days_per_year)} Tage/Jahr` }),
-    el("div", { class: "sub", text: `${monthUnit}: ${monthNames.map((m, i) => `${m.slice(0, 3)} ${fmtDays(rep.days_per_month[i])}`).join(" · ")}` }),
+      el("button", {
+        class: "close", title: "schließen",
+        onclick: () => { state.selected = null; box.hidden = true; if (marker) { marker.remove(); marker = null; } },
+      }, "✕")),
+    el("div", { class: "big", text: `${fmtDays(headlineValue)} ${headlineLabel}` }),
+    el("div", { class: "sub", text: `${fmtDays(rep.days_per_year)} Tage/Jahr · ${monthUnit}: `
+      + monthNames.map((mn, i) => `${mn.slice(0, 3)} ${fmtDays(rep.days_per_month[i])}`).join(" · ") }),
     el("div", { class: "bars" }, bars),
     el("div", { class: "bar-labels" }, labels),
     el("div", { class: "sub", style: "margin-top:.4rem", text: `Gitterpunkt ${rep.lat.toFixed(2)}°N ${rep.lon.toFixed(2)}°E · ERA5-Tagesdaten` }),
@@ -343,6 +359,9 @@ async function refresh(immediate = false) {
   if (immediate) { clearTimeout(refreshTimer); refresh(); return; }
   const mySeq = ++seq;
   document.body.classList.add("loading");
+  const bar = $("#progress");
+  clearTimeout(bar._hide);
+  bar.hidden = false;
   try {
     const info = await getJSON("/api/map?" + queryString());
     if (mySeq !== seq) return;
@@ -353,7 +372,10 @@ async function refresh(immediate = false) {
   } catch (err) {
     toast("Fehler: " + (err.message || err));
   } finally {
-    if (mySeq === seq) document.body.classList.remove("loading");
+    if (mySeq === seq) {
+      document.body.classList.remove("loading");
+      bar._hide = setTimeout(() => { bar.hidden = true; }, 250);
+    }
   }
   if (state.selected) selectPlace(state.selected.lat, state.selected.lon, state.selected.name);
   loadRanking();
@@ -429,6 +451,13 @@ async function boot() {
   }
   readHash();
   state.params = { ...META.defaults, ...state.params };
+  if (META.dataset.model && META.dataset.model !== "era5") {
+    const b = $("#banner");
+    b.hidden = false;
+    b.innerHTML = "<strong>Hinweis: Testdaten.</strong> Dieses Raster ist synthetisch erzeugt " +
+      "(<code>scripts/make_dev_grid.py</code>) und zeigt nur die Mechanik der Karte, keine echten Klimawerte. " +
+      "Die echten ERA5-Daten liefert der GitHub-Action-Workflow <em>Klimadaten bauen</em>.";
+  }
   $("#dataset-badge").textContent =
     `${META.dataset.n_points} Rasterpunkte · ERA5 ${META.dataset.start_date.slice(0, 4)}–${META.dataset.end_date.slice(0, 4)} · ${META.dataset.n_days} Tage`;
   $("#about-period").textContent = `${META.dataset.start_date.slice(0, 4)}–${META.dataset.end_date.slice(0, 4)}`;

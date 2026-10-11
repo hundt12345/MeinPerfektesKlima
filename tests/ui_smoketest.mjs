@@ -35,6 +35,7 @@ function makeLeafletStub(handlers) {
     layerGroup: () => chain(),
     geoJSON: () => chain(),
     imageOverlay: () => chain(),
+    circleMarker: () => chain(),
     latLngBounds: (b) => ({ _bounds: b }),
     control: { attribution: () => ({ addTo: () => ({}) }) },
   };
