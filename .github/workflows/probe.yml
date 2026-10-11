@@ -1,0 +1,10 @@
+name: probe
+on: workflow_dispatch
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: hello
+        run: |
+          echo "hello from actions"
+          python -c "import requests, numpy; print('requests+numpy ok')"
