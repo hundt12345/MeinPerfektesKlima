@@ -51,13 +51,15 @@ def main() -> None:
     noise = rng.normal(0, 3.2, size=(n_pts, n_days))
     tmean = base[:, None] - amp[:, None] * season[None, :] + noise
     trange = 7.0 + 4.0 * (1 - season[None, :]) + rng.normal(0, 1.2, size=(n_pts, n_days))
-    tmax = tmean + trange / 2
-    tmin = tmean - trange / 2
-    tdew = tmean - 2.5 - 3.0 * (1 - season[None, :]) + rng.normal(0, 1.5, size=(n_pts, n_days))
+    tmax = np.clip(tmean + trange / 2, -30, 42)
+    tmin = np.clip(tmean - trange / 2, -40, 32)
+    tdew = np.minimum(np.clip(tmean - 2.5 - 3.0 * (1 - season[None, :])
+                              + rng.normal(0, 1.5, size=(n_pts, n_days)), -35, 28), tmax)
 
     daylength = 12 + 5.0 * np.tan(np.radians(lat))[:, None] * season[None, :]
     clear = 0.35 + 0.25 * season[None, :] - 0.08 * np.maximum(0, -cont)[:, None]
-    sun = np.clip(daylength * (clear + rng.normal(0, 0.12, size=(n_pts, n_days))), 0, 20)
+    sun_h = np.clip(daylength * (clear + rng.normal(0, 0.12, size=(n_pts, n_days))), 0, 19)
+    sun = sun_h * 3600.0        # die API liefert Sekunden – gleiche Einheit wie im echten Abruf
 
     prec = np.where(rng.random((n_pts, n_days)) < 0.32,
                     rng.gamma(1.1, 3.2, size=(n_pts, n_days)), 0.0)
@@ -67,7 +69,7 @@ def main() -> None:
 
     store = {
         "tmax": q(tmax, 2.0, -127), "tmin": q(tmin, 2.0, -127), "tdew": q(tdew, 2.0, -127),
-        "sun": q(sun, 4.0, 0), "prec": q(prec, 2.0, 0),
+        "sun": q(sun, 4.0 / 3600.0, 0), "prec": q(prec, 2.0, 0),   # Sekunden -> Viertelstunden
     }
     mlat = np.arange(CFG["lat_min"], CFG["lat_max"] + 1e-9, CFG["mask_step"])
     mlon = np.arange(CFG["lon_min"], CFG["lon_max"] + 1e-9, CFG["mask_step"])

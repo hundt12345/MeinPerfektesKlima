@@ -26,7 +26,11 @@ from scipy.ndimage import gaussian_filter
 from scipy.spatial import cKDTree
 
 VARS = ("tmax", "tmin", "tdew", "sun", "prec")
+# Skalen: int8-Schritte je Einheit der Rohdaten. Temperatur/Taupunkt kommen in °C
+# (0,5-°C-Schritte), Sonnenschein kommt in *Sekunden* (0,25-h-Schritte = 900 s),
+# Niederschlag in mm (0,5-mm-Schritte).
 SCALES = {"tmax": 2.0, "tmin": 2.0, "tdew": 2.0, "sun": 4.0 / 3600.0, "prec": 2.0}
+SUN_SECONDS_PER_HOUR = 3600.0
 DATA_START_LAT = None  # wird aus der Meta-Datei gelesen
 
 # Farbskala: wenige Tage (blau) -> viele Tage (rot)
@@ -139,7 +143,8 @@ class ClimateData:
         ok &= (get("tmin") >= self._q(p.tmin_min, SCALES["tmin"], "min"))
         ok &= (get("tmin") <= self._q(p.tmin_max, SCALES["tmin"], "max"))
         ok &= (get("tdew") <= self._q(p.tdew_max, SCALES["tdew"], "max"))
-        ok &= (get("sun") >= self._q(p.sun_min, SCALES["sun"], "min"))
+        # sun_min wird in Stunden angegeben, die Rohdaten in Sekunden
+        ok &= (get("sun") >= self._q(p.sun_min * SUN_SECONDS_PER_HOUR, SCALES["sun"], "min"))
         if p.prec_max < 90:
             ok &= (get("prec") <= self._q(p.prec_max, SCALES["prec"], "max"))
         return ok

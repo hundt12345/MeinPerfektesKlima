@@ -39,18 +39,25 @@ def test_quantization_matches_float_semantics(cd: ClimateData) -> None:
                tdew_max=16.4, sun_min=3.6, prec_max=2.5)
     quant = cd.days_mask(p, month=6)
 
-    def dequant(name):
-        return cd.raw[name][:, cd.day_month == 6].astype(np.float64) / SCALES[name]
+    def raw_sub(name):
+        return cd.raw[name][:, cd.day_month == 6]
+
+    def dequant(name):                     # Rohdaten in ihrer API-Einheit (°C, s, mm)
+        return raw_sub(name).astype(np.float64) / SCALES[name]
 
     flo = (dequant("tmax") >= 18.3) & (dequant("tmax") <= 27.7)
     flo &= (dequant("tmin") >= 4.2) & (dequant("tmin") <= 19.9)
     flo &= dequant("tdew") <= 16.4
-    flo &= dequant("sun") >= 3.6
+    flo &= dequant("sun") >= 3.6 * 3600.0        # Sonnenschein in Sekunden!
     flo &= dequant("prec") <= 2.5
 
     # Rundung auf 0,5 °C bzw. 0,25 h: nur Randtage dürfen abweichen
     diff = int((quant != flo).sum())
     assert diff / quant.size < 0.01, f"{diff} abweichende Tage"
+
+    # Sonnenschwelle: 3,6 h entsprechen 14,4 Viertelstunden -> Quantilsgrenze 15
+    assert cd._q(3.6 * 3600.0, SCALES["sun"], "min") == 15
+    assert cd._q(0.0, SCALES["sun"], "min") == 0
 
 
 def test_counts_bounds(cd: ClimateData) -> None:
