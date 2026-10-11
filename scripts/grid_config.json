@@ -1,0 +1,15 @@
+{
+  "lat_min": 34.0,
+  "lat_max": 72.0,
+  "lon_min": -25.0,
+  "lon_max": 45.0,
+  "step": 0.75,
+  "start_date": "2016-01-01",
+  "end_date": "2025-12-31",
+  "model": "era5",
+  "mask_step": 0.05,
+  "batch_points": 20,
+  "chunk_years": 5,
+  "threads": 6,
+  "test_mode": true
+}

@@ -1,0 +1,57 @@
+name: Klimadaten bauen
+
+# Läuft, wenn sich das Abrufskript oder die Raster-Konfiguration ändert (oder manuell).
+# Ergebnis (app/data/climate_grid.npz + climate_meta.json) wird zurück ins Repo committet.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, arena/813a301c-meinperfektesklima]
+    paths:
+      - "scripts/fetch_climate_grid.py"
+      - "scripts/grid_config.json"
+      - ".github/workflows/build-climate-data.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: climate-data
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Abhängigkeiten
+        run: pip install --quiet numpy global-land-mask
+
+      - name: ERA5-Raster über Open-Meteo abrufen
+        run: |
+          python - <<'PY'
+          import json, subprocess, sys
+          cfg = json.load(open("scripts/grid_config.json"))
+          cmd = [sys.executable, "scripts/fetch_climate_grid.py"]
+          if cfg.get("test_mode"):
+              cmd.append("--test")
+          print("starte:", " ".join(cmd), flush=True)
+          sys.exit(subprocess.call(cmd))
+          PY
+
+      - name: Ergebnis committen
+        run: |
+          git config user.name "klima-datenbot"
+          git config user.email "klima-datenbot@users.noreply.github.com"
+          git add -f app/data/climate_grid.npz app/data/climate_meta.json
+          if git diff --cached --quiet; then
+            echo "keine Änderungen"
+          else
+            git commit -m "Klimadaten: ERA5-Raster aktualisiert [skip ci]"
+            git push
+          fi
