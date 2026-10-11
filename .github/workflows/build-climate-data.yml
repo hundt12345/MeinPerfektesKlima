@@ -72,6 +72,16 @@ jobs:
           sys.exit(subprocess.call(cmd))
           PY
 
+      - name: Datensatz prüfen (Plausibilität, nur Protokoll)
+        if: always()
+        run: |
+          python -u scripts/check_grid.py 2>&1 | tee -a build-log.txt || true
+
+      - name: Beispieldokumentation rendern
+        if: always()
+        run: |
+          python -u scripts/make_docs_image.py 2>&1 | tee -a build-log.txt || true
+
       - name: Ergebnis committen (auch bei Fehlern – inkl. Protokoll und Kontrollpunkte)
         if: always()
         run: |
@@ -79,6 +89,7 @@ jobs:
           git config user.email "klima-datenbot@users.noreply.github.com"
           git add -f build-log.txt app/data/climate_grid.npz app/data/climate_meta.json || true
           git add -A -f -- data/checkpoints 2>/dev/null || true
+          git add -f docs/beispiel-jahr.png docs/beispiel-juli.png docs/beispiele.json 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "keine Änderungen"
           else
