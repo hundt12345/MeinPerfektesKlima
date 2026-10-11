@@ -1,0 +1,6 @@
+# Laufzeit-Abhängigkeiten der Web-App (Render)
+fastapi>=0.110
+uvicorn[standard]>=0.29
+numpy>=1.26
+scipy>=1.11
+pillow>=10.2
