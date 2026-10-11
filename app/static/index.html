@@ -29,7 +29,7 @@
     <section class="card">
       <div class="segmented" role="tablist" aria-label="Modus">
         <button id="mode-year" role="tab" aria-selected="true">Ganzes Jahr</button>
-        <button id="mode-month" role="tab" aria-selected="false">Bestimmter Monat</button>
+        <button id="mode-month" role="tab" aria-selected="false">Urlaubsmonat</button>
       </div>
       <div class="month-picker" id="month-picker" hidden>
         <label for="month-select">Monat</label>
@@ -52,6 +52,9 @@
       <div class="row">
         <label class="switch"><input type="checkbox" id="fixed-scale"><span>Farbskala fix (0 – Maximum)</span></label>
       </div>
+      <div class="row">
+        <label class="switch"><input type="checkbox" id="show-cities" checked><span>Städte anzeigen (anklickbar)</span></label>
+      </div>
       <div class="row buttons">
         <button class="ghost" id="btn-reset">Zurücksetzen</button>
         <button class="ghost" id="btn-link">Link kopieren</button>
@@ -69,14 +72,23 @@
 
   <section class="mapwrap">
     <div id="map"></div>
+
+    <div class="searchbox" id="searchbox">
+      <input type="search" id="city-search" placeholder="Ort suchen …" autocomplete="off"
+             aria-label="Ort suchen" spellcheck="false">
+      <div class="results" id="search-results" hidden></div>
+    </div>
+
     <div class="legend" id="legend" hidden>
       <div class="legend-bar" id="legend-bar"></div>
       <div class="legend-ticks" id="legend-ticks"></div>
       <div class="legend-title" id="legend-title">Tage</div>
     </div>
+
     <div class="card detail" id="detail" hidden></div>
     <div class="progress" id="progress" hidden></div>
     <div class="toast" id="toast" hidden></div>
+    <p class="mapnote" id="mapnote">Klick auf die Karte oder eine Stadt zeigt die Auswertung.</p>
   </section>
 </main>
 
@@ -92,6 +104,11 @@
         Zwischen den Rasterpunkten wird interpoliert – Küsten und Gebirge zeichnen sich dadurch weich, aber
         räumlich sinnvoll ab.
       </p>
+      <p>
+        <strong>Zwei Modi:</strong> „Ganzes Jahr“ beantwortet die Frage, wo dein Wohlfühlwetter übers Jahr
+        gerechnet am häufigsten vorkommt. „Urlaubsmonat“ zählt nur die Tage eines Monats – ideal, um zu
+        prüfen, ob das Wunschziel im geplanten Reisemonat wirklich passt.
+      </p>
     </div>
     <div>
       <h3>Daten &amp; Grenzen</h3>
@@ -103,10 +120,17 @@
         0,5 mm (Regen) gerundet. Ein „Jahr“ entspricht dem Mittel über <span id="about-years">10</span> Jahre,
         einzelne Extreme werden also geglättet.
       </p>
+      <p id="about-quality"></p>
     </div>
   </div>
   <footer>
-    <span>Open-Meteo (ERA5/ECMWF) · Ländergrenzen: Natural Earth · Städte: GeoNames · Karte: Leaflet</span>
+    <span id="attribution">
+      Klimadaten: ERA5/ERA5-Land (Copernicus Climate Change Service / ECMWF) via
+      <a href="https://open-meteo.com/" rel="noopener">Open-Meteo.com</a> ·
+      Ländergrenzen: Natural Earth (gemeinfrei) · Orte: <a href="https://www.geonames.org/" rel="noopener">GeoNames</a> (CC-BY 4.0) ·
+      Kartenbibliothek: <a href="https://leafletjs.com/" rel="noopener">Leaflet</a> (BSD-2) ·
+      Grundkarte selbst gerendert, keine Kartenkacheln von Drittanbietern.
+    </span>
   </footer>
 </section>
 

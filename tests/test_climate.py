@@ -6,6 +6,7 @@ entweder die echten Daten oder das Testraster aus ``scripts/make_dev_grid.py``.
 from __future__ import annotations
 
 import math
+import os
 from pathlib import Path
 
 import numpy as np
@@ -13,7 +14,7 @@ import pytest
 
 from app.climate import SCALES, ClimateData, Params
 
-DATA_DIR = Path(__file__).resolve().parents[1] / "app" / "data"
+DATA_DIR = Path(os.environ["KLIMA_DATA_DIR"])   # von tests/conftest.py gesetzt
 pytestmark = pytest.mark.skipif(
     not (DATA_DIR / "climate_grid.npz").exists(),
     reason="Kein Klimaraster vorhanden (scripts/make_dev_grid.py oder Action-Workflow)",

@@ -11,18 +11,21 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 from collections import OrderedDict
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from .climate import ClimateData, Params
+from .climate import FIELD_WIDTH, ClimateData, Params
 
 BASE = Path(__file__).resolve().parent
-DATA_DIR = BASE / "data"
+# Eigener Datenordner für Entwicklung/Tests (KLIMA_DATA_DIR=/tmp/devgrid)
+DATA_DIR = Path(os.environ.get("KLIMA_DATA_DIR", BASE / "data")).resolve()
 STATIC_DIR = BASE / "static"
 
 MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni",
@@ -53,10 +56,33 @@ PRESETS = [
 
 from .climate import COLOR_STOPS as _COLOR_STOPS
 
-app = FastAPI(title="Mein perfektes Klima – Europa", docs_url="/api/docs")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Daten im Hintergrund vorwärmen, damit die erste Anfrage schnell ist.
+
+    Auf Render (Free-Plan) schläft der Dienst ein; nach dem Aufwachen würde der
+    erste Nutzer sonst Ladezeit + Datensatz-Load + erste Kartenberechnung
+    zusammen bezahlen. ``/healthz`` bleibt dabei sofort beantwortbar.
+    """
+    def warm_up() -> None:
+        global _warm, _load_error
+        try:
+            climate()                                  # Datensatz laden (Lazy Load)
+            render_cached(Params(), None, 1000, False)  # IDW-Gewichte, Landmaske, PNG-Cache
+            _warm = True
+        except Exception as exc:  # noqa: BLE001
+            _load_error = f"{type(exc).__name__}: {exc}"
+
+    threading.Thread(target=warm_up, name="warmup", daemon=True).start()
+    yield
+
+
+app = FastAPI(title="Mein perfektes Klima – Europa", docs_url="/api/docs", lifespan=lifespan)
 
 _climate: ClimateData | None = None
 _load_error: str | None = None
+_warm: bool = False
 _lock = threading.Lock()
 _png_cache: "OrderedDict[tuple, tuple[bytes, dict]]" = OrderedDict()
 _CACHE_MAX = 32
@@ -122,7 +148,9 @@ def render_cached(p: Params, month: int | None, width: int, fixed: bool) -> tupl
 
 @app.get("/healthz")
 def healthz():
-    return {"ok": _climate is not None or _load_error is None, "loaded": _climate is not None}
+    return {"ok": _climate is not None or _load_error is None,
+            "loaded": _climate is not None, "warm": _warm,
+            "error": _load_error if _climate is None else None}
 
 
 @app.get("/api/meta")
@@ -131,6 +159,7 @@ def api_meta():
         cd = climate()
     except HTTPException as exc:
         return JSONResponse({"error": exc.detail, "data_ready": False}, status_code=503)
+    quality = cd.quality or {}
     return {
         "data_ready": True,
         "months": MONTHS,
@@ -146,6 +175,20 @@ def api_meta():
             "n_points": cd.meta.get("n_points"),
             "grid_step_deg": cd.meta.get("grid_step_deg"),
             "generated_at": cd.meta.get("generated_at"),
+            "bbox": cd.bbox,
+            "model": cd.meta.get("model"),
+        },
+        # Ehrliche Kennzeichnung der Datenbasis – die Oberfläche zeigt daraus
+        # einen Hinweis, wenn keine echten ERA5-Werte vorliegen.
+        "synthetic": cd.is_synthetic,
+        "coverage": round(cd.coverage, 4),
+        "repaired": cd.repaired,
+        "quality": {
+            "ok": bool(quality.get("ok", not cd.is_synthetic)),
+            "checked_at": quality.get("checked_at"),
+            "checks": quality.get("checks", []),
+            "warnings": quality.get("warnings", []),
+            "errors": quality.get("errors", []),
         },
         "years_in_record": round(cd.years, 2),
         "color_stops": [[round(float(s), 3), int(r), int(g), int(b)] for s, r, g, b in _COLOR_STOPS],
@@ -179,15 +222,12 @@ def api_map_png(p: Params = Depends(parse_params), month: str | None = Query(Non
 
 
 @app.get("/api/point")
-def api_point(lat: float, lon: float, p: Params = Depends(parse_params), month: str | None = Query(None)):
+def api_point(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-180, le=180),
+              p: Params = Depends(parse_params), month: str | None = Query(None)):
+    """Auswertung für einen Ort: Wohlfühl-Tage, Monatsprofil und Klima."""
     p = p or Params()
     m = parse_month(month)
-    cd = climate()
-    rep = cd.point_report(lat, lon, p)
-    if m is not None:
-        rep["selected_month"] = m
-        rep["days_selected_month"] = rep["days_per_month"][m]
-    return rep
+    return climate().point_report(lat, lon, p, m)
 
 
 @app.get("/api/ranking")
@@ -199,6 +239,14 @@ def api_ranking(p: Params = Depends(parse_params), month: str | None = Query(Non
         "month_label": "ganzes Jahr" if m is None else MONTHS[m],
         "cities": climate().ranking(p, m, max(1, min(40, limit))),
     }
+
+
+@app.get("/api/cities/map")
+def api_cities_map(p: Params = Depends(parse_params), month: str | None = Query(None), limit: int = 400):
+    """Größte Orte mit ihrer Tageszahl – für anklickbare Kartenmarker."""
+    p = p or Params()
+    m = parse_month(month)
+    return {"month": m, "cities": climate().cities_for_map(p, m, max(20, min(1200, limit)))}
 
 
 @app.get("/api/countries")
@@ -217,6 +265,27 @@ def api_cities():
         raise HTTPException(503, "Städteliste fehlt")
     return Response(content=path.read_text(), media_type="application/json",
                     headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/api/cities/search")
+def api_cities_search(q: str = Query("", min_length=1), limit: int = 8):
+    """Ortssuche (Prefix + Teilstring) über die Städteliste – schlankes JSON."""
+    cd = climate()
+    needle = q.strip().lower()
+    if not needle or not cd.cities:
+        return {"q": q, "cities": []}
+    hits = []
+    for c in cd.cities:
+        hay = c.get("search") or c["name"].lower()
+        if needle in hay or needle in c["name"].lower():
+            hits.append(c)
+            if len(hits) >= 200:
+                break
+    hits.sort(key=lambda c: (0 if (c.get("search") or "").startswith(needle) else 1, -int(c.get("pop", 0))))
+    return {"q": q, "cities": [{
+        "name": c["name"], "country": c.get("name_de", ""), "lat": c["lat"], "lon": c["lon"],
+        "pop": c.get("pop", 0),
+    } for c in hits[: max(1, min(20, limit))]]}
 
 
 @app.get("/")

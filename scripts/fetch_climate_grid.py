@@ -15,12 +15,18 @@ Deshalb:
   * 429-Antworten führen zu Abkühlen + Absenken der Rate (adaptiv),
   * jeder Block wird als Kontrollpunkt (``data/checkpoints/``) gesichert, sodass ein
     abgebrochener Lauf jederzeit fortgesetzt werden kann (``--resume`` ist Standard),
+  * Kontrollpunkte werden **über ihre Datumsachse** zusammengesetzt – die Blockgröße
+    darf sich zwischen Läufen ändern, ohne Daten zu beschädigen,
+  * fehlende Tage (``null`` in der API, abgebrochene Läufe) werden mit -128 markiert
+    und am Ende aus Nachbarpunkten bzw. der Monatsklimatologie gefüllt; die
+    Vollständigkeit steht als ``coverage`` in den Metadaten und wird von
+    ``scripts/check_grid.py`` als Plausibilitätstor geprüft,
   * ``--max-minutes`` beendet den Lauf geordnet, bevor der Job-Timeout greift.
 
 Ausgabe:
   app/data/climate_grid.npz    tmax, tmin, tdew, sun, prec (int8), lat, lon,
                                Landmaske (gepackte Bits), Raster-Geometrie
-  app/data/climate_meta.json   Zeitraum, Skalen, Quelle, Raster-Info
+  app/data/climate_meta.json   Zeitraum, Skalen, Quelle, Raster-Info, coverage
 
 Aufruf:
   python scripts/fetch_climate_grid.py                # volle Konfiguration
@@ -31,10 +37,8 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import io
 import json
 import math
-import os
 import re
 import sys
 import threading
@@ -52,6 +56,7 @@ ROOT = Path(__file__).resolve().parents[1]
 API = "https://archive-api.open-meteo.com/v1/archive"
 CHECKPOINT_DIR = ROOT / "data" / "checkpoints"
 OUT_DIR = ROOT / "app" / "data"   # Ziel der fertigen Dateien (Tests ändern das)
+EPOCH = np.datetime64("1970-01-01")
 
 # Daily-Variablen der Open-Meteo-API -> Name im Datensatz
 VARIABLES = {
@@ -67,6 +72,7 @@ SCALES = {  # Quantisierung auf int8: q = clip(round(v * scale), lo, 127)
     "prec": 2.0,                             # 0,5 mm
 }
 UNITS = {"tmax": "°C", "tmin": "°C", "tdew": "°C", "sun": "h", "prec": "mm"}
+SENTINEL = -128
 
 DEFAULT_CFG = {
     "lat_min": 34.0, "lat_max": 72.0,
@@ -76,8 +82,8 @@ DEFAULT_CFG = {
     "end_date": "2025-12-31",
     "model": "era5",
     "mask_step": 0.05,
-    "batch_points": 12,          # Punkte je API-Aufruf
-    "chunk_years": 10,           # Jahre je API-Aufruf
+    "batch_points": 10,          # Punkte je API-Aufruf (klein = weniger Risiko bei 429)
+    "chunk_years": 5,            # Jahre je API-Aufruf
     "point_days_per_min": 64000, # Anfragen-Takt (geschätzt ≈ 4.500 „Gewicht“/min)
     "threads": 3,
     "max_minutes": 285,
@@ -194,6 +200,17 @@ def config_slug(cfg: dict) -> str:
 
 
 # ---------------------------------------------------------------- Abruf
+def as_float32(vals: list) -> tuple[np.ndarray, int]:
+    """API-Werte nach float32; ``null`` wird zu NaN (und später zur Lücke)."""
+    try:
+        return np.asarray(vals, dtype=np.float32), 0
+    except (TypeError, ValueError):
+        out = np.full(len(vals), np.nan, dtype=np.float32)
+        good = [i for i, v in enumerate(vals) if v is not None]
+        out[good] = [vals[i] for i in good]
+        return out, len(vals) - len(good)
+
+
 def fetch_batch(lat: np.ndarray, lon: np.ndarray, start: str, end: str, model: str,
                 pace: Pace) -> dict[str, np.ndarray]:
     query = {
@@ -212,6 +229,7 @@ def fetch_batch(lat: np.ndarray, lon: np.ndarray, start: str, end: str, model: s
         raise RuntimeError(f"{len(data)} Orte in der Antwort, {lat.size} erwartet")
     out: dict[str, list[np.ndarray]] = {k: [] for k in VARIABLES}
     times = None
+    n_null = 0
     for entry in data:
         daily = entry.get("daily") or {}
         t = daily.get("time") or []
@@ -223,17 +241,110 @@ def fetch_batch(lat: np.ndarray, lon: np.ndarray, start: str, end: str, model: s
             vals = daily.get(api_name)
             if vals is None:
                 raise RuntimeError(f"Variable {api_name} fehlt in der Antwort")
-            out[key].append(np.array(vals, dtype="float32"))
+            arr, missing = as_float32(vals)
+            n_null += missing
+            if arr.size != len(times):
+                raise RuntimeError(f"{api_name}: {arr.size} Werte, {len(times)} erwartet")
+            out[key].append(arr)
+    if n_null:
+        log(f"  ! {n_null} null-Werte in dieser Antwort -> werden als Lücken gefüllt")
     res = {k: np.vstack(v) for k, v in out.items()}
     res["_time"] = np.array(times, dtype="datetime64[D]")
     return res
 
 
 def quantize(name: str, arr: np.ndarray) -> np.ndarray:
+    """float32 -> int8; NaN wird zum Sentinel -128 (Lücke) statt zu Müll."""
     lo = -127 if name in ("tmax", "tmin", "tdew") else 0
-    return np.clip(np.rint(arr * SCALES[name]), lo, 127).astype(np.int8)
+    with np.errstate(invalid="ignore"):
+        scaled = np.rint(arr * SCALES[name])
+    good = np.isfinite(scaled)
+    out = np.full(arr.shape, SENTINEL, dtype=np.int8)
+    out[good] = np.clip(scaled[good], lo, 127).astype(np.int8)
+    return out
 
 
+# ------------------------------------------------------------- Lücken füllen
+def lattice_index(cfg: dict, lat: np.ndarray, lon: np.ndarray) -> dict:
+    la = np.round((lat - cfg["lat_min"]) / cfg["step"]).astype(int)
+    lo = np.round((lon - cfg["lon_min"]) / cfg["step"]).astype(int)
+    return {(int(a), int(b)): p for p, (a, b) in enumerate(zip(la, lo))}, la, lo
+
+
+def fill_gaps(cfg: dict, arrays: dict, lat: np.ndarray, lon: np.ndarray,
+              month_of_day: np.ndarray) -> dict:
+    """Sentinel-Werte aus Nachbarpunkten (Rastergeometrie, ohne scipy) ergänzen.
+
+    Fehlende Tage würden sonst stillschweigend als „kein Wohlfühl-Tag“ gezählt –
+    das verstellt die Karte (gerade in Südeuropa, wo viele Rasterpunkte liegen).
+    """
+    index, la, lo = lattice_index(cfg, lat, lon)
+    miss = np.zeros_like(arrays["tmax"], dtype=bool)
+    for name in VARIABLES:
+        miss |= arrays[name] == SENTINEL
+    n_points = lat.size
+    stats = {"missing_points": int((miss[:, 0]).sum()), "missing_point_days": int(miss.sum()),
+             "filled_from_neighbour": 0, "filled_from_climatology": 0}
+    if stats["missing_point_days"] == 0:
+        return stats
+
+    def neighbours(p: int, rings: int = 4) -> list[int]:
+        a, b = la[p], lo[p]
+        out: list[int] = []
+        for r in range(1, rings + 1):
+            for da in range(-r, r + 1):
+                for db in range(-r, r + 1):
+                    if max(abs(da), abs(db)) != r:
+                        continue
+                    q = index.get((a + da, b + db))
+                    if q is not None and not miss[q, 0]:
+                        out.append(q)
+            if len(out) >= 4:
+                break
+        return out
+
+    for p in range(n_points):
+        if not miss[p, 0]:
+            continue
+        nb = neighbours(p)
+        for name in VARIABLES:
+            cols = np.flatnonzero(arrays[name][p] == SENTINEL)
+            if cols.size == 0:
+                continue
+            if nb:
+                src = np.stack([arrays[name][q][cols] for q in nb]).astype(np.float32)
+                valid = src != SENTINEL
+                acc = np.where(valid, src, 0.0).sum(axis=0)
+                cnt = valid.sum(axis=0)
+                fill = np.full(cols.size, SENTINEL, dtype=np.int8)
+                ok = cnt > 0
+                fill[ok] = np.rint(acc[ok] / cnt[ok]).astype(np.int8)
+                arrays[name][p, cols] = fill
+                still = cols[fill == SENTINEL]
+                stats["filled_from_neighbour"] += int(cols.size - still.size)
+                cols = still
+            if cols.size:
+                # Rest: Monatsmittel des Punkts (bzw. Monatsmittel aller Punkte)
+                months = month_of_day[cols]
+                for m in range(12):
+                    sel = cols[months == m]
+                    if sel.size == 0:
+                        continue
+                    own = arrays[name][p, month_of_day == m]
+                    own = own[own != SENTINEL]
+                    if own.size:
+                        val = int(np.rint(own.astype(np.float32).mean()))
+                    else:
+                        pool = arrays[name][:, month_of_day == m]
+                        pool = pool[pool != SENTINEL]
+                        val = int(np.rint(pool.astype(np.float32).mean())) if pool.size else 0
+                    arrays[name][p, sel] = val
+                stats["filled_from_climatology"] += int(cols.size)
+    stats["remaining"] = int((arrays["tmax"] == SENTINEL).sum())
+    return stats
+
+
+# ------------------------------------------------------------------ Lauf
 def run(cfg: dict, limit: int | None = None) -> int:
     """Führt den Abruf aus; Rückgabewert = Zahl der in diesem Lauf geholten Blöcke."""
     lat, lon = build_grid(cfg)
@@ -260,8 +371,7 @@ def run(cfg: dict, limit: int | None = None) -> int:
     done, todo = 0, []
     for job in jobs:
         i, j, pi, cs, ce = job
-        p = path_of(i, pi, j)
-        if p.exists():
+        if path_of(i, pi, j).exists():
             done += 1
         else:
             todo.append(job)
@@ -299,7 +409,7 @@ def run(cfg: dict, limit: int | None = None) -> int:
                     break
                 done_futs, _ = wait(list(running), timeout=30, return_when=FIRST_COMPLETED)
                 if not done_futs and time.monotonic() > deadline:
-                    log(f"Zeitbudget erreicht – laufende Anfragen werden noch abgewartet")
+                    log("Zeitbudget erreicht – laufende Anfragen werden noch abgewartet")
                     done_futs, _ = wait(list(running), timeout=300, return_when=FIRST_COMPLETED)
                 for fut in done_futs:
                     job = running.pop(fut)
@@ -317,47 +427,47 @@ def run(cfg: dict, limit: int | None = None) -> int:
         finally:
             pool.shutdown(wait=False, cancel_futures=True)
 
-    # -------- Zusammensetzen
+    # -------- Zusammensetzen (über die Datumsachse, robust gegen gemischte Blöcke)
     files = sorted(ckpt.glob("b*-p*.npz"))
     if not files:
         log("Keine Kontrollpunkte vorhanden – Abbruch")
         return fetched
-    sample = np.load(files[0])
-    time_axis = sample["time"].astype("int64")
-    n_days = time_axis.size
-    arrays = {k: np.full((n, n_days), -128, dtype=np.int8) for k in VARIABLES}
+
+    n_days = int((np.datetime64(cfg["end_date"]) - np.datetime64(cfg["start_date"])).astype(int)) + 1
+    base = int((np.datetime64(cfg["start_date"]) - EPOCH).astype(int))
+    arrays = {k: np.full((n, n_days), SENTINEL, dtype=np.int8) for k in VARIABLES}
     covered = 0
+    skipped = 0
     for f in files:
         m = re.match(r"b(\d{5})-(\d{5})-p(\d+)\.npz", f.name)
         if not m:
             continue
         i, j = int(m.group(1)), int(m.group(2))
         if j > n:
+            skipped += 1
             continue
         with np.load(f) as z:
-            if z["time"].size != n_days:
-                log(f"  ! überspringe {f.name} (andere Zeitachse)")
-                continue
+            t = z["time"].astype("datetime64[D]")
+            cols = (t - EPOCH).astype(int) - base
+            okc = (cols >= 0) & (cols < n_days)
+            if not okc.all():
+                log(f"  ! {f.name}: {int((~okc).sum())} Tage außerhalb des Zielzeitraums ignoriert")
+            cols = cols[okc]
             for k in VARIABLES:
-                arrays[k][i:j, :] = z[k]
+                vals = z[k][:, okc] if not okc.all() else z[k]
+                arrays[k][i:j, cols] = vals
         covered += 1
     expect = len({(i, j, pi) for i, j, pi, _, _ in jobs})
-    log(f"Blöcke zusammengesetzt: {covered}/{expect}")
+    log(f"Blöcke zusammengesetzt: {covered}/{expect} (übersprungen: {skipped})")
 
-    # Lücken (fehlende Punkte) mit dem Mittel der Nachbarn auffüllen
-    missing_points = int((arrays["tmax"][:, 0] == -128).sum())
-    if missing_points:
-        log(f"  {missing_points} Punkte ohne Daten werden interpoliert")
-        good = np.flatnonzero(arrays["tmax"][:, 0] != -128)
-        bad = np.flatnonzero(arrays["tmax"][:, 0] == -128)
-        if good.size == 0:
-            raise SystemExit("Keine Daten – Abbruch")
-        for k in VARIABLES:
-            src = arrays[k][good]
-            for idx in bad:
-                d = np.hypot(lat[good] - lat[idx], (lon[good] - lon[idx]) * np.cos(np.radians(lat[idx])))
-                nn = good[np.argsort(d)[:4]]
-                arrays[k][idx] = np.rint(arrays[k][nn].astype(np.float32).mean(axis=0)).astype(np.int8)
+    days = np.datetime64(cfg["start_date"]) + np.arange(n_days)
+    month_of_day = days.astype("datetime64[M]").astype(int) % 12
+
+    gap_stats = fill_gaps(cfg, arrays, lat, lon, month_of_day)
+    coverage = 1.0 - gap_stats["missing_point_days"] / max(1, n * n_days)
+    if gap_stats["missing_point_days"]:
+        log(f"  Lücken gefüllt: {gap_stats}")
+    log(f"  Abdeckung: {coverage*100:.2f} % der Punkt-Tage")
 
     mask = build_land_mask(cfg)
     out = OUT_DIR / "climate_grid.npz"
@@ -370,7 +480,6 @@ def run(cfg: dict, limit: int | None = None) -> int:
     size_mb = out.stat().st_size / 1e6
     log(f"geschrieben: {out} ({size_mb:.1f} MB)")
 
-    days = np.datetime64(cfg["start_date"]) + np.arange(n_days)
     meta = {
         "source": "ERA5 Reanalyse über Open-Meteo Historical Weather API (archive-api.open-meteo.com)",
         "attribution": "Daten: ERA5 (Copernicus/ECMWF) via Open-Meteo.com – Zeitschritte Open-Meteo (CC-BY-4.0)",
@@ -382,12 +491,18 @@ def run(cfg: dict, limit: int | None = None) -> int:
                  "lon_min": cfg["lon_min"], "lon_max": cfg["lon_max"]},
         "variables": {k: {"scale": SCALES[k], "unit": UNITS[k], "api": VARIABLES[k]} for k in VARIABLES},
         "land_mask": {"step": cfg["mask_step"], "shape": list(mask.shape)},
+        "coverage": {"fraction": round(float(coverage), 6),
+                     "missing_point_days": int(gap_stats["missing_point_days"]),
+                     "filled_from_neighbour": int(gap_stats.get("filled_from_neighbour", 0)),
+                     "filled_from_climatology": int(gap_stats.get("filled_from_climatology", 0)),
+                     "blocks": f"{covered}/{expect}"},
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
     (out.parent / "climate_meta.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False))
     log(f"Metadaten geschrieben: {out.parent / 'climate_meta.json'}")
 
-    if missing_points == 0 and covered == expect:
+    complete = (gap_stats["missing_point_days"] == 0 and covered == expect)
+    if complete:
         # Vollständig: Kontrollpunkte können weg (der Workflow committet die Löschung)
         for f in files:
             f.unlink()
