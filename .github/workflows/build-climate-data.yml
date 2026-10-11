@@ -1,0 +1,108 @@
+name: Klimadaten bauen
+
+# Holt tägliche ERA5-Werte über die Open-Meteo-API und committet das Raster
+# (app/data/climate_grid.npz + climate_meta.json) zurück in den Branch.
+#
+# Der Lauf ist in ~4,5-Stunden-Häppchen möglich: erreicht ein Lauf sein Zeitbudget,
+# bleiben die Kontrollpunkte (data/checkpoints/) erhalten und der nächste Lauf macht
+# dort weiter. Wiederholt „Run workflow“ klicken, bis das Protokoll „Vollständig“
+# meldet – danach sind die Kontrollpunkte aufgeräumt.
+on:
+  workflow_dispatch:
+    inputs:
+      max_minutes:
+        description: "Zeitbudget für diesen Lauf (Minuten)"
+        default: "285"
+      rate:
+        description: "Punkt-Tage pro Minute (leer = Vorgabe aus grid_config.json)"
+        default: ""
+      reset:
+        description: "Kontrollpunkte verwerfen und von vorn beginnen (true/false)"
+        default: "false"
+  push:
+    branches: [main, arena/813a301c-meinperfektesklima]
+    paths:
+      - "scripts/fetch_climate_grid.py"
+      - "scripts/grid_config.json"
+      - ".github/workflows/build-climate-data.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: climate-data
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Abhängigkeiten
+        run: pip install --quiet numpy global-land-mask
+
+      - name: ERA5-Raster über Open-Meteo abrufen
+        id: fetch
+        continue-on-error: true
+        env:
+          IN_MAX_MINUTES: ${{ github.event.inputs.max_minutes }}
+          IN_RATE: ${{ github.event.inputs.rate }}
+          IN_RESET: ${{ github.event.inputs.reset }}
+        run: |
+          set -o pipefail
+          python - <<'PY' 2>&1 | tee build-log.txt
+          import json, os, subprocess, sys
+          cfg = json.load(open("scripts/grid_config.json"))
+          cmd = [sys.executable, "-u", "scripts/fetch_climate_grid.py"]
+          if cfg.get("test_mode"):
+              cmd.append("--test")
+          if os.environ.get("IN_MAX_MINUTES"):
+              cmd += ["--max-minutes", os.environ["IN_MAX_MINUTES"]]
+          if os.environ.get("IN_RATE"):
+              cmd += ["--rate", os.environ["IN_RATE"]]
+          if os.environ.get("IN_RESET", "").lower() == "true":
+              cmd.append("--reset")
+          print("Aufruf:", " ".join(cmd), flush=True)
+          sys.exit(subprocess.call(cmd))
+          PY
+
+      - name: Datensatz prüfen (Plausibilität, nur Protokoll)
+        if: always()
+        run: |
+          python -u scripts/check_grid.py 2>&1 | tee -a build-log.txt || true
+
+      - name: Beispieldokumentation rendern
+        if: always()
+        run: |
+          python -u scripts/make_docs_image.py 2>&1 | tee -a build-log.txt || true
+
+      - name: Ergebnis committen (auch bei Fehlern – inkl. Protokoll und Kontrollpunkte)
+        if: always()
+        run: |
+          git config user.name "klima-datenbot"
+          git config user.email "klima-datenbot@users.noreply.github.com"
+          git add -f build-log.txt app/data/climate_grid.npz app/data/climate_meta.json || true
+          git add -A -f -- data/checkpoints 2>/dev/null || true
+          git add -f docs/beispiel-jahr.png docs/beispiel-juli.png docs/beispiele.json 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "keine Änderungen"
+          else
+            git commit -m "Klimadaten: ERA5-Raster aktualisiert [skip ci]"
+            git push || { git pull --rebase && git push; }
+          fi
+
+      - name: Fehler weiterreichen
+        if: steps.fetch.outcome != 'success'
+        run: |
+          if grep -qE "Zeitbudget|Blöcke zusammengesetzt|Vollständig" build-log.txt 2>/dev/null; then
+            echo "Lauf geordnet beendet (Teilfortschritt gesichert) – beim nächsten Start geht es weiter."
+            exit 0
+          fi
+          echo "Der Datenabruf ist fehlgeschlagen – siehe build-log.txt."
+          exit 1

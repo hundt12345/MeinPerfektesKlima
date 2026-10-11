@@ -1,0 +1,11 @@
+# Rohquellen (per scripts/download_sources.sh herunterladbar)
+data/raw/
+# Python
+__pycache__/
+*.pyc
+.venv/
+# Node (nur Build-Tools)
+node_modules/
+# Test-/Dev-Ausgaben
+/tmp/
+*.test.npz

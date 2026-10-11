@@ -1,0 +1,7 @@
+{
+  "name": "meinperfektesklima-build",
+  "private": true,
+  "type": "module",
+  "description": "Build-Tools fuer statische Assets (Ländergrenzen aus Natural Earth TopoJSON)",
+  "dependencies": { "topojson-client": "^3.1.0" }
+}

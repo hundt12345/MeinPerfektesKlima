@@ -1,0 +1,9 @@
+== Einzelanfragen ==
+    5 Punkte  2023-01-01..2023-12-31  ->    0.9 s   0.08 MB    5 Orte (  1825 Punkt-Tage, 493 µs/Punkt-Tag)  
+   20 Punkte  2023-01-01..2023-12-31  ->    1.0 s   0.30 MB   20 Orte (  7300 Punkt-Tage, 137 µs/Punkt-Tag)  
+   20 Punkte  2016-01-01..2020-12-31  ->    1.5 s   1.48 MB   20 Orte ( 36500 Punkt-Tage, 41 µs/Punkt-Tag)  
+   25 Punkte  2016-01-01..2025-12-31  ->    0.5 s   0.00 MB    0 Orte ( 91250 Punkt-Tage, 5 µs/Punkt-Tag)  HTTPError: HTTP Error 429: Too Many Requests
+== Parallelität (gleiche Anfrage, 1 vs 6 Threads) ==
+  6 Anfragen x 20 Punkte x 5 Jahre mit 1 Threads: 3.1 s (Einzelzeiten [0.5, 0.5, 0.5, 0.5, 0.5, 0.5], Fehler ['HTTPError: HTTP Error 429: Too Many Requests', 'HTTPError: HTTP Error 429: Too Many Requests', 'HTTPError: HTTP Error 429: Too Many Requests', 'HTTPError: HTTP Error 429: Too Many Requests', 'HTTPError: HTTP Error 429: Too Many Requests', 'HTTPError: HTTP Error 429: Too Many Requests'])
+  6 Anfragen x 20 Punkte x 5 Jahre mit 6 Threads: 0.6 s (Einzelzeiten [0.6, 0.6, 0.6, 0.6, 0.6, 0.6], Fehler ['HTTPError: HTTP Error 429: Too Many Requests', 'HTTPError: HTTP Error 429: Too Many Requests', 'HTTPError: HTTP Error 429: Too Many Requests', 'HTTPError: HTTP Error 429: Too Many Requests', 'HTTPError: HTTP Error 429: Too Many Requests', 'HTTPError: HTTP Error 429: Too Many Requests'])
+ENDE

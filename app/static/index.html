@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mein perfektes Klima – Europa</title>
+<meta name="description" content="Interaktive Europakarte: Wo gibt es im Jahr (oder im Urlaubsmonat) die meisten Tage mit deinem Wohlfühlwetter – Temperatur, Taupunkt und Sonnenschein frei einstellbar?">
+<link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='7' fill='%23ffb454'/%3E%3Cg stroke='%23ffb454' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M16 2v4M16 26v4M2 16h4M26 16h4M6 6l3 3M23 23l3 3M26 6l-3 3M9 23l-3 3'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo" aria-hidden="true">☀︎</span>
+    <div>
+      <h1>Mein perfektes Klima</h1>
+      <p>Wo in Europa gibt es wie viele Tage mit <em>deinem</em> Wohlfühlwetter?</p>
+    </div>
+  </div>
+  <div class="badge" id="dataset-badge" title="Datenbasis">lädt …</div>
+</header>
+
+<div class="banner" id="banner" hidden></div>
+
+<main>
+  <aside class="panel" id="panel">
+    <section class="card">
+      <div class="segmented" role="tablist" aria-label="Modus">
+        <button id="mode-year" role="tab" aria-selected="true">Ganzes Jahr</button>
+        <button id="mode-month" role="tab" aria-selected="false">Bestimmter Monat</button>
+      </div>
+      <div class="month-picker" id="month-picker" hidden>
+        <label for="month-select">Monat</label>
+        <select id="month-select"></select>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Dein Wohlfühlwetter</h2>
+      <div id="controls"></div>
+      <p class="hint">Ein Tag zählt, wenn <strong>alle</strong> Kriterien gleichzeitig erfüllt sind.</p>
+    </section>
+
+    <section class="card">
+      <h2>Voreinstellungen</h2>
+      <div class="presets" id="presets"></div>
+    </section>
+
+    <section class="card">
+      <div class="row">
+        <label class="switch"><input type="checkbox" id="fixed-scale"><span>Farbskala fix (0 – Maximum)</span></label>
+      </div>
+      <div class="row buttons">
+        <button class="ghost" id="btn-reset">Zurücksetzen</button>
+        <button class="ghost" id="btn-link">Link kopieren</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Top-Orte für diese Einstellung</h2>
+        <button class="mini" id="btn-rank-refresh" title="Neu berechnen">↻</button>
+      </div>
+      <ol class="ranking" id="ranking"><li class="muted">wird berechnet …</li></ol>
+    </section>
+  </aside>
+
+  <section class="mapwrap">
+    <div id="map"></div>
+    <div class="legend" id="legend" hidden>
+      <div class="legend-bar" id="legend-bar"></div>
+      <div class="legend-ticks" id="legend-ticks"></div>
+      <div class="legend-title" id="legend-title">Tage</div>
+    </div>
+    <div class="card detail" id="detail" hidden></div>
+    <div class="progress" id="progress" hidden></div>
+    <div class="toast" id="toast" hidden></div>
+  </section>
+</main>
+
+<section class="about">
+  <div class="about-grid">
+    <div>
+      <h3>So funktioniert die Karte</h3>
+      <p>
+        Für rund 2.250 Rasterpunkte über Europa liegen <strong>tägliche</strong> ERA5-Daten der Jahre
+        <span id="about-period">2016–2025</span> vor. Für jeden Punkt und jeden Tag wird geprüft, ob
+        Höchsttemperatur, Tiefsttemperatur, Taupunkt und Sonnenscheindauer in deinem Wunschbereich liegen.
+        Die Karte zeigt anschließend die mittlere Zahl solcher Tage pro Jahr beziehungsweise im gewählten Monat.
+        Zwischen den Rasterpunkten wird interpoliert – Küsten und Gebirge zeichnen sich dadurch weich, aber
+        räumlich sinnvoll ab.
+      </p>
+    </div>
+    <div>
+      <h3>Daten &amp; Grenzen</h3>
+      <p>
+        Quelle: <span id="about-source">ERA5-Reanalyse über die Open-Meteo-API</span>. ERA5 ist ein
+        Reanalyse-Modell (ca. 0,25°) und damit kein Stationsmesswert – in Gebirgen und an Küsten sind
+        Abweichungen von mehreren Grad möglich. Die Auflösung dieses Datensatzes beträgt
+        <span id="about-grid">0,75°</span>, die Werte sind auf 0,5 °C (Temperatur), 0,25 h (Sonne) und
+        0,5 mm (Regen) gerundet. Ein „Jahr“ entspricht dem Mittel über <span id="about-years">10</span> Jahre,
+        einzelne Extreme werden also geglättet.
+      </p>
+    </div>
+  </div>
+  <footer>
+    <span>Open-Meteo (ERA5/ECMWF) · Ländergrenzen: Natural Earth · Städte: GeoNames · Karte: Leaflet</span>
+  </footer>
+</section>
+
+<script src="/static/vendor/leaflet/leaflet.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

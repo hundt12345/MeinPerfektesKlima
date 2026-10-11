@@ -1,0 +1,6 @@
+# Zusätzliche Werkzeuge für Entwicklung und Tests (nicht für den Render-Betrieb nötig)
+-r requirements.txt
+pytest>=8.0
+httpx>=0.27
+global-land-mask>=1.0.0   # für scripts/make_dev_grid.py und scripts/fetch_climate_grid.py
+shapely>=2.0             # nur für scripts/build_geo.py
