@@ -99,7 +99,9 @@ class ClimateData:
                 np.array([c["lat"] for c in self.cities]),
                 np.array([c["lon"] for c in self.cities]),
             )
-            _, self.city_point_idx = self.tree.query(c_xyz, k=1)
+            dist, self.city_point_idx = self.tree.query(c_xyz, k=1)
+            # Chord-Distanz auf der Einheitskugel -> km (für kurze Strecken genau genug)
+            self.city_point_km = dist * 6371.0
 
     # ---------------------------------------------------------------- Geometrie
     @staticmethod
@@ -312,6 +314,8 @@ class ClimateData:
             "days_per_year": yearly,
             "days_per_month": per_month,
             "grid_distance_deg": round(float(np.hypot(self.lat[idx] - lat, self.lon[idx] - lon)), 2),
+            "grid_distance_km": round(float(111.0 * np.hypot(self.lat[idx] - lat,
+                                                             (self.lon[idx] - lon) * math.cos(math.radians(lat))))),
         }
 
     def ranking(self, p: Params, month: int | None = None, limit: int = 12) -> list[dict]:
@@ -330,6 +334,7 @@ class ClimateData:
             out.append({
                 "name": c["name"], "country": c["name_de"], "lat": c["lat"], "lon": c["lon"],
                 "pop": c["pop"], "days": round(float(city_counts[int(i)]), 1),
+                "dist_km": round(float(self.city_point_km[int(i)])),
             })
             if len(out) >= limit:
                 break

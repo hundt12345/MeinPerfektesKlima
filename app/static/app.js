@@ -159,7 +159,9 @@ function onHover(e) {
     const days = GRID.values[idx];
     const unit = state.mode === "month" ? `Tage im ${monthNames[state.month - 1]}` : "Tage pro Jahr";
     const city = await nearestCity(e.latlng.lat, e.latlng.lng).catch(() => null);
-    const label = city ? `${city.name} (${Math.round(distKm)} km)` : `${e.latlng.lat.toFixed(2)}°N ${e.latlng.lng.toFixed(2)}°E`;
+    const label = city
+      ? `${city.name}${distKm > 40 ? ` · Datenpunkt ${Math.round(distKm)} km entfernt` : ""}`
+      : `${e.latlng.lat.toFixed(2)}°N ${e.latlng.lng.toFixed(2)}°E`;
     hoverTip.innerHTML = `<strong>${fmtDays(days)}</strong> ${unit}<br><span style="opacity:.75">${label}</span>`;
     hoverTip.style.display = "block";
     hoverTip.style.left = (e.containerPoint.x + 14) + "px";
@@ -231,7 +233,9 @@ function renderDetail(opts = {}) {
       + monthNames.map((mn, i) => `${mn.slice(0, 3)} ${fmtDays(rep.days_per_month[i])}`).join(" · ") }),
     el("div", { class: "bars" }, bars),
     el("div", { class: "bar-labels" }, labels),
-    el("div", { class: "sub", style: "margin-top:.4rem", text: `Gitterpunkt ${rep.lat.toFixed(2)}°N ${rep.lon.toFixed(2)}°E · ERA5-Tagesdaten` }),
+    el("div", { class: "sub", style: "margin-top:.4rem",
+      text: `ERA5-Gitterpunkt ${rep.lat.toFixed(2)}°N ${rep.lon.toFixed(2)}°E`
+        + (rep.grid_distance_km ? ` · ${rep.grid_distance_km} km von deinem Klick entfernt` : "") }),
   );
 }
 
@@ -394,6 +398,7 @@ async function loadRanking() {
     data.cities.forEach((c, i) => {
       host.append(el("li", {},
         el("button", {
+          title: `${c.name} – Datenpunkt ${c.dist_km} km entfernt`,
           onclick: () => {
             map.flyTo([c.lat, c.lon], Math.max(map.getZoom(), 6), { duration: 0.7 });
             selectPlace(c.lat, c.lon, c.name);

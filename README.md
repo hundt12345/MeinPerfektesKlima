@@ -14,7 +14,9 @@ Zwei Modi:
 Dazu: Klick auf einen Punkt liefert ein Monatsprofil, eine Top-Orte-Liste für die
 aktuellen Einstellungen und teilbare Links (alle Parameter stecken im URL-Hash).
 
-![Beispielkarte](docs/beispiel-karte.png)
+![Beispiel: ganzes Jahr, ausgewogen mild](docs/beispiel-jahr.png)
+
+*Beispiele erzeugt mit `python scripts/make_docs_image.py` (siehe `docs/`).*
 
 ## Wie funktioniert die Auswertung?
 
