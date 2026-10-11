@@ -1,7 +1,8 @@
 name: Klimadaten bauen
 
 # Läuft, wenn sich das Abrufskript oder die Raster-Konfiguration ändert (oder manuell).
-# Ergebnis (app/data/climate_grid.npz + climate_meta.json) wird zurück ins Repo committet.
+# Ergebnis (app/data/climate_grid.npz + climate_meta.json) wird zurück ins Repo committet,
+# zusätzlich das Protokoll build-log.txt (auch bei Fehlern – praktisch zur Diagnose).
 on:
   workflow_dispatch:
   push:
@@ -21,7 +22,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
 
@@ -33,25 +34,37 @@ jobs:
         run: pip install --quiet numpy global-land-mask
 
       - name: ERA5-Raster über Open-Meteo abrufen
+        id: fetch
+        continue-on-error: true
         run: |
-          python - <<'PY'
+          set -o pipefail
+          python - <<'PY' 2>&1 | tee build-log.txt
           import json, subprocess, sys
           cfg = json.load(open("scripts/grid_config.json"))
-          cmd = [sys.executable, "scripts/fetch_climate_grid.py"]
+          cmd = [sys.executable, "-u", "scripts/fetch_climate_grid.py"]
           if cfg.get("test_mode"):
               cmd.append("--test")
-          print("starte:", " ".join(cmd), flush=True)
+          print("Konfiguration:", json.dumps(cfg), flush=True)
+          print("Aufruf:", " ".join(cmd), flush=True)
           sys.exit(subprocess.call(cmd))
           PY
 
-      - name: Ergebnis committen
+      - name: Ergebnis committen (auch bei Fehlern, für das Protokoll)
+        if: always()
         run: |
           git config user.name "klima-datenbot"
           git config user.email "klima-datenbot@users.noreply.github.com"
-          git add -f app/data/climate_grid.npz app/data/climate_meta.json
+          git add -f build-log.txt || true
+          git add -f app/data/climate_grid.npz app/data/climate_meta.json || true
           if git diff --cached --quiet; then
             echo "keine Änderungen"
           else
             git commit -m "Klimadaten: ERA5-Raster aktualisiert [skip ci]"
-            git push
+            git push || { git pull --rebase && git push; }
           fi
+
+      - name: Fehler weiterreichen
+        if: steps.fetch.outcome != 'success'
+        run: |
+          echo "Der Datenabruf ist fehlgeschlagen – siehe build-log.txt im Commit."
+          exit 1
