@@ -8,8 +8,10 @@
   "end_date": "2025-12-31",
   "model": "era5",
   "mask_step": 0.05,
-  "batch_points": 25,
+  "batch_points": 12,
   "chunk_years": 10,
-  "threads": 6,
-  "test_mode": false
+  "threads": 3,
+  "test_mode": false,
+  "point_days_per_min": 64000,
+  "max_minutes": 285
 }
