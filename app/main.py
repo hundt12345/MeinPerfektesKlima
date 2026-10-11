@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import threading
+from contextlib import asynccontextmanager
 from collections import OrderedDict
 from pathlib import Path
 
@@ -53,7 +54,21 @@ PRESETS = [
 
 from .climate import COLOR_STOPS as _COLOR_STOPS
 
-app = FastAPI(title="Mein perfektes Klima – Europa", docs_url="/api/docs")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Raster im Hintergrund laden – der erste Kartenaufruf soll nicht warten müssen."""
+    def load() -> None:
+        try:
+            climate()
+            print("[startup] Klimaraster geladen", flush=True)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[startup] Raster noch nicht verfügbar: {exc}", flush=True)
+
+    threading.Thread(target=load, name="warm-up", daemon=True).start()
+    yield
+
+
+app = FastAPI(title="Mein perfektes Klima – Europa", docs_url="/api/docs", lifespan=lifespan)
 
 _climate: ClimateData | None = None
 _load_error: str | None = None
