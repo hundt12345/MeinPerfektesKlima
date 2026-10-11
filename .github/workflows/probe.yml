@@ -1,10 +1,27 @@
-name: probe
-on: workflow_dispatch
+name: probe2
+on:
+  push:
+    branches: [arena/813a301c-meinperfektesklima]
+permissions:
+  contents: write
 jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: hello
+      - uses: actions/checkout@v4
+      - name: net test
         run: |
-          echo "hello from actions"
-          python -c "import requests, numpy; print('requests+numpy ok')"
+          python - <<'PY'
+          import json,urllib.request
+          u="https://archive-api.open-meteo.com/v1/archive?latitude=52.5&longitude=13.4&start_date=2024-07-01&end_date=2024-07-03&daily=temperature_2m_max,sunshine_duration,dew_point_2m_mean&timezone=UTC"
+          d=json.load(urllib.request.urlopen(u,timeout=60))
+          print("OPENMETEO_OK", d["daily"])
+          PY
+      - name: commit back
+        run: |
+          git config user.name "data-bot"
+          git config user.email "data-bot@users.noreply.github.com"
+          echo "run $(date -u +%FT%TZ)" > actions_probe.txt
+          git add actions_probe.txt
+          git commit -m "probe: actions can commit back"
+          git push
