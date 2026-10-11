@@ -160,6 +160,9 @@ def api_meta():
     except HTTPException as exc:
         return JSONResponse({"error": exc.detail, "data_ready": False}, status_code=503)
     quality = cd.quality or {}
+    season_errors = [] if cd.season_ok else [
+        f"Jahresgang invertiert oder flach (Juli − Januar im Süden: "
+        f"{round(cd.season_delta, 1)} K) – Datensatz unbrauchbar"]
     return {
         "data_ready": True,
         "months": MONTHS,
@@ -184,11 +187,12 @@ def api_meta():
         "coverage": round(cd.coverage, 4),
         "repaired": cd.repaired,
         "quality": {
-            "ok": bool(quality.get("ok", not cd.is_synthetic)),
+            "ok": bool(quality.get("ok", not cd.is_synthetic)) and cd.season_ok,
             "checked_at": quality.get("checked_at"),
             "checks": quality.get("checks", []),
             "warnings": quality.get("warnings", []),
-            "errors": quality.get("errors", []),
+            "errors": list(quality.get("errors", [])) + season_errors,
+            "season_delta_k": round(cd.season_delta, 1),
         },
         "years_in_record": round(cd.years, 2),
         "color_stops": [[round(float(s), 3), int(r), int(g), int(b)] for s, r, g, b in _COLOR_STOPS],

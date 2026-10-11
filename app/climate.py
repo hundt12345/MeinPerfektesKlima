@@ -114,6 +114,7 @@ class ClimateData:
         self.xyz = self._to_xyz(self.lat, self.lon)
         self.tree = cKDTree(self.xyz)
         self.repaired = self._repair_sentinels()
+        self.season_delta = self._season_sign()
         self._counts_cache: dict = {}
         self._alpha_cache: "OrderedDict[tuple, np.ndarray]" = OrderedDict()
         self._idw_cache: "OrderedDict[tuple, tuple]" = OrderedDict()
@@ -146,6 +147,25 @@ class ClimateData:
         model = str(self.meta.get("model", "")).lower()
         source = str(self.meta.get("source", "")).lower()
         return model != "era5" or "synthetisch" in source or "synthetic" in source
+
+    def _season_sign(self) -> float:
+        """Ø (Juli − Januar) der Tageshöchstwerte im Süden – muss positiv sein.
+
+        Billiger Selbsttest beim Laden: Ein umgekehrter Jahresgang ist das
+        sicherste Zeichen für einen kaputten Datensatz (passierte bereits, als
+        versehentlich ein Testraster mit invertierter Saison committet wurde).
+        """
+        south = np.flatnonzero(self.lat < 42.0)
+        if south.size == 0:
+            return 0.0
+        tmax = self.raw["tmax"][south].astype(np.float32) / SCALES["tmax"]
+        jul = float(tmax[:, self.day_month == 6].mean())
+        jan = float(tmax[:, self.day_month == 0].mean())
+        return jul - jan
+
+    @property
+    def season_ok(self) -> bool:
+        return self.season_delta > 8.0
 
     @property
     def coverage(self) -> float:

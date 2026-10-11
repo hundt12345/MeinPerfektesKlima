@@ -689,7 +689,10 @@ function showDataStatus() {
   const problems = [];
   if (META.synthetic) problems.push("synthetische Testdaten statt ERA5");
   if (META.coverage < 0.999) problems.push(`nur ${num(META.coverage * 100, 1)} % der Punkt-Tage vorhanden`);
-  if (META.quality && META.quality.ok === false) problems.push("Plausibilitätsprüfung nicht bestanden");
+  const qerrors = (META.quality && META.quality.errors) || [];
+  if (META.quality && META.quality.ok === false) {
+    problems.push(...(qerrors.length ? qerrors : ["Plausibilitätsprüfung nicht bestanden"]));
+  }
 
   badge.textContent = META.synthetic
     ? `⚠ Testdaten · ${ds.n_points} Punkte · ${period}`
