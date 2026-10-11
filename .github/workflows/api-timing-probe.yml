@@ -24,6 +24,7 @@ jobs:
       - name: Messung
         run: |
           set -o pipefail
+          mkdir -p data
           python - <<'PY' 2>&1 | tee data/api-timing.txt
           import json, time, urllib.parse, urllib.request
           from concurrent.futures import ThreadPoolExecutor
