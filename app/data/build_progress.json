@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "status": "failed",
+  "phase": "Abschluss",
+  "percent": 100.0,
+  "message": "Datenlauf unvollständig oder Qualitätstor nicht bestanden – bitte erneut starten",
+  "blocks_done": 10,
+  "blocks_total": 10,
+  "rate": "929 s/Jahr",
+  "eta_minutes": 0,
+  "source": "ERA5 (offene Zarr-Daten, Google Cloud)",
+  "started_at": "2026-10-12T15:05:06Z",
+  "updated_at": "2026-10-12T15:05:06Z",
+  "run_url": "https://github.com/hundt12345/MeinPerfektesKlima/actions/runs/38251440135",
+  "log_tail": [
+    "    165.4  Cartagena (Spanien)",
+    "    165.4  Torrevieja (Spanien)",
+    "beispiel-juli.png: Juli, warm & schweißfrei – Skala 0..22, Mittel 5 Tage",
+    "     29.2  Van (Türkei)",
+    "     28.2  Şarkîkaraağaç (Türkei)",
+    "     28.1  Karaman (Türkei)",
+    "     28.1  Mut (Türkei)",
+    "     27.8  Adilcevaz (Türkei)"
+  ]
+}

@@ -1,45 +1,122 @@
-Aufruf: /opt/hostedtoolcache/Python/3.12.15/x64/bin/python -u scripts/fetch_climate_grid.py
-[05:15:01] Konfiguration: {"step": 0.75, "start_date": "2016-01-01", "end_date": "2025-12-31", "batch_points": 12, "chunk_years": 10, "point_days_per_min": 64000, "max_minutes": 285, "test_mode": false}
-[05:15:04] Raster 51x94 = 4794 Punkte, davon Land: 2250
-[05:15:04] Kontrollpunkte: 0 von 188 Blöcken vorhanden, 188 offen (Verzeichnis /home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/data/checkpoints/777a342576)
-[05:15:45]   ! HTTP 429: Rate auf 38400 Punkt-Tage/min gesenkt, 45 s Pause
-[05:17:48]   ! HTTP 429: Rate auf 23040 Punkt-Tage/min gesenkt, 45 s Pause
-[05:20:05]   ! HTTP 429: Rate auf 13824 Punkt-Tage/min gesenkt, 45 s Pause
-[05:21:14]   ! HTTP 429: Rate auf 8294 Punkt-Tage/min gesenkt, 45 s Pause
-[05:23:08]   ! HTTP 429: Rate auf 4977 Punkt-Tage/min gesenkt, 45 s Pause
-[05:25:02]   ! HTTP 429: Rate auf 2986 Punkt-Tage/min gesenkt, 45 s Pause
-[05:28:12]   ! HTTP 429: Rate auf 1792 Punkt-Tage/min gesenkt, 45 s Pause
-[05:33:29]   ! HTTP 429: Rate auf 1075 Punkt-Tage/min gesenkt, 45 s Pause
-[05:42:18]   ! HTTP 429: Rate auf 645 Punkt-Tage/min gesenkt, 45 s Pause
-[05:56:59]   ! HTTP 429: Rate auf 600 Punkt-Tage/min gesenkt, 45 s Pause
-[05:56:59]   ! Block 12..24 2016-01-01..2025-12-31 fehlgeschlagen: Anfrage endgültig fehlgeschlagen: HTTP Error 429: Too Many Requests
-[06:21:29]   5/188 Blöcke (12 Punkte je Block, 797.0 s/Block, noch ca. 2431 min, Rate 600 Punkt-Tage/min, 10 Drosseln)
-[09:23:15]   ! HTTP 429: Rate auf 600 Punkt-Tage/min gesenkt, 45 s Pause
-[10:00:13] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
-[10:05:43] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
-[10:11:13] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
-[10:16:43] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
-[10:22:13] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
-[10:27:43] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
-[10:33:13] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
-[10:36:19]   ! HTTP 429: Rate auf 600 Punkt-Tage/min gesenkt, 45 s Pause
-[10:38:43] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
-[10:44:13] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
-[10:49:43] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
-[10:55:13] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
-[11:00:43] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
-[11:06:13] Zeitbudget erreicht – laufende Anfragen werden noch abgewartet
+Aufruf: /opt/hostedtoolcache/Python/3.12.15/x64/bin/python -u scripts/fetch_era5_zarr.py
+[12:49:40] Konfiguration: {"source": "era5_zarr", "zarr_store": "gs://gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3", "step": 0.75, "start_date": "2016-01-01", "end_date": "2025-12-31", "days_per_read": 5, "sun_threshold_w_m2": 120.0, "max_minutes": 290, "test_mode": false}
+/home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/scripts/fetch_era5_zarr.py:117: ZarrUserWarning: fs (<gcsfs.extended_gcsfs.ExtendedGcsFileSystem object at 0x7f0c99ba6d50>) was not created with `asynchronous=True`, this may lead to surprising behavior
+  store = zarr.storage.FsspecStore(fs=fs, path=path, read_only=True)
+[12:49:46] Speicher: time, latitude (721), longitude (1440)
+[12:49:46] Ausschnitt: 1 Breitenabschnitt/‑abschnitte (151 Stützstellen) × 1440 Längengrade, Ziel 51x94 Punkte
+[12:49:46] Raster 51x94 = 4794 Punkte, davon Land: 2250
+[12:49:46] Zielraster: 51x94 = 4794 Punkte, davon Land: 2250
+/home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/scripts/fetch_era5_zarr.py:290: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`). Please use a specific unit instead.
+  return np.arange(np.datetime64(start), np.datetime64(end) + 1, dtype="datetime64[D]")
+[12:49:46] Kontrollpunkte: 0 von 10 Jahren vorhanden, 10 offen (/home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/data/checkpoints/zarr-777a342576)
+[12:49:46]   Jahr 2016: 366 Tage (2016-01-01 … 2016-12-31)
+[13:01:49]   Jahr 2016 fertig in 723s (1975 ms/Tag), 1/10 Jahre, noch ca. 108 min
+[13:01:51]   Jahr 2017: 365 Tage (2017-01-01 … 2017-12-31)
+[13:13:26]   Jahr 2017 fertig in 695s (1904 ms/Tag), 2/10 Jahre, noch ca. 95 min
+[13:13:27]   Jahr 2018: 365 Tage (2018-01-01 … 2018-12-31)
+[13:25:28]   Jahr 2018 fertig in 721s (1977 ms/Tag), 3/10 Jahre, noch ca. 83 min
+[13:25:29]   Jahr 2019: 365 Tage (2019-01-01 … 2019-12-31)
+[13:37:30]   Jahr 2019 fertig in 721s (1976 ms/Tag), 4/10 Jahre, noch ca. 72 min
+[13:37:32]   Jahr 2020: 366 Tage (2020-01-01 … 2020-12-31)
+[13:50:29]   Jahr 2020 fertig in 777s (2123 ms/Tag), 5/10 Jahre, noch ca. 61 min
+[13:50:30]   Jahr 2021: 365 Tage (2021-01-01 … 2021-12-31)
+[14:04:50]   Jahr 2021 fertig in 861s (2358 ms/Tag), 6/10 Jahre, noch ca. 50 min
+[14:04:52]   Jahr 2022: 365 Tage (2022-01-01 … 2022-12-31)
+[14:19:15]   Jahr 2022 fertig in 863s (2365 ms/Tag), 7/10 Jahre, noch ca. 38 min
+[14:19:16]   Jahr 2023: 365 Tage (2023-01-01 … 2023-12-31)
+[14:33:37]   Jahr 2023 fertig in 860s (2357 ms/Tag), 8/10 Jahre, noch ca. 26 min
+[14:33:38]   Jahr 2024: 366 Tage (2024-01-01 … 2024-12-31)
+[14:49:13]   Jahr 2024 fertig in 935s (2555 ms/Tag), 9/10 Jahre, noch ca. 13 min
+[14:49:14]   Jahr 2025: 365 Tage (2025-01-01 … 2025-12-31)
+[15:04:43]   Jahr 2025 fertig in 929s (2545 ms/Tag), 10/10 Jahre, noch ca. 0 min
+[15:04:46] Jahresblöcke zusammengesetzt: 10/10
+[15:04:46]   Abdeckung: 100.00 % der Punkt-Tage
+[15:04:46] Landmaske (761, 1401) (47.1% Land)
+[15:04:48] geschrieben: /home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/app/data/climate_grid.npz (24.3 MB)
+[15:04:48] Metadaten geschrieben: /home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/app/data/climate_meta.json
+[15:04:48] Vollständig – Kontrollpunkte aufgeräumt
+[15:04:49] fertig in 8106s, 10 Jahre in diesem Lauf
+Task exception was never retrieved
+future: <Task finished name='Task-1055129' coro=<ClientSession.close() done, defined at /opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/aiohttp/client.py:1586> exception=RuntimeError("Task <Task pending name='Task-1055129' coro=<ClientSession.close() running at /opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/aiohttp/client.py:1593>> got Future <Task pending name='Task-1055130' coro=<_wait_for_close() running at /opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/aiohttp/connector.py:124> wait_for=<_GatheringFuture pending cb=[Task.task_wakeup()]>> attached to a different loop")>
 Traceback (most recent call last):
-  File "/home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/scripts/check_grid.py", line 21, in <module>
-    from app.climate import SCALES, ClimateData, Params  # noqa: E402
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/app/climate.py", line 24, in <module>
-    from PIL import Image
-ModuleNotFoundError: No module named 'PIL'
-Traceback (most recent call last):
-  File "/home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/scripts/make_docs_image.py", line 16, in <module>
-    from app.climate import ClimateData, Params  # noqa: E402
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/app/climate.py", line 24, in <module>
-    from PIL import Image
-ModuleNotFoundError: No module named 'PIL'
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/aiohttp/client.py", line 1593, in close
+    await self._connector.close()
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/aiohttp/connector.py", line 1083, in close
+    await super().close(abort_ssl=abort_ssl or self._ssl_shutdown_timeout == 0)
+RuntimeError: Task <Task pending name='Task-1055129' coro=<ClientSession.close() running at /opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/aiohttp/client.py:1593>> got Future <Task pending name='Task-1055130' coro=<_wait_for_close() running at /opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/aiohttp/connector.py:124> wait_for=<_GatheringFuture pending cb=[Task.task_wakeup()]>> attached to a different loop
+Task was destroyed but it is pending!
+task: <Task pending name='Task-1055130' coro=<_wait_for_close() done, defined at /opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/aiohttp/connector.py:122> wait_for=<_GatheringFuture pending cb=[Task.task_wakeup()]>>
+Datensatz: 2250 Punkte × 3653 Tage (2016-01-01 .. 2025-12-31), era5, 0.75°
+
+Struktur und Vollständigkeit:
+  ✓ Zeitreihe deckt den angegebenen Zeitraum ab – 3653 Tage
+  ✓ Alle Monate kommen vor
+  ✓ Keine Sentinel-Lücken (-128) übrig
+  ✓ Rasterpunkte sind unterschiedlich (keine Dubletten)
+  ✓ Vollständigkeit ≥ 99,5 % der Punkt-Tage – 100.00 %
+  ✓ Datenbasis ist echte ERA5-Reanalyse – ERA5-Reanalyse (Copernicus Climate Change Service / ECMWF), offene analysis-read
+
+Wertebereiche (physikalisch plausibel):
+  ✗ Tageshöchstwerte zwischen -35 und +48 °C – -43.0 .. 52.0 °C
+  ✓ Taupunkt überschreitet die Höchsttemperatur nicht – 0.0 % der Tage
+  ✓ Sonnenschein zwischen 0 und 24 h – 0.00 .. 17.00 h
+  ✓ Polartag im Juni: im Norden über 15 h Sonne möglich – max 17.0 h
+
+Vergleich mit Klimanormalwerten (22 Städte, Jan/Jul):
+  Stadt               tmax Jan         tmax Jul     Sonne Jul        mm/Jahr
+  Madrid          7.6/10.0       29.8/33.5      11.6/11.5       753/380  
+  Sevilla        14.5/16.5       34.5/36.5      11.1/12.0       554/530  
+  Lissabon       14.3/14.8       23.2/28.0      11.2/11.0       626/700  
+  Athen          12.4/13.0       30.6/33.5      10.9/12.0       542/400  
+  Rom            11.3/12.5       32.3/31.0      11.3/10.5      1058/800  
+  Palermo        12.1/14.8       30.5/30.0      11.6/11.0       702/610  
+  Nizza          11.0/13.0       26.4/27.8      10.9/11.0       863/730  
+  Barcelona      13.0/13.6       29.1/28.6      10.9/9.5        696/640  
+  Paris           7.0/7.5        24.9/25.2       8.8/7.0        788/640  
+  Berlin          3.8/3.4        23.9/24.8       8.3/7.0        642/570  
+  München         3.8/3.5        24.8/24.0       9.0/7.5       1020/950  
+  Zürich          4.2/3.4        25.2/24.6       9.2/7.5       1163/1100 
+  Wien            3.8/4.3        27.1/26.3       9.5/8.0        698/620  
+  Dublin          8.2/8.2        19.2/19.5       7.0/5.0        871/730  
+  London          7.5/8.3        22.3/23.2       8.3/6.8        758/640  
+  Kopenhagen      3.8/3.0        21.2/22.3       8.7/8.0        729/610  
+  Stockholm       0.5/-0.6       22.8/22.3       9.4/9.5        602/540  
+  Oslo           -1.9/-1.8       20.8/21.5       8.6/8.0       1023/760  
+  Helsinki       -1.5/-2.8       21.6/21.5       9.8/9.0        761/650  
+  Reykjavik       1.9/2.6        13.6/11.3       7.1/6.0       1382/820  
+  Warschau        2.0/1.2        24.6/24.5       8.7/8.0        704/530  
+  Moskau         -4.0/-4.0       24.0/24.3       8.8/9.0        702/700  
+  ✓ Ø Abweichung der Monatsmittel ≤ 4.5 K – 0.99 K über 88 Werte
+  ✓ Höchstens ein Drittel der Temperatur-Vergleiche außerhalb der Toleranz – 1/88
+  ✓ Sonnenschein im Rahmen der Normalwerte – 0/22 Städte außerhalb ±2.5 h
+  ✓ Jahresniederschlag im Rahmen der Normalwerte – 2/22 Städte außerhalb ±45 %
+
+Jahresgang (verkehrte Jahreszeiten?):
+  ✓ Südeuropa: Juli deutlich wärmer als Januar – Ø +18.1 K (Jul − Jan)
+  ✓ Nordeuropa: Juli deutlich wärmer als Januar – Ø +20.0 K (Jul − Jan)
+
+Auswertung (Preset „Ausgewogen mild“):
+    Sevilla 110 Tage/Jahr · Rhein-Main 97 · Nordschweden 21
+  ✓ Südspanien hat mehr Wohlfühl-Tage als Nordskandinavien – 110 vs. 21
+  ✓ Südspanien liegt über 100 Tagen/Jahr – 110
+  ✓ Norden liegt unter 120 Tagen/Jahr – 21
+  ✓ Mittelwerte sind endlich
+
+Monatsmodus:
+    Sevilla im Juli: 1.0 Tage · Nordschweden: 12.2 Tage
+  ✓ Juli-Werte überschreiten die Monatslänge nicht – max 28.8
+
+TOR NICHT BESTANDEN: 1 Fehler, 0 Warnungen
+Bericht: /home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/app/data/quality_report.json
+beispiel-jahr.png: Ganzes Jahr, ausgewogen mild – Skala 0..135, Mittel 73 Tage
+    179.6  Amadora (Portugal)
+    179.6  Caldas da Rainha (Portugal)
+    165.4  Alcantarilla (Spanien)
+    165.4  Cartagena (Spanien)
+    165.4  Torrevieja (Spanien)
+beispiel-juli.png: Juli, warm & schweißfrei – Skala 0..22, Mittel 5 Tage
+     29.2  Van (Türkei)
+     28.2  Şarkîkaraağaç (Türkei)
+     28.1  Karaman (Türkei)
+     28.1  Mut (Türkei)
+     27.8  Adilcevaz (Türkei)
