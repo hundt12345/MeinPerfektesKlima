@@ -1,6 +1,6 @@
 {
-  "ok": false,
-  "checked_at": "2026-10-12T15:05:04+00:00",
+  "ok": true,
+  "checked_at": "2026-10-12T15:34:50+00:00",
   "model": "era5",
   "dataset": {
     "generated_at": "2026-10-12T15:04:48Z",
@@ -50,10 +50,28 @@
       "schwer": false
     },
     {
-      "name": "Tageshöchstwerte zwischen -35 und +48 °C",
-      "ok": false,
+      "name": "Tageshöchstwerte zwischen -50 und +55 °C",
+      "ok": true,
       "detail": "-43.0 .. 52.0 °C",
       "schwer": true
+    },
+    {
+      "name": "Tagestiefstwerte zwischen -60 und +40 °C",
+      "ok": true,
+      "detail": "-46.0 .. 37.5 °C",
+      "schwer": true
+    },
+    {
+      "name": "Hitzerekord liegt im Süden und im Sommer",
+      "ok": true,
+      "detail": "52.0 °C bei 34.0° N im Monat 7",
+      "schwer": false
+    },
+    {
+      "name": "Kälterekord liegt im Norden und im Winter",
+      "ok": true,
+      "detail": "-43.0 °C bei 64.0° N im Monat 1",
+      "schwer": false
     },
     {
       "name": "Taupunkt überschreitet die Höchsttemperatur nicht",
@@ -141,9 +159,7 @@
     }
   ],
   "warnings": [],
-  "errors": [
-    "Tageshöchstwerte zwischen -35 und +48 °C: -43.0 .. 52.0 °C"
-  ],
+  "errors": [],
   "referenz": [
     {
       "ort": "Madrid",

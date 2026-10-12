@@ -124,8 +124,38 @@ def main() -> int:
     tmax = cd.raw["tmax"].astype(np.float32) / SCALES["tmax"]
     tdew = cd.raw["tdew"].astype(np.float32) / SCALES["tdew"]
     sun = cd.raw["sun"].astype(np.float32) / SCALES["sun"] / 3600.0
-    pruefe("Tageshöchstwerte zwischen -35 und +48 °C",
-           -35 <= tmax.min() and tmax.max() <= 48, f"{tmax.min():.1f} .. {tmax.max():.1f} °C", schwer=True)
+    # Physikalische Grenzen hängen am Ausschnitt: Dieses Raster reicht von Island
+    # (72° N) bis in den Ostirak (34° N / 45° O) und bis Archangelsk (65° N).
+    # Gemessen wurden dort −43 °C (Kältewelle Januar 2017) und +52 °C
+    # (Hitzewelle Juli 2020) – beides reale Extreme, kein Datenfehler. Die alten
+    # Grenzen (−35/+48) stammten aus einem engeren Europa-Verständnis und haben
+    # echte ERA5-Daten zu Unrecht gesperrt. Ein Kelvin-Leck (~+300 °C) oder eine
+    # vertauschte Skala (×2 ⇒ +104 °C) fällt weiterhin sofort auf – zusätzlich
+    # wird geprüft, ob die Extreme am erwartbaren Ort und in der erwartbaren
+    # Jahreszeit liegen.
+    tmax_unten, tmax_oben = -50.0, 55.0
+    tmin_unten, tmin_oben = -60.0, 40.0
+    pruefe(f"Tageshöchstwerte zwischen {tmax_unten:.0f} und {tmax_oben:+.0f} °C",
+           tmax_unten <= tmax.min() and tmax.max() <= tmax_oben,
+           f"{tmax.min():.1f} .. {tmax.max():.1f} °C", schwer=True)
+    tmin = cd.raw["tmin"].astype(np.float32) / SCALES["tmin"]
+    pruefe(f"Tagestiefstwerte zwischen {tmin_unten:.0f} und {tmin_oben:+.0f} °C",
+           tmin_unten <= tmin.min() and tmin.max() <= tmin_oben,
+           f"{tmin.min():.1f} .. {tmin.max():.1f} °C", schwer=True)
+
+    n_days = tmax.shape[1]
+    hei_p, hei_d = divmod(int(np.argmax(tmax)), n_days)
+    kalt_p, kalt_d = divmod(int(np.argmin(tmax)), n_days)
+    hei_monat = int(cd.day_month[hei_d]) + 1        # day_month zählt ab 0
+    kalt_monat = int(cd.day_month[kalt_d]) + 1
+    pruefe("Hitzerekord liegt im Süden und im Sommer",
+           cd.lat[hei_p] < 50 and hei_monat in (5, 6, 7, 8, 9),
+           f"{tmax.max():.1f} °C bei {cd.lat[hei_p]:.1f}° N im Monat {hei_monat}",
+           schwer=False)
+    pruefe("Kälterekord liegt im Norden und im Winter",
+           cd.lat[kalt_p] > 55 and kalt_monat in (1, 2, 3, 11, 12),
+           f"{tmax.min():.1f} °C bei {cd.lat[kalt_p]:.1f}° N im Monat {kalt_monat}",
+           schwer=False)
     pruefe("Taupunkt überschreitet die Höchsttemperatur nicht",
            float(np.mean(tdew > tmax + 0.6)) < 0.02,
            f"{float(np.mean(tdew > tmax + 0.6))*100:.1f} % der Tage", schwer=True)

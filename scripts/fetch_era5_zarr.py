@@ -287,7 +287,10 @@ def to_daily(block: np.ndarray, n_days: int, kind: str, cfg: dict) -> np.ndarray
 
 
 def day_range(start: str, end: str) -> np.ndarray:
-    return np.arange(np.datetime64(start), np.datetime64(end) + 1, dtype="datetime64[D]")
+    """Alle Tage von ``start`` bis ``end`` (einschließlich) als datetime64[D]."""
+    first = np.datetime64(start, "D")
+    n = int((np.datetime64(end, "D") - first).astype(int)) + 1
+    return first + np.arange(n).astype("timedelta64[D]")
 
 
 def harvest_period(ds, cfg: dict, geom: Geometry, days: np.ndarray, land: np.ndarray,
