@@ -56,7 +56,20 @@ falschen Zahlen den **Baufortschritt** des Datenlaufs (Balken, Phase, ETA, Logze
 Die Website zeigt also entweder geprüfte echte ERA5-Daten oder gar keine.
 Für Entwicklung/Demos lässt sich das Tor mit der Umgebungsvariable
 `KLIMA_ALLOW_UNVERIFIED=1` öffnen – die Kennzeichnung `synthetic: true` bleibt dann
-sichtbar. Fehlende Tage eines abgebrochenen Abrufs werden beim Zusammenbauen aus
+sichtbar.
+
+Die physikalischen Wertegrenzen des Tors hängen am Ausschnitt: Dieses Raster reicht
+von Island (72° N) bis in den Ostirak (34° N / 45° O). Gemessen wurden dort
+**−43 °C** (Kältewelle bei Archangelsk, 6. Januar 2017) und **+52 °C** (Hitzewelle
+im irakisch-iranischen Grenzgebiet, 28. Juli 2020) – beides reale Extreme, die von
+den ursprünglich für „Mitteleuropa“ gesetzten Grenzen (−35/+48 °C) zu Unrecht als
+Datenfehler gewertet wurden. Deshalb gelten jetzt −50…+55 °C (Höchstwert) bzw.
+−60…+40 °C (Tiefstwert), **zusätzlich** geprüft wird, ob der Hitzerekord im Süden
+im Sommer und der Kälterekord im Norden im Winter liegt – ein Einheitendreher
+(Kelvin statt Celsius) oder eine vertauschte Skala fällt damit weiterhin sofort auf.
+Jeder Bericht trägt außerdem den Fingerabdruck des geprüften Datensatzes
+(`generated_at`, Punkte, Tage, Zeitraum); passt er nicht zum geladenen Raster, gilt
+sein Urteil nicht (siehe `report_matches_dataset` in `app/main.py`). Fehlende Tage eines abgebrochenen Abrufs werden beim Zusammenbauen aus
 Nachbarpunkten ergänzt und als `coverage` in den Metadaten ausgewiesen.
 
 ## Daten
