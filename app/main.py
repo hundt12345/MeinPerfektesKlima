@@ -9,6 +9,13 @@
   GET /api/point        Auswertung für einen Ort (Monatsaufschlüsselung)
   GET /api/ranking      Beste Orte (Städte) für die aktuellen Parameter
   GET /api/cities       Städteliste für die Suche
+  GET /api/winterquarters/optimize   beste Aufteilung Sommer/Winterquartier
+  GET /api/winterquarters/pair       Gegenstück-Suche zu einem festen Quartier
+
+Die Filterparameter stecken in :func:`parse_filter`: Die bisherigen
+Wetterparameter beschreiben im Winterquartier-Modus (`view=wq`) das
+*Sommer*-Profil, ``wtmax_min`` … ``wprec_max`` das Winterquartier-Profil und
+``sfrom``/``sto`` das Sommerfenster (Monate 1–12, Winter = Rest).
 """
 from __future__ import annotations
 
@@ -24,7 +31,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .build_progress import DEFAULT_REPO, build_status
-from .climate import FIELD_WIDTH, ClimateData, Params
+from .climate import (DEFAULT_SUMMER_MONTHS, FIELD_WIDTH, MONTH_NAMES, WINTER_DEFAULTS,
+                      ClimateData, Filter, Params, cyclic_months, months_label, norm_months)
 
 BASE = Path(__file__).resolve().parent
 # Eigener Datenordner für Entwicklung/Tests (KLIMA_DATA_DIR=/tmp/devgrid)
@@ -39,8 +47,7 @@ ALLOW_UNVERIFIED = os.environ.get("KLIMA_ALLOW_UNVERIFIED", "").strip().lower() 
 
 WORKFLOW_URL = f"https://github.com/{DEFAULT_REPO}/actions/workflows/build-climate-data.yml"
 
-MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni",
-          "Juli", "August", "September", "Oktober", "November", "Dezember"]
+MONTHS = MONTH_NAMES
 
 PRESETS = [
     {"id": "mild", "name": "Ausgewogen mild",
@@ -64,6 +71,30 @@ PRESETS = [
      "params": {"tmax_min": -15, "tmax_max": 5, "tmin_min": -30, "tmin_max": -5,
                 "tdew_max": 20, "sun_min": 1, "prec_max": 99}},
 ]
+
+# Voreinstellungen für das *Winterquartier*-Wetter (im gleichnamigen Modus das
+# zweite Profil neben dem Sommer-Wohlfühlwetter).
+WINTER_PRESETS = [
+    {"id": "wq-mild", "name": "Milder Winter",
+     "desc": "Tagsüber 10–20 °C, nachts über 3 °C, ein paar Stunden Sonne – „Winter im Warmen“.",
+     "params": {"tmax_min": 10, "tmax_max": 20, "tmin_min": 3, "tmin_max": 15,
+                "tdew_max": 16, "sun_min": 3, "prec_max": 99}},
+    {"id": "wq-warm", "name": "Warmer Winter",
+     "desc": "Tagsüber 16–26 °C, nachts über 10 °C – Kanaren-/Nordafrika-Klasse.",
+     "params": {"tmax_min": 16, "tmax_max": 26, "tmin_min": 10, "tmin_max": 20,
+                "tdew_max": 17, "sun_min": 5, "prec_max": 99}},
+    {"id": "wq-sonnig", "name": "Sonniger Winter",
+     "desc": "Mindestens 5 h Sonne am Tag und über 12 °C.",
+     "params": {"tmax_min": 12, "tmax_max": 24, "tmin_min": 4, "tmin_max": 18,
+                "tdew_max": 18, "sun_min": 5, "prec_max": 99}},
+    {"id": "wq-trocken", "name": "Trockener Winter",
+     "desc": "12–22 °C, höchstens 1 mm Niederschlag am Tag – für Wanderer und Radler.",
+     "params": {"tmax_min": 12, "tmax_max": 22, "tmin_min": 2, "tmin_max": 16,
+                "tdew_max": 14, "sun_min": 4, "prec_max": 1}},
+]
+
+# Grenzen der Quartier-Saison für die Optimierung (siehe /api/winterquarters/optimize)
+WQ_MIN_MONTHS, WQ_MAX_MONTHS = 3, 9
 
 from .climate import COLOR_STOPS as _COLOR_STOPS
 
@@ -226,26 +257,140 @@ def parse_params(
     return Params(tmax_min, tmax_max, tmin_min, tmin_max, tdew_max, sun_min, prec_max)
 
 
-def parse_month(month: str | None) -> int | None:
-    if month in (None, "", "all", "jahr", "year"):
-        return None
+def parse_winter_params(
+    wtmax_min: float = Query(WINTER_DEFAULTS.tmax_min, ge=-40, le=45),
+    wtmax_max: float = Query(WINTER_DEFAULTS.tmax_max, ge=-40, le=45),
+    wtmin_min: float = Query(WINTER_DEFAULTS.tmin_min, ge=-45, le=40),
+    wtmin_max: float = Query(WINTER_DEFAULTS.tmin_max, ge=-45, le=40),
+    wtdew_max: float = Query(WINTER_DEFAULTS.tdew_max, ge=-20, le=30),
+    wsun_min: float = Query(WINTER_DEFAULTS.sun_min, ge=0, le=16),
+    wprec_max: float = Query(WINTER_DEFAULTS.prec_max, ge=0, le=99),
+) -> Params:
+    """Wunschwetter für das Winterquartier (Gegenstück zum Sommer-Profil)."""
+    if wtmax_min > wtmax_max:
+        wtmax_min, wtmax_max = wtmax_max, wtmax_min
+    if wtmin_min > wtmin_max:
+        wtmin_min, wtmin_max = wtmin_max, wtmin_min
+    return Params(wtmax_min, wtmax_max, wtmin_min, wtmin_max, wtdew_max, wsun_min, wprec_max)
+
+
+MONTH_HELP = "month muss 1..12, 'all', ein Bereich (z. B. 5-9) oder eine Liste (1,2,12) sein"
+
+
+def _one_month(text: str) -> int:
     try:
-        m = int(month)
+        m = int(text)
     except ValueError as exc:
-        raise HTTPException(400, "month muss 1..12 oder 'all' sein") from exc
+        raise HTTPException(400, MONTH_HELP) from exc
     if not 1 <= m <= 12:
-        raise HTTPException(400, "month muss 1..12 oder 'all' sein")
+        raise HTTPException(400, MONTH_HELP)
     return m - 1
 
 
-def render_cached(p: Params, month: int | None, width: int, fixed: bool) -> tuple[bytes, dict]:
-    key = (p, month, width, fixed)
+def _month_spec(part: str) -> list[int]:
+    """„7“ → [6], „5-9“ → [4..8], „10-3“ → [9,10,11,0,1,2]."""
+    if "-" not in part:
+        return [_one_month(part)]
+    start_text, _, end_text = part.partition("-")
+    start, end = _one_month(start_text), _one_month(end_text)
+    out: list[int] = []
+    m = start
+    while len(out) < 12:
+        out.append(m)
+        if m == end:
+            break
+        m = (m + 1) % 12
+    return out
+
+
+def parse_month(month: str | None) -> tuple[int, ...] | None:
+    """Monatsfilter → 0-basierte Monatsliste (``None`` = ganzes Jahr).
+
+    Zusätzlich zur einzelnen Monatsnummer sind Bereiche (``5-9``, auch über den
+    Jahreswechsel: ``10-3``) und Listen (``1,2,12``) erlaubt – damit lässt sich
+    auch ein Zeitraum wie „Wintermonate“ auf die Karte legen.
+    """
+    if month is None or not str(month).strip():
+        return None
+    text = str(month).strip().lower().replace(" ", "")
+    if text in ("all", "jahr", "year"):
+        return None
+    months: list[int] = []
+    for part in text.split(","):
+        if part:
+            months.extend(_month_spec(part))
+    if not months:
+        return None
+    return norm_months(months)
+
+
+def summer_window(sfrom: int, sto: int) -> tuple[int, ...]:
+    """Sommerfenster aus „von Monat“/„bis Monat“ (1-basiert, Jahreswechsel erlaubt)."""
+    start, end = int(sfrom) - 1, int(sto) - 1
+    if not (0 <= start < 12 and 0 <= end < 12):
+        raise HTTPException(400, "sfrom/sto müssen 1..12 sein")
+    if end == (start - 1) % 12:
+        # „von Juni bis Mai“ wäre das ganze Jahr – dann gäbe es kein Winterquartier.
+        raise HTTPException(400, "Sommer- und Winterquartier brauchen je mindestens einen "
+                                 "Monat – bitte ein Sommerfenster von 1 bis 11 Monaten wählen")
+    months: list[int] = []
+    m = start
+    while True:
+        months.append(m)
+        if m == end:
+            return tuple(months)
+        m = (m + 1) % 12
+
+
+def parse_filter(
+    view: str = Query("plain", description="plain | wq (Winterquartier-Modus)"),
+    wview: str = Query("combo", description="combo | summer | winter"),
+    sfrom: int = Query(5, ge=1, le=12, description="Sommerfenster ab Monat"),
+    sto: int = Query(9, ge=1, le=12, description="Sommerfenster bis Monat"),
+    month: str | None = Query(None),
+    p: Params = Depends(parse_params),
+    winter: Params = Depends(parse_winter_params),
+) -> Filter:
+    """Alle Karten-/Orts-Endpunkte benutzen denselben Filterbegriff.
+
+    Im Normalmodus steuert ``month`` den Zeitraum. Mit ``view=wq`` wird daraus
+    der Winterquartier-Modus: ``p`` beschreibt den Sommer, ``winter`` das
+    Winterquartier, ``sfrom``/``sto`` das Sommerfenster; ``wview`` wählt, welche
+    Zahl die Karte zeigt (``combo`` = beide zusammen).
+    """
+    kind = (view or "plain").strip().lower()
+    if kind in ("wq", "winterquartier", "quartier"):
+        if wview not in ("combo", "summer", "winter"):
+            raise HTTPException(400, "wview muss 'combo', 'summer' oder 'winter' sein")
+        return Filter(kind=wview, p=p or Params(), winter=winter, summer_months=summer_window(sfrom, sto))
+    if kind not in ("plain", "normal"):
+        raise HTTPException(400, "view muss 'plain' oder 'wq' sein")
+    return Filter(kind="plain", p=p or Params(), winter=winter, months=parse_month(month))
+
+
+def render_cached(f: Filter, width: int, fixed: bool) -> tuple[bytes, dict]:
+    """Kartenbild + Statistik für einen Filter (mit kleinem PNG-Zwischenspeicher).
+
+    Der Filter ist unveränderlich und hashbar, deshalb genügt er zusammen mit
+    Breite und Skalenmodus als Schlüssel – auch für die Winterquartier-Kombination,
+    die aus zwei Profilen zusammengesetzt ist.
+    """
+    key = (f, width, fixed)
     with _lock:
         hit = _png_cache.get(key)
         if hit is not None:
             _png_cache.move_to_end(key)
             return hit
-    png, info = ready_dataset().render(p, month, width, fixed)
+    cd = ready_dataset()
+    png, info = cd.render_counts(f.counts(cd), width, fixed,
+                                 limit=f.days_limit(cd),
+                                 meta={"months": list(f.months) if f.months else None,
+                                       "view_kind": f.kind,
+                                       "window_label": f.label(),
+                                       "unit_label": f.unit_label()})
+    if f.is_winterquarters:
+        info["summer_months"] = list(f.summer_months)
+        info["winter_months"] = list(f.winter_months)
     with _lock:
         _png_cache[key] = (png, info)
         while len(_png_cache) > _CACHE_MAX:
@@ -297,7 +442,28 @@ def api_meta():
         "state": "ready",
         "months": MONTHS,
         "presets": PRESETS,
+        "winter_presets": WINTER_PRESETS,
         "defaults": Params().query(),
+        "winter_defaults": WINTER_DEFAULTS.query(),
+        # Alles, was die Oberfläche für den Winterquartier-Modus braucht.
+        "winterquarters": {
+            # 1-basiert wie der month-Parameter, damit die Oberfläche nichts umrechnen muss
+            "summer_months": [m + 1 for m in DEFAULT_SUMMER_MONTHS],
+            "min_months": WQ_MIN_MONTHS,
+            "max_months": WQ_MAX_MONTHS,
+            "views": [
+                {"id": "combo", "name": "Kombination",
+                 "desc": "Sommer- und Winterquartier-Tage zusammen – ein Ort fürs ganze Jahr"},
+                {"id": "summer", "name": "Sommerquartier",
+                 "desc": "Nur die Wohlfühl-Tage im Sommerfenster"},
+                {"id": "winter", "name": "Winterquartier",
+                 "desc": "Nur die Wohlfühl-Tage in den Wintermonaten"},
+            ],
+            "roles": [
+                {"id": "summer", "name": "Sommerquartier", "wants": "Winterquartier"},
+                {"id": "winter", "name": "Winterquartier", "wants": "Sommerquartier"},
+            ],
+        },
         "dataset": {
             "source": cd.meta.get("source"),
             "attribution": cd.meta.get("attribution"),
@@ -335,24 +501,20 @@ def api_meta():
 
 
 @app.get("/api/map")
-def api_map(p: Params = Depends(parse_params), month: str | None = Query(None),
-            width: int = 1100, fixed: bool = False):
-    p = p or Params()
-    m = parse_month(month)
-    _, info = render_cached(p, m, int(width), bool(fixed))
+def api_map(f: Filter = Depends(parse_filter), width: int = 1100, fixed: bool = False):
+    _, info = render_cached(f, int(width), bool(fixed))
     ticks = ready_dataset().legend_ticks(info["vmax"])
     return {**{k: v for k, v in info.items() if k != "values"},
             "values": info["values"], "legend_ticks": ticks,
-            "month": m, "params": p.query(),
-            "month_label": "ganzes Jahr" if m is None else MONTHS[m]}
+            "month": f.single_month(), "params": f.p.query(),
+            "winter_params": f.winter.query() if f.is_winterquarters else None,
+            "view_kind": f.kind,
+            "month_label": f.label(), "unit_label": f.unit_label()}
 
 
 @app.get("/api/map.png")
-def api_map_png(p: Params = Depends(parse_params), month: str | None = Query(None),
-                width: int = 1100, fixed: bool = False):
-    p = p or Params()
-    m = parse_month(month)
-    png, info = render_cached(p, m, int(width), bool(fixed))
+def api_map_png(f: Filter = Depends(parse_filter), width: int = 1100, fixed: bool = False):
+    png, info = render_cached(f, int(width), bool(fixed))
     return Response(content=png, media_type="image/png",
                     headers={"X-Legend-Max": str(info["vmax"]),
                              "Cache-Control": "public, max-age=600"})
@@ -360,30 +522,75 @@ def api_map_png(p: Params = Depends(parse_params), month: str | None = Query(Non
 
 @app.get("/api/point")
 def api_point(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-180, le=180),
-              p: Params = Depends(parse_params), month: str | None = Query(None)):
-    """Auswertung für einen Ort: Wohlfühl-Tage, Monatsprofil und Klima."""
-    p = p or Params()
-    m = parse_month(month)
-    return ready_dataset().point_report(lat, lon, p, m)
+              f: Filter = Depends(parse_filter)):
+    """Auswertung für einen Ort: Wohlfühl-Tage, Monatsprofil und Klima.
+
+    Im Winterquartier-Modus kommt der Block ``wq`` dazu (Sommer-, Winter- und
+    Kombinations-Tage dieses Ortes).
+    """
+    cd = ready_dataset()
+    month = f.single_month()
+    rep = cd.point_report(lat, lon, f.p, month if month is not None else f.months)
+    rep["view_kind"] = f.kind
+    if f.is_winterquarters:
+        rep["wq"] = cd.winterquarters_point(lat, lon, f)
+    return rep
 
 
 @app.get("/api/ranking")
-def api_ranking(p: Params = Depends(parse_params), month: str | None = Query(None), limit: int = 12):
-    p = p or Params()
-    m = parse_month(month)
+def api_ranking(f: Filter = Depends(parse_filter), limit: int = 12):
+    cd = ready_dataset()
     return {
-        "month": m,
-        "month_label": "ganzes Jahr" if m is None else MONTHS[m],
-        "cities": ready_dataset().ranking(p, m, max(1, min(40, limit))),
+        "month": f.single_month(),
+        "month_label": f.label(),
+        "unit_label": f.unit_label(),
+        "view_kind": f.kind,
+        "cities": cd.ranking_counts(f.counts(cd), max(1, min(40, limit))),
     }
 
 
 @app.get("/api/cities/map")
-def api_cities_map(p: Params = Depends(parse_params), month: str | None = Query(None), limit: int = 400):
+def api_cities_map(f: Filter = Depends(parse_filter), limit: int = 400):
     """Größte Orte mit ihrer Tageszahl – für anklickbare Kartenmarker."""
-    p = p or Params()
-    m = parse_month(month)
-    return {"month": m, "cities": ready_dataset().cities_for_map(p, m, max(20, min(1200, limit)))}
+    cd = ready_dataset()
+    return {"month": f.single_month(), "view_kind": f.kind,
+            "cities": cd.cities_for_map_counts(f.counts(cd), max(20, min(1200, limit)))}
+
+
+@app.get("/api/winterquarters/optimize")
+def api_winterquarters_optimize(f: Filter = Depends(parse_filter),
+                                min_months: int = Query(WQ_MIN_MONTHS, ge=1, le=11),
+                                max_months: int = Query(WQ_MAX_MONTHS, ge=1, le=11),
+                                limit: int = Query(8, ge=1, le=40)):
+    """Optimale Kombination aus Sommer- und Winterquartier-Monaten.
+
+    Getestet werden alle zusammenhängenden Aufteilungen des Jahres (Sommerfenster
+    mit ``min_months``–``max_months`` Monaten, Rest = Winterquartier) gegen beide
+    Wetterprofile. Antwort: beste Aufteilungen samt bestem Ort und bester Stadt.
+    """
+    lo, hi = sorted((int(min_months), int(max_months)))
+    return ready_dataset().season_split_report(f.p, f.winter, lo, hi, max(1, min(40, limit)))
+
+
+@app.get("/api/winterquarters/pair")
+def api_winterquarters_pair(lat: float = Query(..., ge=-90, le=90),
+                            lon: float = Query(..., ge=-180, le=180),
+                            role: str = Query("summer", description="summer | winter"),
+                            max_km: float | None = Query(None, ge=1, le=20000),
+                            limit: int = Query(8, ge=1, le=40),
+                            f: Filter = Depends(parse_filter)):
+    """Gegenstück-Suche: welches andere Quartier passt am besten?
+
+    ``role`` beschreibt den gewählten Ort: ``summer`` = hier ist mein Sommerquartier,
+    gesucht wird das Winterquartier (und umgekehrt). Jeder Vorschlag nennt die
+    Wohlfühl-Tage im gesuchten Zeitraum, die Summe beider Quartiere und die
+    Entfernung – die optimale Monatsaufteilung wird je Paar mitberechnet.
+    """
+    if role.lower() not in ("summer", "winter", "s", "w", "sommer", "winterquartier"):
+        raise HTTPException(400, "role muss 'summer' oder 'winter' sein")
+    return ready_dataset().pair_report(lat, lon, role, f.p, f.winter, f.summer_months,
+                                       limit=max(1, min(40, limit)), max_km=max_km,
+                                       min_len=WQ_MIN_MONTHS, max_len=WQ_MAX_MONTHS)
 
 
 @app.get("/api/build")

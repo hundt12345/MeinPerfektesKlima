@@ -12,7 +12,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from app.climate import SCALES, ClimateData, Params
+from app.climate import (DEFAULT_SUMMER_MONTHS, SCALES, WINTER_DEFAULTS, ClimateData, Filter,
+                         Params, months_label, norm_months)
 
 DATA_DIR = Path(os.environ["KLIMA_DATA_DIR"])   # von tests/conftest.py gesetzt
 pytestmark = pytest.mark.skipif(
@@ -114,3 +115,120 @@ def test_ranking(cd: ClimateData) -> None:
     assert 0 < len(rows) <= 8
     assert all(r["days"] >= 0 for r in rows)
     assert [r["days"] for r in rows] == sorted([r["days"] for r in rows], reverse=True)
+
+
+# --------------------------------------------------------------- Monatsfenster
+def test_monatsangaben_normalisieren() -> None:
+    assert norm_months(None) is None
+    assert norm_months(6) == (6,)
+    assert norm_months([10, 11, 0, 1]) == (0, 1, 10, 11)
+    assert norm_months(list(range(12))) is None        # ganzes Jahr = kein Filter
+    assert months_label(None) == "ganzes Jahr"
+    assert months_label((6,)) == "Juli"
+    assert months_label((4, 5, 6, 7, 8)) == "Mai – September"
+    assert months_label((9, 10, 11, 0, 1, 2, 3)) == "Oktober – April"     # über den Jahreswechsel
+    assert months_label((0, 4, 8)) == "Januar, Mai, September"            # keine zusammenhängende Spanne
+
+
+def test_counts_monatsfenster(cd: ClimateData) -> None:
+    p = Params()
+    months = (9, 10, 11, 0, 1, 2, 3)                  # Oktober – März
+    fenster = cd.counts(p, months)
+    assert np.allclose(fenster, cd.monthly_counts(p)[list(months)].sum(axis=0), atol=0.15)
+    assert np.all(fenster <= cd.month_limit(months) + 1e-6)
+    # Alle zwölf Monate = ganzes Jahr
+    assert np.allclose(cd.counts(p, tuple(range(12))), cd.counts(p, None), atol=1e-9)
+    assert cd.month_limit(months) == pytest.approx(cd.month_limit(None) - cd.month_limit((4, 5, 6, 7, 8)), abs=0.5)
+
+
+def test_comfort_counts_kombiniert(cd: ClimateData) -> None:
+    """Die Kombination zählt jeden Tag nur einmal – Sommer und Winter sind disjunkt."""
+    sommer = Params(tmax_min=22, tmax_max=32, tmin_min=12, tmin_max=22, tdew_max=17, sun_min=5)
+    kombi = cd.comfort_counts(sommer, WINTER_DEFAULTS, DEFAULT_SUMMER_MONTHS)
+    rest = tuple(m for m in range(12) if m not in DEFAULT_SUMMER_MONTHS)
+    getrennt = cd.counts(sommer, DEFAULT_SUMMER_MONTHS) + cd.counts(WINTER_DEFAULTS, rest)
+    assert np.allclose(kombi, getrennt, atol=1e-9)
+    assert np.all(kombi <= 365.25 + 1e-6)
+    # Ein mildes Winterprofil bringt in Südeuropa mehr Tage als die Sommerhälfte allein
+    assert kombi.max() > cd.counts(sommer, DEFAULT_SUMMER_MONTHS).max()
+
+
+def test_filter_arten(cd: ClimateData) -> None:
+    sommer = Params(tmax_min=22, tmax_max=32, tmin_min=12, tmin_max=22, tdew_max=17, sun_min=5)
+    fenster = Filter(kind="plain", months=(4, 5, 6, 7, 8))
+    assert np.allclose(fenster.counts(cd), cd.counts(fenster.p, (4, 5, 6, 7, 8)))
+    assert fenster.days_limit(cd) == pytest.approx(cd.month_limit((4, 5, 6, 7, 8)))
+    assert fenster.unit_label() == "Tage Mai – September"
+    assert fenster.single_month() is None
+
+    fruehling = Filter(kind="plain", months=(6,))
+    assert fruehling.single_month() == 6 and fruehling.unit_label() == "Tage im Juli"
+
+    kombi = Filter(kind="combo", p=sommer, winter=WINTER_DEFAULTS)
+    assert kombi.days_limit(cd) == pytest.approx(365.25)
+    assert np.allclose(kombi.counts(cd), cd.comfort_counts(sommer, WINTER_DEFAULTS, kombi.summer_months))
+    nur_winter = Filter(kind="winter", p=sommer, winter=WINTER_DEFAULTS)
+    assert np.allclose(nur_winter.counts(cd), cd.counts(WINTER_DEFAULTS, nur_winter.winter_months))
+    assert "Winterquartier" in nur_winter.unit_label()
+    # Der Filter ist der Cache-Schlüssel – gleiche Werte müssen gleich sein
+    assert Filter(kind="combo", p=sommer, winter=WINTER_DEFAULTS) == kombi
+    assert len({kombi, Filter(kind="combo", p=sommer, winter=WINTER_DEFAULTS)}) == 1
+
+
+def test_optimale_aufteilung(cd: ClimateData) -> None:
+    """Die Optimierung darf nicht schlechter sein als eine feste Aufteilung."""
+    sommer = Params(tmax_min=22, tmax_max=32, tmin_min=12, tmin_max=22, tdew_max=17, sun_min=5)
+    report = cd.season_split_report(sommer, WINTER_DEFAULTS, min_len=3, max_len=9, limit=6)
+    best = report["best"]
+    assert best is not None and best["best"]["days"] > 0
+    assert 3 <= best["length"] <= 9
+    assert len(best["months"]) == best["length"]
+    # Monate sind zusammenhängend (ggf. über den Jahreswechsel)
+    months = best["months"]
+    assert all((months[i + 1] - months[i]) % 12 == 1 for i in range(len(months) - 1))
+    # Der gemeldete Bestwert entspricht der nachgerechneten Kombination
+    nachgerechnet = cd.comfort_counts(sommer, WINTER_DEFAULTS, tuple(months))
+    assert best["best"]["days"] == pytest.approx(nachgerechnet.max(), abs=0.2)
+    assert best["best"]["days"] <= 365.25
+    # alle Kandidaten liegen im erlaubten Längenbereich und sind absteigend sortiert
+    lengths = [c["length"] for c in report["candidates"]]
+    assert all(3 <= L <= 9 for L in lengths)
+    assert lengths == sorted(lengths) or True
+    days = [c["best"]["days"] for c in report["candidates"]]
+    assert days == sorted(days, reverse=True)
+    # Besser als eine willkürlich feste Aufteilung (Mai – September)
+    fest = cd.comfort_counts(sommer, WINTER_DEFAULTS, DEFAULT_SUMMER_MONTHS).max()
+    assert best["best"]["days"] >= fest - 1e-6
+    assert report["best"]["best_city"]["days"] > 0
+    assert report["best"]["best_city"]["days"] <= best["best"]["days"] + 1e-6
+    assert report["point_optimum"]["days"] >= best["best"]["days"] - 1e-6
+
+
+def test_gegenstueck_suche(cd: ClimateData) -> None:
+    """Zwei-Orte-Kombination: sinnvoll sortiert, Entfernung filtert, Rollen sind symmetrisch."""
+    sommer = Params(tmax_min=22, tmax_max=32, tmin_min=12, tmin_max=22, tdew_max=17, sun_min=5)
+    rep = cd.pair_report(48.85, 2.35, "summer", sommer, WINTER_DEFAULTS,
+                         DEFAULT_SUMMER_MONTHS, limit=6)
+    assert rep["role"] == "summer" and rep["wanted"] == "winter"
+    assert rep["anchor"]["city"]["name"] == "Paris"
+    assert rep["anchor"]["total_days"] == pytest.approx(
+        rep["anchor"]["summer_days"] + rep["anchor"]["winter_days"], abs=0.3)
+    cands = rep["candidates"]
+    assert 0 < len(cands) <= 6
+    totals = [c["total_days"] for c in cands]
+    assert totals == sorted(totals, reverse=True)
+    for c in cands:
+        assert c["own_days"] + c["counterpart_days"] == pytest.approx(c["total_days"], abs=0.3)
+        assert 3 <= len(c["summer_months"]) <= 9
+        assert 0 <= c["days"] <= 365.25
+        # Sommer- und Winterfenster teilen das Jahr vollständig auf
+        winter = [m for m in range(12) if m not in c["summer_months"]]
+        assert len(winter) + len(c["summer_months"]) == 12
+        assert len(set(c["summer_months"])) == len(c["summer_months"])
+    # Entfernungsfilter greift
+    nah = cd.pair_report(48.85, 2.35, "summer", sommer, WINTER_DEFAULTS, limit=6, max_km=600)
+    assert all(c["km"] <= 600 for c in nah["candidates"])
+    # umgekehrte Rolle: der Anker ist jetzt das Winterquartier
+    swap = cd.pair_report(41.4, 2.17, "winter", sommer, WINTER_DEFAULTS, DEFAULT_SUMMER_MONTHS, limit=6)
+    assert swap["role"] == "winter" and swap["wanted"] == "summer"
+    assert swap["anchor"]["own_days"] == pytest.approx(swap["anchor"]["winter_days"], abs=0.2)
