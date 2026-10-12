@@ -20,7 +20,11 @@ on:
         description: "Berichtsdatei im Repo"
         default: "data/quellen-probe-tageswerte.txt"
   push:
-    branches: [main, "arena/**"]
+    branches: [main]
+    paths:
+      - "scripts/probe_sources.py"
+      - "scripts/probe_daily.py"
+      - ".github/workflows/probe-datenquellen.yml"
     paths:
       - ".github/workflows/probe-datenquellen.yml"
 
