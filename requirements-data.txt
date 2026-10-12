@@ -1,0 +1,9 @@
+# Abhängigkeiten des Datenlaufs (GitHub Action „Klimadaten bauen").
+# Für den Betrieb der Website auf Render reicht requirements.txt – die App liest
+# nur die fertige Datei app/data/climate_grid.npz und braucht weder xarray noch
+# Netzzugriff.
+-r requirements.txt
+global-land-mask>=1.0.0     # Landmaske: welche Rasterpunkte sind Land?
+xarray>=2025.1.0            # Zarr-Datenspeicher öffnen und Ausschnitte lesen
+zarr>=3,<4                  # Speicherformat der offenen ERA5-Daten (ARCO)
+gcsfs>=2024.10.0            # anonym auf Google Cloud Storage lesen

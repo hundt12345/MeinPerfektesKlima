@@ -257,3 +257,44 @@ footer { margin-top: 1.2rem; color: var(--muted); font-size: .78rem; }
   .legend { min-width: 150px; right: 8px; bottom: 8px; }
   .mapnote { display: none; }
 }
+
+/* ---------------- Statusseite „Daten im Aufbau" ---------------- */
+.building { padding: 1rem; }
+.build-card { max-width: 760px; margin: 3vh auto; padding: 1.4rem 1.5rem; }
+.build-card .lead { color: var(--text); margin: .2rem 0 1rem; font-size: .95rem; }
+
+.bar {
+  position: relative; height: 26px; border-radius: 999px; overflow: hidden;
+  background: var(--card-2); border: 1px solid var(--line);
+}
+.bar-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, #2f7fb5, #57c9d6 60%, #ffb454);
+  transition: width .6s ease;
+}
+/* Unbestimmter Fortschritt (noch keine Zahlen vom Datenlauf) */
+.bar.indeterminate .bar-fill {
+  width: 35% !important;
+  animation: wander 1.6s ease-in-out infinite;
+}
+@keyframes wander { 0% { transform: translateX(-100%); } 100% { transform: translateX(320%); } }
+.bar-label {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: .8rem; font-weight: 650; color: #eaf1f8; text-shadow: 0 1px 3px rgba(0,0,0,.6);
+}
+.bar.warn .bar-fill { background: linear-gradient(90deg, #8a4a17, #d08a2c); }
+.bar.done .bar-fill { background: linear-gradient(90deg, #2f8f5b, #63c07f); }
+
+.build-meta { list-style: none; margin: .9rem 0 0; padding: 0; display: grid; gap: .3rem; }
+.build-meta li { display: flex; gap: .5rem; font-size: .86rem; color: var(--muted); }
+.build-meta li b { color: var(--text); font-weight: 600; min-width: 13ch; }
+
+.build-reasons { margin: .9rem 0 0; padding: .7rem .8rem; border-radius: 10px;
+  background: #33220f; border: 1px solid #6d4a1c; color: #ffd9a3; font-size: .85rem; }
+.build-reasons ul { margin: .3rem 0 0; padding-left: 1.1rem; }
+
+.build-log {
+  margin: .9rem 0 0; padding: .7rem .8rem; max-height: 190px; overflow: auto;
+  background: #0b1420; border: 1px solid var(--line); border-radius: 10px;
+  color: #9fd0a8; font: 12px/1.55 "SFMono-Regular", Consolas, monospace; white-space: pre-wrap;
+}

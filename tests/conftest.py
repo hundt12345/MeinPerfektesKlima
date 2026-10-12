@@ -33,3 +33,10 @@ if not (DEV / "climate_grid.npz").exists():
 
 os.environ["KLIMA_DATA_DIR"] = str(DEV)
 DATA_DIR = DEV
+
+# Die Tests prüfen die *Mechanik* der App mit dem synthetischen Referenzraster;
+# das Datentor der Website (nur echte ERA5-Daten) wird in tests/test_data_gate.py
+# separat geprüft. Deshalb ist es hier geöffnet – und der Fortschrittsabruf bleibt
+# offline (keine GitHub-Anfragen aus dem Testlauf).
+os.environ.setdefault("KLIMA_ALLOW_UNVERIFIED", "1")
+os.environ.setdefault("KLIMA_PROGRESS_URL", "")
