@@ -2,24 +2,24 @@
   "schema": 1,
   "status": "running",
   "phase": "Abruf",
-  "percent": 10.0,
-  "message": "total_precipitation 2017-06-20 … 2017-06-24",
-  "blocks_done": 1,
+  "percent": 20.0,
+  "message": "Jahr 2017 gelesen (2 von 10 Jahren)",
+  "blocks_done": 2,
   "blocks_total": 10,
-  "rate": "723 s/Jahr",
-  "eta_minutes": 108,
+  "rate": "695 s/Jahr",
+  "eta_minutes": 94,
   "source": "ERA5-Reanalyse (Copernicus Climate Change Service / ECMWF), offene analysis-ready Kopie von Google Research",
   "started_at": "2026-10-12T12:49:40Z",
-  "updated_at": "2026-10-12T13:11:59Z",
+  "updated_at": "2026-10-12T13:13:26Z",
   "run_url": "https://github.com/hundt12345/MeinPerfektesKlima/actions/runs/38251440135",
   "log_tail": [
-    "[12:49:46] Raster 51x94 = 4794 Punkte, davon Land: 2250",
     "[12:49:46] Zielraster: 51x94 = 4794 Punkte, davon Land: 2250",
     "/home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/scripts/fetch_era5_zarr.py:290: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes impli",
     "  return np.arange(np.datetime64(start), np.datetime64(end) + 1, dtype=\"datetime64[D]\")",
     "[12:49:46] Kontrollpunkte: 0 von 10 Jahren vorhanden, 10 offen (/home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/data/checkpoints/zarr-777a342576)",
     "[12:49:46]   Jahr 2016: 366 Tage (2016-01-01 … 2016-12-31)",
     "[13:01:49]   Jahr 2016 fertig in 723s (1975 ms/Tag), 1/10 Jahre, noch ca. 108 min",
-    "[13:01:51]   Jahr 2017: 365 Tage (2017-01-01 … 2017-12-31)"
+    "[13:01:51]   Jahr 2017: 365 Tage (2017-01-01 … 2017-12-31)",
+    "[13:13:26]   Jahr 2017 fertig in 695s (1904 ms/Tag), 2/10 Jahre, noch ca. 95 min"
   ]
 }
