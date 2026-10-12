@@ -49,25 +49,80 @@
 <main>
   <aside class="panel" id="panel">
     <section class="card">
-      <div class="segmented" role="tablist" aria-label="Modus">
+      <div class="segmented tri" role="tablist" aria-label="Modus">
         <button id="mode-year" role="tab" aria-selected="true">Ganzes Jahr</button>
         <button id="mode-month" role="tab" aria-selected="false">Urlaubsmonat</button>
+        <button id="mode-wq" role="tab" aria-selected="false">Winterquartier</button>
       </div>
+      <!-- Monatsauswahl gehört nur zum Urlaubsmonat -->
       <div class="month-picker" id="month-picker" hidden>
         <label for="month-select">Monat</label>
         <select id="month-select"></select>
       </div>
     </section>
 
+    <!-- Nur im Winterquartier-Modus sichtbar: Aufteilung des Jahres + Optimierung -->
+    <section class="card" id="wq-setup" data-wq-only hidden>
+      <h2>Winterquartier</h2>
+      <p class="hint">
+        Zwei Profile, ein Jahr: Das Wohlfühlwetter unten beschreibt deinen <strong>Sommer</strong>,
+        darunter stellst du das Wetter fürs <strong>Winterquartier</strong> ein. Hier legst du fest,
+        welche Monate Sommer sind – alle übrigen sind Winterquartier.
+      </p>
+      <div class="row">
+        <label for="wq-sfrom">Sommer von</label>
+        <select id="wq-sfrom"></select>
+      </div>
+      <div class="row" style="margin-top:.35rem">
+        <label for="wq-sto">Sommer bis</label>
+        <select id="wq-sto"></select>
+      </div>
+      <p class="hint" id="wq-window"></p>
+      <div class="segmented tri views" role="tablist" aria-label="Kartenansicht">
+        <button id="wq-view-combo" role="tab" aria-selected="true">Kombination</button>
+        <button id="wq-view-summer" role="tab" aria-selected="false">Sommer</button>
+        <button id="wq-view-winter" role="tab" aria-selected="false">Winter</button>
+      </div>
+      <div class="row buttons">
+        <button class="ghost" id="btn-wq-optimize">Optimale Kombination finden</button>
+      </div>
+      <p class="hint" id="wq-result" hidden></p>
+      <div class="presets" id="wq-alternatives"></div>
+    </section>
+
     <section class="card">
-      <h2>Dein Wohlfühlwetter</h2>
+      <h2 id="feel-title">Dein Wohlfühlwetter</h2>
       <div id="controls"></div>
       <p class="hint">Ein Tag zählt, wenn <strong>alle</strong> Kriterien gleichzeitig erfüllt sind.</p>
     </section>
 
+    <section class="card" data-wq-only hidden>
+      <h2>Wetter im Winterquartier</h2>
+      <div id="winter-controls"></div>
+      <div class="presets" id="winter-presets"></div>
+      <p class="hint">Damit werden die Monate außerhalb des Sommerfensters gezählt.</p>
+    </section>
+
     <section class="card">
-      <h2>Voreinstellungen</h2>
+      <h2 id="presets-title">Voreinstellungen</h2>
       <div class="presets" id="presets"></div>
+    </section>
+
+    <!-- Nur im Winterquartier-Modus: Zwei-Orte-Kombination -->
+    <section class="card" id="pair-card" data-wq-only hidden>
+      <h2>Gegenstück finden</h2>
+      <p class="hint">
+        Ort auf der Karte wählen – hier erscheinen die besten Quartiere für die andere Jahreshälfte.
+      </p>
+      <div class="segmented" role="tablist" aria-label="Was ist der gewählte Ort?">
+        <button id="pair-role-summer" role="tab" aria-selected="true">Sommer hier</button>
+        <button id="pair-role-winter" role="tab" aria-selected="false">Winter hier</button>
+      </div>
+      <div class="row" style="margin-top:.5rem">
+        <label for="pair-max-km">Entfernung höchstens</label>
+        <select id="pair-max-km"></select>
+      </div>
+      <ol class="ranking" id="pair-list"><li class="muted">noch kein Ort gewählt</li></ol>
     </section>
 
     <section class="card">
@@ -85,7 +140,7 @@
 
     <section class="card">
       <div class="card-head">
-        <h2>Top-Orte für diese Einstellung</h2>
+        <h2 id="rank-title">Top-Orte für diese Einstellung</h2>
         <button class="mini" id="btn-rank-refresh" title="Neu berechnen">↻</button>
       </div>
       <ol class="ranking" id="ranking"><li class="muted">wird berechnet …</li></ol>
@@ -127,9 +182,20 @@
         räumlich sinnvoll ab.
       </p>
       <p>
-        <strong>Zwei Modi:</strong> „Ganzes Jahr“ beantwortet die Frage, wo dein Wohlfühlwetter übers Jahr
+        <strong>Drei Modi:</strong> „Ganzes Jahr“ beantwortet die Frage, wo dein Wohlfühlwetter übers Jahr
         gerechnet am häufigsten vorkommt. „Urlaubsmonat“ zählt nur die Tage eines Monats – ideal, um zu
-        prüfen, ob das Wunschziel im geplanten Reisemonat wirklich passt.
+        prüfen, ob das Wunschziel im geplanten Reisemonat wirklich passt. „Winterquartier“ stellt zwei
+        Wetterprofile gegenüber: ein Sommer-Profil für das Sommerfenster und ein Winter-Profil für alle
+        übrigen Monate.
+      </p>
+      <p>
+        <strong>Winterquartier:</strong> Die Karte zeigt dann, wie viele Tage im Jahr an einem Ort
+        <em>entweder</em> das Sommer- <em>oder</em> das Winterquartier-Wetter herrscht – die Kennzahl für
+        „Welcher Ort trägt mich das ganze Jahr?“. „Optimale Kombination finden“ sucht zusätzlich die beste
+        Aufteilung des Jahres (welche Monate gehören zum Sommer?) und den Ort mit der höchsten Jahressumme.
+        Für die Zwei-Orte-Variante wählst du einen Ort und die Liste <em>Gegenstück finden</em> zeigt die
+        besten Quartiere für die andere Jahreshälfte – inklusive Entfernung und der für das Paar besten
+        Monatsaufteilung.
       </p>
     </div>
     <div>

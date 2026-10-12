@@ -8,15 +8,22 @@
 "use strict";
 
 const state = {
-  mode: "year",              // "year" | "month"
+  mode: "year",              // "year" | "month" | "wq" (Winterquartier)
   month: 7,                  // 1..12
   params: { tmax_min: 18, tmax_max: 30, tmin_min: 5, tmin_max: 20, tdew_max: 18, sun_min: 3, prec_max: 99 },
+  winter: { tmax_min: 14, tmax_max: 26, tmin_min: 6, tmin_max: 18, tdew_max: 17, sun_min: 4, prec_max: 99 },
+  wq: {                      // Winterquartier-Modus
+    view: "combo",           // "combo" | "summer" | "winter" – was die Karte zeigt
+    sfrom: 5, sto: 9,        // Sommerfenster (1..12); Winter = die übrigen Monate
+  },
+  pair: { role: "summer", maxKm: 0, data: null },   // Gegenstück-Suche
   fixedScale: false,
   showCities: true,
   selected: null,            // {lat, lon, name, country, report}
 };
 
 let META = null;             // /api/meta
+let WQ_BOUNDS = {};          // META.winterquarters (Sommerfenster, Saisonlänge)
 let GRID = null;             // letzte /api/map-Antwort
 let map = null, overlay = null, landLayer = null, borderLayer = null;
 let cityLayer = null, cityData = [], markerIndex = new Map();
@@ -53,16 +60,76 @@ function fmtTemp(v, digits = 1) {
     minimumFractionDigits: digits, maximumFractionDigits: digits })} °C`;
 }
 function activeMonth() { return state.mode === "month" ? state.month : null; }
-function monthUnit() { return state.mode === "month" ? `Tage im ${monthNames[state.month - 1]}` : "Tage pro Jahr"; }
+function isWinterquarters() { return state.mode === "wq"; }
+
+/** Einheit der Kartenwerte – am liebsten die des Servers (Legende/Hover). */
+function monthUnit() {
+  if (GRID && GRID.unit_label) return GRID.unit_label;
+  if (isWinterquarters()) return "Tage/Jahr mit Wohlfühlklima";
+  return state.mode === "month" ? `Tage im ${monthNames[state.month - 1]}` : "Tage pro Jahr";
+}
+
+/**
+ * Winterquartier-Parameter in eine Abfrage schreiben.
+ * Die Wetterparameter (`tmax_min` …) gelten dabei als **Sommer**-Profil,
+ * `w`+Name als Winterquartier-Profil; `sfrom`/`sto` sind das Sommerfenster.
+ */
+function wqQuery(q = new URLSearchParams()) {
+  q.set("view", "wq");
+  q.set("wview", state.wq.view);
+  q.set("sfrom", state.wq.sfrom);
+  q.set("sto", state.wq.sto);
+  for (const [k, v] of Object.entries(state.params)) q.set(k, v);
+  for (const [k, v] of Object.entries(state.winter)) q.set("w" + k, v);
+  return q;
+}
+
+/** Filterparameter der aktuellen Ansicht – für Karte, Orte, Listen und Suche. */
+function filterQuery(q = new URLSearchParams()) {
+  if (isWinterquarters()) return wqQuery(q);
+  for (const [k, v] of Object.entries(state.params)) q.set(k, v);
+  q.set("month", activeMonth() || "all");
+  return q;
+}
 
 function queryString() {
-  const p = new URLSearchParams();
-  for (const [k, v] of Object.entries(state.params)) p.set(k, v);
-  const m = activeMonth();
-  p.set("month", m ? m : "all");
+  const p = filterQuery();
   p.set("width", currentWidth());
   if (state.fixedScale) p.set("fixed", "true");
   return p.toString();
+}
+
+/** Monate des Sommerfensters (1-basiert, Jahreswechsel inklusive). */
+function summerMonths() {
+  const out = [];
+  let m = state.wq.sfrom;
+  while (out.length < 12) {
+    out.push(m);
+    if (m === state.wq.sto) break;
+    m = (m % 12) + 1;
+  }
+  return out;
+}
+
+/** „Mai – September“ bzw. „Januar, Februar, März“ für eine Monatsliste. */
+function monthsLabel(list) {
+  if (!list || !list.length) return "ganzes Jahr";
+  if (list.length === 1) return monthNames[list[0] - 1];
+  const sorted = [...list].sort((a, b) => a - b);
+  const starts = sorted.filter((m) => !list.includes(((m + 10) % 12) + 1));
+  if (starts.length === 1 && sorted.length < 12) {
+    const start = starts[0];
+    const end = list[(list.indexOf(start) + list.length - 1) % list.length];
+    return `${monthNames[start - 1]} – ${monthNames[end - 1]}`;
+  }
+  return sorted.map((m) => monthNames[m - 1]).join(", ");
+}
+
+function winterMonths() {
+  const summer = summerMonths();
+  const rest = [];
+  for (let m = 1; m <= 12; m++) if (!summer.includes(m)) rest.push(m);
+  return rest;
 }
 
 function currentWidth() {
@@ -196,9 +263,7 @@ function cityZoomLimit() {
 
 async function loadCities() {
   try {
-    const q = new URLSearchParams({ limit: 900 });
-    for (const [k, v] of Object.entries(state.params)) q.set(k, v);
-    q.set("month", activeMonth() || "all");
+    const q = filterQuery(new URLSearchParams({ limit: 900 }));
     const data = await getJSON("/api/cities/map?" + q);
     cityData = data.cities || [];
     paintCities();
@@ -212,7 +277,8 @@ function paintCities() {
   const vmax = Math.max(1, (GRID && GRID.vmax) || 1);
   const limit = cityZoomLimit();
   const zoom = map.getZoom();
-  const unit = state.mode === "month" ? `Tage im ${monthNames[state.month - 1]}` : "Tage/Jahr";
+  const unit = isWinterquarters() ? "Tage/Jahr (Sommer + Winter)"
+    : (state.mode === "month" ? `Tage im ${monthNames[state.month - 1]}` : "Tage/Jahr");
   let added = 0;
   for (const c of cityData) {
     if (c.pop < limit || added >= 420) continue;
@@ -304,10 +370,9 @@ async function selectPlace(lat, lon, name, country) {
   }
   const note = $("#mapnote"); if (note) note.hidden = true;
   renderDetail({ loading: true });
+  if (isWinterquarters()) loadPair();          // Gegenstück-Suche parallel anstoßen
   try {
-    const q = new URLSearchParams({ lat, lon });
-    for (const [k, v] of Object.entries(state.params)) q.set(k, v);
-    q.set("month", activeMonth() || "all");
+    const q = filterQuery(new URLSearchParams({ lat, lon }));
     const rep = await getJSON("/api/point?" + q);
     const city = rep.city || nearestCityCached(lat, lon);
     state.selected.report = rep;
@@ -318,6 +383,78 @@ async function selectPlace(lat, lon, name, country) {
   } catch (err) {
     renderDetail({ error: String(err.message || err) });
   }
+}
+
+/* ------------------------------------------ Gegenstück (Zwei-Orte-Kombination) */
+let pairSeq = 0;
+
+async function loadPair() {
+  const list = $("#pair-list");
+  if (!list) return;
+  const sel = state.selected;
+  if (!sel) {
+    list.innerHTML = "";
+    list.append(el("li", { class: "muted", text: "noch kein Ort gewählt" }));
+    return;
+  }
+  list.innerHTML = "";
+  list.append(el("li", { class: "muted", text: "wird gesucht …" }));
+  const q = filterQuery(new URLSearchParams({ lat: sel.lat, lon: sel.lon, limit: 8 }));
+  q.set("role", state.pair.role);
+  if (state.pair.maxKm) q.set("max_km", state.pair.maxKm);
+  const token = ++pairSeq;
+  try {
+    const data = await getJSON("/api/winterquarters/pair?" + q);
+    if (token !== pairSeq) return;
+    state.pair.data = data;
+    renderPair(data);
+  } catch (err) {
+    if (token !== pairSeq) return;
+    list.innerHTML = "";
+    list.append(el("li", { class: "muted", text: "Fehler: " + (err.message || err) }));
+  }
+}
+
+function renderPair(data) {
+  const list = $("#pair-list");
+  if (!list) return;
+  list.innerHTML = "";
+  const anchor = data.anchor || {};
+  const name = (anchor.city && anchor.city.name) || "gewählter Ort";
+  list.append(el("li", {
+    class: "muted",
+    text: `${data.wanted_label || "Gegenstück"} zu ${name} · hier ${fmtDays(anchor.own_days)} Tage`
+      + (data.max_km ? ` · bis ${fmtDays(data.max_km)} km` : "")
+      + " · rechts die Summe beider Quartiere",
+  }));
+  const cands = data.candidates || [];
+  if (!cands.length) {
+    list.append(el("li", { class: "muted", text: "Keine Vorschläge im gewählten Radius." }));
+    return;
+  }
+  cands.forEach((c, i) => {
+    list.append(el("li", {},
+      el("button", {
+        title: `${c.name}: ${fmtDays(c.counterpart_days)} Tage im ${data.wanted_label}`
+          + ` · Sommer ${c.summer_label} (dort ${fmtDays(c.own_days)} Tage)`,
+        onclick: () => {
+          map.flyTo([c.lat, c.lon], Math.max(map.getZoom(), 6), { duration: 0.7 });
+          selectPlace(c.lat, c.lon, c.name, c.country);
+        },
+      },
+        el("span", {},
+          el("span", { class: "place", text: `${i + 1}. ${c.name}` }),
+          el("span", { class: "region", text: ` · ${c.country} · ${fmtDays(c.km)} km` }),
+          el("span", { class: "region", text: ` · ${fmtDays(c.counterpart_days)} Tage dort` })),
+        el("span", { class: "days", text: `Σ ${fmtDays(c.total_days)}` }))));
+  });
+}
+
+function setPairRole(role) {
+  state.pair.role = role === "winter" ? "winter" : "summer";
+  $("#pair-role-summer").setAttribute("aria-selected", String(state.pair.role === "summer"));
+  $("#pair-role-winter").setAttribute("aria-selected", String(state.pair.role === "winter"));
+  loadPair();
 }
 
 function monthBars(rep) {
@@ -370,6 +507,60 @@ function climateDiagram(rep) {
   return el("div", { class: "climwrap", html: parts.join("") });
 }
 
+/** Sommer-/Winterprofil je Monat – zwei Balken pro Monat. */
+function quartierBars(w) {
+  if (!w || !w.summer_monthly) return null;
+  const summer = new Set(w.summer_months || []);
+  const maxBar = Math.max(1, ...w.summer_monthly, ...w.winter_monthly);
+  const wrap = el("div", { class: "bars qbars" });
+  for (let i = 0; i < 12; i++) {
+    const col = el("div", {
+      class: "qcol " + (summer.has(i) ? "in-summer" : "in-winter"),
+      title: `${monthNames[i]}: Sommerprofil ${fmtDays(w.summer_monthly[i])} Tage, `
+        + `Winterprofil ${fmtDays(w.winter_monthly[i])} Tage`,
+    });
+    col.append(el("div", { class: "qbar summer", style: `height:${Math.max(1, (w.summer_monthly[i] / maxBar) * 100)}%` }));
+    col.append(el("div", { class: "qbar winter", style: `height:${Math.max(1, (w.winter_monthly[i] / maxBar) * 100)}%` }));
+    wrap.append(col);
+  }
+  const labels = el("div", { class: "bar-labels" }, monthLetters.map(t => el("span", { text: t })));
+  return el("div", {}, wrap, labels,
+    el("div", {
+      class: "wqlegend",
+      html: '<span><i class="summer"></i>Sommer-Wohlfühlwetter</span>'
+        + '<span><i class="winter"></i>Winterquartier-Wetter</span>',
+    }));
+}
+
+/** Block „Quartier-Kombination“ in der Ortsauswertung (nur Winterquartier-Modus). */
+function quartierBlock(rep) {
+  const w = rep.wq;
+  if (!w) return [];
+  const nodes = [
+    el("div", { class: "detail-sep" }),
+    el("div", {
+      class: "bars-head",
+      text: `Quartier-Kombination · Sommer ${w.summer_label}, Winter ${w.winter_label}`,
+    }),
+    el("div", { class: "big", text: `${fmtDays(w.total_days)} Tage/Jahr` }),
+    el("div", {
+      class: "sub",
+      text: `Sommerquartier: ${fmtDays(w.summer_days)} Tage · Winterquartier: ${fmtDays(w.winter_days)} Tage`
+        + (w.europe_best ? ` · Bestwert in Europa: ${fmtDays(w.europe_best.days)} Tage`
+          + (w.europe_best.place ? ` (${w.europe_best.place})` : "") : ""),
+    }),
+  ];
+  const bars = quartierBars(w);
+  if (bars) nodes.push(bars);
+  nodes.push(el("div", { class: "climnums", html:
+    `Übers ganze Jahr gerechnet: <strong>${fmtDays(w.summer_year_days)}</strong> Tage nach Sommerprofil, `
+    + `<strong>${fmtDays(w.winter_year_days)}</strong> nach Winterquartier-Profil. `
+    + `Die Kombination zählt jeden Tag nur einmal – Sommer- und Winterfenster überschneiden sich nicht.` }));
+  nodes.push(el("div", { class: "sub", style: "margin-top:.35rem",
+    text: "Gegenstücke für die andere Jahreshälfte: Liste „Gegenstück finden“ links." }));
+  return nodes;
+}
+
 function renderDetail(opts = {}) {
   const box = $("#detail");
   const sel = state.selected;
@@ -391,8 +582,11 @@ function renderDetail(opts = {}) {
   const rep = sel.report;
   const mIdx = state.month - 1;
   const isMonth = state.mode === "month";
-  const headline = isMonth ? rep.days_per_month[mIdx] : rep.days_per_year;
-  const headlineLabel = isMonth ? `Tage im ${monthNames[mIdx]}` : "Tage pro Jahr";
+  const isWq = isWinterquarters() && rep.wq;
+  const headline = isWq ? rep.wq.total_days : (isMonth ? rep.days_per_month[mIdx] : rep.days_per_year);
+  const headlineLabel = isWq ? "Tage/Jahr mit Wohlfühlklima"
+    : (isMonth ? `Tage im ${monthNames[mIdx]}` : "Tage pro Jahr");
+  const isWqAfter = isWinterquarters();
   const clim = rep.climate || {};
   const year = clim.year || {};
   const cityLine = sel.cityInfo && sel.cityInfo.dist_km > 1.5
@@ -409,11 +603,15 @@ function renderDetail(opts = {}) {
         class: "title",
       }), closeBtn()),
     el("div", { class: "big", text: `${fmtDays(headline)} ${headlineLabel}` }),
-    el("div", { class: "sub", text: `mit deiner Einstellung · besser als ${num(rep.percentile, 0)} % aller Rasterpunkte` }),
-    el("div", { class: "sub best", text: rep.europe_best
+    el("div", { class: "sub", text: isWqAfter
+      ? `${rep.wq.summer_label} nach Sommerprofil · besser als ${num(rep.wq.percentile, 0)} % aller Rasterpunkte`
+      : `mit deiner Einstellung · besser als ${num(rep.percentile, 0)} % aller Rasterpunkte` }),
+    el("div", { class: "sub best", text: (!isWqAfter && rep.europe_best)
       ? `Bestwert in Europa: ${fmtDays(rep.europe_best.days)} Tage${rep.europe_best.place ? ` (${rep.europe_best.place})` : ""}`
       : "" }),
-    el("div", { class: "bars-head", text: `Wohlfühl-Tage je Monat · Ø ${fmtDays(rep.days_per_year)}/Jahr` }),
+    el("div", { class: "bars-head", text: isWqAfter
+      ? `Sommer-Wohlfühlwetter je Monat · Ø ${fmtDays(rep.days_per_year)}/Jahr`
+      : `Wohlfühl-Tage je Monat · Ø ${fmtDays(rep.days_per_year)}/Jahr` }),
     bars, barLabels,
     el("div", { class: "detail-sep" }),
     el("div", { class: "bars-head", html: `Klima hier <span class="muted">Ø min/max °C, gelb: Sonnenstunden</span>` }),
@@ -428,6 +626,7 @@ function renderDetail(opts = {}) {
       text: `${fmtDays(clim.summer_days || 0)} Sommertage (≥ 25 °C) · ${fmtDays(clim.hot_days || 0)} heiße Tage (≥ 30 °C) · `
         + `${fmtDays(clim.frost_days || 0)} Frosttage · ${fmtDays(clim.wet_days || 0)} Regentage`,
     }),
+    ...(isWqAfter ? quartierBlock(rep) : []),
     el("div", { class: "sub", style: "margin-top:.35rem", text: cityLine }),
   );
 }
@@ -527,72 +726,103 @@ function singleControl(cfg) {
   return wrap;
 }
 
-const controls = {};
-function buildControls() {
-  const host = $("#controls");
-  const p = state.params;
+const controls = {};         // Sommer-Wohlfühlwetter (im Jahres-/Monatsmodus: das einzige Profil)
+const winterControls = {};   // Winterquartier-Wetter
 
-  controls.tmax = rangeControl({
+/** Fünf Regler für ein Wetterprofil in ``host`` aufbauen. */
+function buildProfile(host, values, target) {
+  const set = {};
+  set.tmax = rangeControl({
     label: "Höchsttemperatur", unit: "°C", min: -20, max: 45, step: 0.5,
-    lo: p.tmax_min, hi: p.tmax_max, format: (v) => fmtTemp(v),
+    lo: values.tmax_min, hi: values.tmax_max, format: (v) => fmtTemp(v),
   });
-  controls.tmin = rangeControl({
+  set.tmin = rangeControl({
     label: "Tiefsttemperatur (nachts)", unit: "°C", min: -30, max: 30, step: 0.5,
-    lo: p.tmin_min, hi: p.tmin_max, format: (v) => fmtTemp(v),
+    lo: values.tmin_min, hi: values.tmin_max, format: (v) => fmtTemp(v),
   });
-  controls.tdew = singleControl({
+  set.tdew = singleControl({
     label: "Taupunkt höchstens", unit: "°C", min: 0, max: 26, step: 0.5,
-    value: p.tdew_max, format: (v) => (v >= 26 ? "egal" : fmtTemp(v)),
+    value: values.tdew_max, format: (v) => (v >= 26 ? "egal" : fmtTemp(v)),
   });
-  controls.sun = singleControl({
+  set.sun = singleControl({
     label: "Sonne mindestens", unit: "h/Tag", min: 0, max: 12, step: 0.5,
-    value: p.sun_min, format: (v) => (v <= 0 ? "egal" : `${num(v, 1)} h/Tag`),
+    value: values.sun_min, format: (v) => (v <= 0 ? "egal" : `${num(v, 1)} h/Tag`),
   });
-  controls.prec = singleControl({
+  set.prec = singleControl({
     label: "Niederschlag höchstens", unit: "mm/Tag", min: 0, max: 20, step: 0.5,
-    value: Math.min(p.prec_max, 20), format: (v) => (v >= 20 ? "egal" : `${num(v, 1)} mm`),
+    value: Math.min(values.prec_max, 20), format: (v) => (v >= 20 ? "egal" : `${num(v, 1)} mm`),
   });
-
-  host.append(controls.tmax, controls.tmin, controls.tdew, controls.sun, controls.prec);
+  host.append(set.tmax, set.tmin, set.tdew, set.sun, set.prec);
+  set._target = target;
+  return set;
 }
 
-/** Reglerwerte -> state.params */
+function buildControls() {
+  Object.assign(controls, buildProfile($("#controls"), state.params, "params"));
+  Object.assign(winterControls, buildProfile($("#winter-controls"), state.winter, "winter"));
+}
+
+/** Reglerwerte eines Profils in den Zustand übernehmen. */
+function syncProfile(set, target) {
+  const tmax = set.tmax._get(), tmin = set.tmin._get();
+  target.tmax_min = tmax.lo;
+  target.tmax_max = tmax.hi;
+  target.tmin_min = tmin.lo;
+  target.tmin_max = tmin.hi;
+  target.tdew_max = set.tdew._get();
+  target.sun_min = set.sun._get();
+  const prec = set.prec._get();
+  target.prec_max = prec >= 20 ? 99 : prec;
+}
+
 function syncParams() {
-  const tmax = controls.tmax._get(), tmin = controls.tmin._get();
-  state.params.tmax_min = tmax.lo;
-  state.params.tmax_max = tmax.hi;
-  state.params.tmin_min = tmin.lo;
-  state.params.tmin_max = tmin.hi;
-  state.params.tdew_max = controls.tdew._get();
-  state.params.sun_min = controls.sun._get();
-  const prec = controls.prec._get();
-  state.params.prec_max = prec >= 20 ? 99 : prec;
+  syncProfile(controls, state.params);
+  syncProfile(winterControls, state.winter);
+}
+
+/** Zustand -> Regler (nach Presets, Zurücksetzen, Link oder Optimierung). */
+function writeProfile(set, values) {
+  set.tmax._set(values.tmax_min, values.tmax_max);
+  set.tmin._set(values.tmin_min, values.tmin_max);
+  set.tdew._set(values.tdew_max);
+  set.sun._set(values.sun_min);
+  set.prec._set(values.prec_max >= 90 ? 20 : values.prec_max);
 }
 
 function applyParamsToControls() {
-  const p = state.params;
-  controls.tmax._set(p.tmax_min, p.tmax_max);
-  controls.tmin._set(p.tmin_min, p.tmin_max);
-  controls.tdew._set(p.tdew_max);
-  controls.sun._set(p.sun_min);
-  controls.prec._set(p.prec_max >= 90 ? 20 : p.prec_max);
+  writeProfile(controls, state.params);
+  writeProfile(winterControls, state.winter);
 }
 
-function buildPresets() {
-  const host = $("#presets");
+/**
+ * Preset-Knöpfe für ein Profil. ``apply`` übernimmt die Werte ins Zielobjekt,
+ * ``write`` schiebt sie anschließend in die Regler.
+ */
+function buildPresets(hostSel, presets, apply, write) {
+  const host = $(hostSel);
+  if (!host) return;
   host.innerHTML = "";
-  for (const preset of META.presets) {
+  for (const preset of presets) {
     host.append(el("button", {
       class: "preset", title: preset.desc, text: preset.name,
       onclick: (ev) => {
-        state.params = { ...state.params, ...preset.params };
-        applyParamsToControls();
+        apply(preset.params);
+        write();
         host.querySelectorAll(".preset").forEach(b => b.classList.remove("active"));
         ev.currentTarget.classList.add("active");
         refresh(true);
       },
     }));
   }
+}
+
+function buildAllPresets() {
+  buildPresets("#presets", META.presets,
+    (params) => { state.params = { ...state.params, ...params }; },
+    () => writeProfile(controls, state.params));
+  buildPresets("#winter-presets", META.winter_presets || [],
+    (params) => { state.winter = { ...state.winter, ...params }; },
+    () => writeProfile(winterControls, state.winter));
 }
 
 /* ------------------------------------------------------------------ Refresh */
@@ -631,9 +861,7 @@ async function refresh(immediate = false) {
 }
 
 async function loadRanking() {
-  const q = new URLSearchParams({ limit: 12 });
-  for (const [k, v] of Object.entries(state.params)) q.set(k, v);
-  q.set("month", activeMonth() || "all");
+  const q = filterQuery(new URLSearchParams({ limit: 12 }));
   try {
     const data = await getJSON("/api/ranking?" + q);
     const host = $("#ranking");
@@ -673,6 +901,13 @@ function updateHash() {
   p.set("mode", state.mode);
   p.set("month", state.month);
   for (const [k, v] of Object.entries(state.params)) p.set(k, v);
+  // Winterquartier-Einstellungen gehören in den teilbaren Link
+  p.set("wview", state.wq.view);
+  p.set("sfrom", state.wq.sfrom);
+  p.set("sto", state.wq.sto);
+  for (const [k, v] of Object.entries(state.winter)) p.set("w" + k, v);
+  p.set("role", state.pair.role);
+  if (state.pair.maxKm) p.set("maxkm", state.pair.maxKm);
   if (state.fixedScale) p.set("fixed", "1");
   history.replaceState(null, "", "#" + p.toString());
 }
@@ -680,9 +915,15 @@ function updateHash() {
 function readHash() {
   if (!location.hash.length) return;
   const p = new URLSearchParams(location.hash.slice(1));
-  if (p.get("mode")) state.mode = p.get("mode");
+  if (["year", "month", "wq"].includes(p.get("mode"))) state.mode = p.get("mode");
   if (p.get("month")) state.month = Number(p.get("month")) || 7;
   for (const k of Object.keys(state.params)) if (p.has(k)) state.params[k] = Number(p.get(k));
+  if (["combo", "summer", "winter"].includes(p.get("wview"))) state.wq.view = p.get("wview");
+  if (p.get("sfrom")) state.wq.sfrom = Number(p.get("sfrom")) || state.wq.sfrom;
+  if (p.get("sto")) state.wq.sto = Number(p.get("sto")) || state.wq.sto;
+  for (const k of Object.keys(state.winter)) if (p.has("w" + k)) state.winter[k] = Number(p.get("w" + k));
+  if (["summer", "winter"].includes(p.get("role"))) state.pair.role = p.get("role");
+  if (p.get("maxkm")) state.pair.maxKm = Number(p.get("maxkm")) || 0;
   if (p.get("fixed")) state.fixedScale = true;
 }
 
@@ -927,26 +1168,63 @@ async function boot() {
   }
   readHash();
   state.params = { ...META.defaults, ...state.params };
+  state.winter = { ...(META.winter_defaults || {}), ...state.winter };
+  WQ_BOUNDS = META.winterquarters || {};
   showDataStatus();
 
   const sel = $("#month-select");
   monthNames.forEach((m, i) => sel.append(el("option", { value: i + 1, text: m })));
   sel.value = state.month;
 
+  // Monatsauswahl des Sommerfensters (Winterquartier-Modus)
+  for (const id of ["#wq-sfrom", "#wq-sto"]) {
+    const box = $(id);
+    if (box) monthNames.forEach((m, i) => box.append(el("option", { value: i + 1, text: m })));
+  }
+  const maxKm = $("#pair-max-km");
+  if (maxKm) {
+    for (const [v, label] of [[0, "egal"], [500, "500 km"], [1000, "1.000 km"],
+      [1500, "1.500 km"], [2500, "2.500 km"], [4000, "4.000 km"]]) {
+      maxKm.append(el("option", { value: v, text: label }));
+    }
+    maxKm.value = String(state.pair.maxKm || 0);
+  }
+
   buildControls();
   applyParamsToControls();
-  buildPresets();
+  buildAllPresets();
   initSearch();
 
   $("#mode-year").addEventListener("click", () => setMode("year"));
   $("#mode-month").addEventListener("click", () => setMode("month"));
+  $("#mode-wq").addEventListener("click", () => setMode("wq"));
   sel.addEventListener("change", () => { state.month = Number(sel.value); refresh(true); });
+  $("#wq-sfrom").addEventListener("change", setSummerWindow);
+  $("#wq-sto").addEventListener("change", setSummerWindow);
+  $("#wq-view-combo").addEventListener("click", () => setWqView("combo"));
+  $("#wq-view-summer").addEventListener("click", () => setWqView("summer"));
+  $("#wq-view-winter").addEventListener("click", () => setWqView("winter"));
+  $("#btn-wq-optimize").addEventListener("click", optimizeWq);
+  $("#pair-role-summer").addEventListener("click", () => setPairRole("summer"));
+  $("#pair-role-winter").addEventListener("click", () => setPairRole("winter"));
+  if (maxKm) maxKm.addEventListener("change", () => {
+    state.pair.maxKm = Number(maxKm.value) || 0;
+    updateHash();
+    loadPair();
+  });
   $("#fixed-scale").addEventListener("change", (e) => { state.fixedScale = e.target.checked; refresh(true); });
   $("#show-cities").addEventListener("change", (e) => { state.showCities = e.target.checked; paintCities(); });
   $("#btn-reset").addEventListener("click", () => {
     state.params = { ...META.defaults };
+    state.winter = { ...(META.winter_defaults || {}) };
+    const summer = (WQ_BOUNDS.summer_months || [5, 6, 7, 8, 9]);
+    state.wq.view = "combo";
+    state.wq.sfrom = summer[0];
+    state.wq.sto = summer[summer.length - 1];
     applyParamsToControls();
-    $("#presets").querySelectorAll(".preset").forEach(b => b.classList.remove("active"));
+    syncWqInputs();
+    document.querySelectorAll("#presets .preset, #winter-presets .preset")
+      .forEach(b => b.classList.remove("active"));
     refresh(true);
   });
   $("#btn-link").addEventListener("click", async () => {
@@ -964,10 +1242,119 @@ function setMode(mode, initial = false) {
   state.mode = mode;
   $("#mode-year").setAttribute("aria-selected", String(mode === "year"));
   $("#mode-month").setAttribute("aria-selected", String(mode === "month"));
+  $("#mode-wq").setAttribute("aria-selected", String(mode === "wq"));
+  // Die Monatsauswahl gehört ausschließlich zum Urlaubsmonat.
   $("#month-picker").hidden = mode !== "month";
+  // Winterquartier-Karten erscheinen nur in diesem Modus.
+  document.querySelectorAll("[data-wq-only]").forEach(node => { node.hidden = mode !== "wq"; });
+  $("#feel-title").textContent = mode === "wq" ? "Dein Sommer-Wohlfühlwetter" : "Dein Wohlfühlwetter";
+  $("#presets-title").textContent = mode === "wq" ? "Sommer-Voreinstellungen" : "Voreinstellungen";
+  const rankTitle = $("#rank-title");
+  if (rankTitle) rankTitle.textContent = mode === "wq"
+    ? "Beste Orte (Quartier-Kombination)" : "Top-Orte für diese Einstellung";
   if (mode === "month") $("#month-select").value = state.month;
+  if (mode === "wq") syncWqInputs();
   if (!initial) refresh(true);
   else if (state.selected) renderDetail();
+}
+
+/* ------------------------------------------------------- Winterquartier-Modus */
+/** Monatsauswahl, Ansichts-Umschalter und Hinweistexte des Modus setzen. */
+function syncWqInputs() {
+  const sfrom = $("#wq-sfrom"), sto = $("#wq-sto");
+  if (sfrom) sfrom.value = state.wq.sfrom;
+  if (sto) sto.value = state.wq.sto;
+  for (const view of ["combo", "summer", "winter"]) {
+    const btn = $("#wq-view-" + view);
+    if (btn) btn.setAttribute("aria-selected", String(state.wq.view === view));
+  }
+  const summer = summerMonths();
+  const winter = winterMonths();
+  const hint = $("#wq-window");
+  if (hint) {
+    hint.textContent = summer.length >= 12
+      ? "Achtung: Ohne Wintermonate gibt es kein Winterquartier – bitte ein Sommerfenster von 1 bis 11 Monaten wählen."
+      : `Sommer: ${monthsLabel(summer)} (${summer.length} Monate) · Winterquartier: `
+        + `${monthsLabel(winter)} (${winter.length} Monate)`;
+  }
+}
+
+function setWqView(view) {
+  state.wq.view = ["summer", "winter"].includes(view) ? view : "combo";
+  syncWqInputs();
+  refresh(true);
+}
+
+function setSummerWindow() {
+  state.wq.sfrom = Number($("#wq-sfrom").value);
+  state.wq.sto = Number($("#wq-sto").value);
+  syncWqInputs();
+  refresh(true);
+}
+
+/**
+ * „Optimale Kombination finden“: Der Server probiert alle zusammenhängenden
+ * Aufteilungen des Jahres durch (Sommerfenster 3–9 Monate) und meldet Aufteilung
+ * + Ort mit den meisten Wohlfühl-Tagen. Das Ergebnis wird gleich angewendet.
+ */
+async function optimizeWq() {
+  const btn = $("#btn-wq-optimize");
+  const out = $("#wq-result"), alt = $("#wq-alternatives");
+  btn.disabled = true;
+  out.hidden = false;
+  out.textContent = "rechnet …";
+  alt.innerHTML = "";
+  try {
+    const q = filterQuery();
+    const bounds = (META.winterquarters || {});
+    q.set("min_months", bounds.min_months || 3);
+    q.set("max_months", bounds.max_months || 9);
+    q.set("limit", 5);
+    q.set("width", currentWidth());
+    const data = await getJSON("/api/winterquarters/optimize?" + q);
+    const best = data.best;
+    if (!best) {
+      out.textContent = "Keine Aufteilung gefunden.";
+      return;
+    }
+    state.wq.sfrom = best.start + 1;
+    state.wq.sto = ((best.start + best.length - 1) % 12) + 1;
+    syncWqInputs();
+    const place = best.best.place ? ` bei ${best.best.place}${best.best.country ? " (" + best.best.country + ")" : ""}` : "";
+    out.innerHTML = `Beste Kombination: <strong>Sommer ${best.summer_label}</strong> · Winter `
+      + `<strong>${best.winter_label}</strong> → <strong>${fmtDays(best.best.days)} Tage/Jahr</strong>${place}.`;
+    if (best.best_city) {
+      out.append(el("span", {
+        text: ` Beste Stadt: ${best.best_city.name} (${best.best_city.country}) mit `
+          + `${fmtDays(best.best_city.days)} Tagen.`,
+      }));
+    }
+    if (data.point_optimum) {
+      out.append(el("span", {
+        text: ` Mit individuell gewählten Monaten sind an besten Punkten bis `
+          + `${fmtDays(data.point_optimum.days)} Tage möglich.`,
+      }));
+    }
+    (data.candidates || []).slice(1).forEach((cand) => {
+      alt.append(el("button", {
+        class: "preset",
+        title: `Im Mittel ${fmtDays(cand.mean_days)} Tage/Jahr über Europa; Bestwert `
+          + `${fmtDays(cand.best.days)} Tage${cand.best.place ? " bei " + cand.best.place : ""}`,
+        text: `${cand.summer_label} (${fmtDays(cand.best.days)})`,
+        onclick: () => {
+          state.wq.sfrom = cand.start + 1;
+          state.wq.sto = ((cand.start + cand.length - 1) % 12) + 1;
+          syncWqInputs();
+          refresh(true);
+        },
+      }));
+    });
+    refresh(true);
+  } catch (err) {
+    out.textContent = "Fehler: " + (err.message || err);
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 document.addEventListener("DOMContentLoaded", boot);

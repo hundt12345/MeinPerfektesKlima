@@ -10,6 +10,16 @@ Der Datensatz (``app/data/climate_grid.npz``) enthält tägliche ERA5-Werte
 
 Gezählt werden die Tage, die **alle** Kriterien gleichzeitig erfüllen – exakt
 über die tägliche Zeitreihe, nicht über Monatsmittel.
+
+Neben „ganzes Jahr“ und „Urlaubsmonat“ gibt es den **Winterquartier-Modus**
+(:class:`Filter` mit ``kind='combo'``): Hier treffen zwei Wetterprofile
+aufeinander – ein *Sommer*-Profil für das Sommerfenster und ein *Winter*-Profil
+(Winterquartier-Wetter) für die übrigen Monate. Die Karte zeigt dann die Summe
+der Wohlfühl-Tage beider Jahreszeiten an einem Ort („Ganzjahres-Optimum“), und
+:meth:`ClimateData.season_split_report` sucht zusätzlich die beste Aufteilung
+des Jahres (welche Monate Sommer-, welche Winterquartier sind).
+:meth:`ClimateData.pair_report` beantwortet die Zwei-Orte-Frage: „Ich habe mein
+Sommerquartier – wo ist das beste Winter-Gegenstück?“
 """
 from __future__ import annotations
 
@@ -42,6 +52,9 @@ UNIT_FACTORS = {
 }
 DATA_START_LAT = None  # wird aus der Meta-Datei gelesen
 
+MONTH_NAMES = ["Januar", "Februar", "März", "April", "Mai", "Juni",
+               "Juli", "August", "September", "Oktober", "November", "Dezember"]
+
 # Farbskala: wenige Tage (blau) -> viele Tage (rot)
 COLOR_STOPS = np.array([
     [0.00, 16, 38, 92],
@@ -73,6 +86,147 @@ class Params:
             "tdew_max": self.tdew_max, "sun_min": self.sun_min,
             "prec_max": self.prec_max,
         }
+
+
+# Vorgabe für das Winterquartier-Profil: „milder Winter im Warmen“ – der Klassiker
+# (Algarve, Andalusien, Sizilien, Kreta) gegen graue Winter im Norden.
+WINTER_DEFAULTS = Params(tmax_min=14.0, tmax_max=26.0, tmin_min=6.0, tmin_max=18.0,
+                         tdew_max=17.0, sun_min=4.0, prec_max=99.0)
+# Vorgabe für das Sommerfenster: Mai – September (0-basiert).
+DEFAULT_SUMMER_MONTHS = (4, 5, 6, 7, 8)
+
+
+def norm_months(month) -> tuple[int, ...] | None:
+    """Monatsangabe → aufsteigende, eindeutige 0-basierte Monatsliste.
+
+    Akzeptiert ``None``/leer (= ganzes Jahr), eine einzelne Monatsnummer (0–11)
+    oder eine Liste/Tupel von Monatsnummern. Ein volles Jahr wird zu ``None``
+    normalisiert: nur so ist es mit ``slice(None)`` gleichbedeutend und die
+    Zwischenspeicher greifen.
+    """
+    if month is None:
+        return None
+    if isinstance(month, (int, np.integer)):
+        ms: tuple[int, ...] = (int(month),)
+    else:
+        ms = tuple(int(m) for m in month)
+    if not ms:
+        return None
+    out = tuple(sorted({m % 12 for m in ms}))
+    return None if len(out) == 12 else out
+
+
+def cyclic_window(ms: tuple[int, ...]) -> tuple[int, int] | None:
+    """Start/Ende eines zusammenhängenden Monatsfensters – auch über den Jahreswechsel.
+
+    ``(9, 10, 11, 0, 1, 2, 3)`` (Oktober – April) ist zusammenhängend, obwohl die
+    sortierte Liste eine Lücke zeigt; ``None`` bedeutet „keine zusammenhängende
+    Spanne“ (z. B. Mai, Juli, November).
+    """
+    if not ms or len(ms) >= 12:
+        return None
+    members = set(ms)
+    starts = [m for m in ms if (m - 1) % 12 not in members]
+    if len(starts) != 1:
+        return None
+    start = starts[0]
+    return start, (start + len(ms) - 1) % 12
+
+
+def months_label(months) -> str:
+    """„Juli“, „Mai – September“, „Oktober – April“ bzw. „ganzes Jahr“."""
+    ms = norm_months(months)
+    if ms is None:
+        return "ganzes Jahr"
+    if len(ms) == 1:
+        return MONTH_NAMES[ms[0]]
+    span = cyclic_window(ms)
+    if span:
+        return f"{MONTH_NAMES[span[0]]} – {MONTH_NAMES[span[1]]}"
+    return ", ".join(MONTH_NAMES[m] for m in ms)
+
+
+def cyclic_months(start: int, length: int) -> tuple[int, ...]:
+    """Zusammenhängendes Monatsfenster (0-basiert) ab ``start`` über ``length`` Monate."""
+    return tuple((int(start) + i) % 12 for i in range(int(length)))
+
+
+@dataclass(frozen=True)
+class Filter:
+    """Was die Karte zeigt – der Normalmodus oder ein Winterquartier-Modus.
+
+    * ``kind='plain'``  – Tage im Monatsfenster ``months`` (``None`` = ganzes Jahr)
+    * ``kind='summer'`` – Tage im Sommerfenster ``summer_months`` nach ``p``
+    * ``kind='winter'`` – Tage in den übrigen Monaten nach ``winter``
+    * ``kind='combo'``  – Summe aus Sommer- und Winterquartier-Tagen (ein Ort,
+      den man das ganze Jahr bewohnen kann)
+
+    Alle Felder sind unveränderlich und hashbar: Der Filter dient zugleich als
+    Schlüssel des Karten-Caches in ``main.py``.
+    """
+
+    kind: str = "plain"
+    p: Params = Params()
+    winter: Params = WINTER_DEFAULTS
+    months: tuple[int, ...] | None = None
+    summer_months: tuple[int, ...] = DEFAULT_SUMMER_MONTHS
+
+    @property
+    def winter_months(self) -> tuple[int, ...]:
+        """Die Monate, die *nicht* zum Sommerfenster gehören."""
+        rest = [m for m in range(12) if m not in self.summer_months]
+        return tuple(rest)
+
+    @property
+    def is_winterquarters(self) -> bool:
+        return self.kind != "plain"
+
+    def counts(self, cd: "ClimateData") -> np.ndarray:
+        """Tage/Jahr (bzw. Tage im Monatsfenster) je Rasterpunkt."""
+        if self.kind == "combo":
+            return cd.comfort_counts(self.p, self.winter, self.summer_months)
+        if self.kind == "summer":
+            return cd.counts(self.p, self.summer_months)
+        if self.kind == "winter":
+            return cd.counts(self.winter, self.winter_months)
+        return cd.counts(self.p, self.months)
+
+    def days_limit(self, cd: "ClimateData") -> float:
+        """Höchstzahl, die die Skala annehmen kann (365,25 bzw. Fensterlänge)."""
+        if self.is_winterquarters:
+            return 365.25
+        return cd.month_limit(self.months)
+
+    def label(self) -> str:
+        """Kurzbezeichnung für Legende/Tooltip, z. B. „Mai – September“."""
+        if self.kind == "combo":
+            return f"{months_label(self.summer_months)} + {months_label(self.winter_months)}"
+        if self.kind == "summer":
+            return f"Sommerquartier {months_label(self.summer_months)}"
+        if self.kind == "winter":
+            return f"Winterquartier {months_label(self.winter_months)}"
+        return months_label(self.months)
+
+    def unit_label(self) -> str:
+        """Einheit der Kartenwerte („Tage pro Jahr“, „Tage im Juli“, …)."""
+        if self.kind == "combo":
+            return "Tage/Jahr Wohlfühlklima (Sommer + Winter)"
+        if self.kind == "summer":
+            return f"Tage im Sommerfenster ({months_label(self.summer_months)})"
+        if self.kind == "winter":
+            return f"Tage im Winterquartier ({months_label(self.winter_months)})"
+        ms = self.months
+        if ms is None:
+            return "Tage pro Jahr"
+        if len(ms) == 1:
+            return f"Tage im {MONTH_NAMES[ms[0]]}"
+        return f"Tage {months_label(ms)}"
+
+    def single_month(self) -> int | None:
+        """0-basierter Monat, wenn genau ein Monat im Normalmodus gewählt ist."""
+        if self.kind != "plain" or not self.months or len(self.months) != 1:
+            return None
+        return int(self.months[0])
 
 
 # Breite des Gitters, auf dem das Feld interpoliert wird. Das Ergebnis wird
@@ -245,12 +399,13 @@ class ClimateData:
             return int(math.floor(x + 1e-9))
         raise ValueError(mode)
 
-    def days_mask(self, p: Params, month: int | None = None, point: int | None = None) -> np.ndarray:
-        """Boolesche Matrix (Punkte, Tage) bzw. (Tage,) für einen Einzelpunkt."""
-        if month is None:
-            sel = slice(None)
-        else:
-            sel = np.flatnonzero(self.day_month == int(month))
+    def days_mask(self, p: Params, month=None, point: int | None = None) -> np.ndarray:
+        """Boolesche Matrix (Punkte, Tage) bzw. (Tage,) für einen Einzelpunkt.
+
+        ``month`` darf ``None`` (ganzes Jahr), eine Monatsnummer (0–11) oder eine
+        Liste von Monaten sein – siehe :func:`norm_months`.
+        """
+        sel = self._day_sel(month)
 
         def get(name):
             arr = self.raw[name]
@@ -269,9 +424,18 @@ class ClimateData:
             ok &= (get("prec") <= self._q(p.prec_max, SCALES["prec"], "max"))
         return ok
 
-    def counts(self, p: Params, month: int | None = None) -> np.ndarray:
-        """Tage pro Jahr bzw. Tage im gewählten Monat, je Rasterpunkt."""
-        key = (p, month, self.n_days)
+    def _day_sel(self, month=None) -> slice | np.ndarray:
+        """Tagesindex für ein Monatsfenster (``None`` = alle Tage)."""
+        ms = norm_months(month)
+        if ms is None:
+            return slice(None)
+        if len(ms) == 1:
+            return np.flatnonzero(self.day_month == ms[0])
+        return np.flatnonzero(np.isin(self.day_month, ms))
+
+    def counts(self, p: Params, month=None) -> np.ndarray:
+        """Tage pro Jahr bzw. Tage im gewählten Monatsfenster, je Rasterpunkt."""
+        key = (p, norm_months(month), self.n_days)
         hit = self._counts_cache.get(key)
         if hit is None:
             # Immer durch die Zahl der Jahre teilen: im Jahresmodus ergeben sich
@@ -289,11 +453,33 @@ class ClimateData:
             out[m] = self.counts(p, month=m)
         return out
 
-    def month_limit(self, month: int | None) -> float:
-        """Maximal erreichbare Tageszahl (365,25 im Jahr bzw. Tage im Monat)."""
-        if month is None:
+    def month_limit(self, month=None) -> float:
+        """Maximal erreichbare Tageszahl (365,25 im Jahr bzw. Tage im Fenster)."""
+        ms = norm_months(month)
+        if ms is None:
             return 365.25
-        return float((self.day_month == int(month)).sum() / self.years)
+        return float(np.isin(self.day_month, ms).sum() / self.years)
+
+    def comfort_counts(self, summer: Params, winter: Params, summer_months=None) -> np.ndarray:
+        """Wohlfühl-Tage/Jahr an *einem* Ort mit Sommer- und Winterquartier-Profil.
+
+        Sommer- und Winterfenster sind überschneidungsfrei, deshalb ist die Summe
+        beider Zählungen die Zahl der Tage im Jahr, an denen an diesem Ort *eines*
+        der beiden Wunschwetter herrscht – die Kennzahl für die Frage „Welcher Ort
+        trägt mich das ganze Jahr?“.
+        """
+        ms = norm_months(summer_months)
+        if ms is None:
+            ms = DEFAULT_SUMMER_MONTHS
+        rest = tuple(m for m in range(12) if m not in ms)
+        return self.counts(summer, ms) + self.counts(winter, rest)
+
+    def point_monthly(self, p: Params, idx: int) -> np.ndarray:
+        """(12,) – Wohlfühl-Tage je Kalendermonat an einem einzelnen Rasterpunkt."""
+        out = np.empty(12, dtype=np.float64)
+        for m in range(12):
+            out[m] = self.days_mask(p, month=m, point=int(idx))[0].sum() / self.years
+        return out
 
     # --------------------------------------------------------------- Rendering
     def _pixel_grid(self, width: int) -> tuple[np.ndarray, int, int]:
@@ -374,8 +560,21 @@ class ClimateData:
     def render(self, p: Params, month: int | None = None, width: int = 1100,
                fixed_scale: bool = False) -> tuple[bytes, dict]:
         """Erzeugt das Kartenbild (PNG, Web-Mercator) und Statistikdaten."""
+        return self.render_counts(self.counts(p, month), width=width,
+                                  fixed_scale=fixed_scale, limit=self.month_limit(month),
+                                  meta={"months": norm_months(month)})
+
+    def render_counts(self, counts: np.ndarray, width: int = 1100, fixed_scale: bool = False,
+                      limit: float | None = None, meta: dict | None = None) -> tuple[bytes, dict]:
+        """Kartenbild aus einer beliebigen Tageszahl-Folge.
+
+        Getrennt von :meth:`render`, weil der Winterquartier-Modus seine Zahlen
+        aus zwei Profilen zusammensetzt (siehe :meth:`comfort_counts`) und der
+        Filter selbst nur die Feldwerte liefert.
+        """
         width = int(max(320, min(MAX_WIDTH, width)))
-        counts = self.counts(p, month)
+        if limit is None:
+            limit = self.month_limit(None)
 
         # Das Feld wird auf einem festen, gröberen Gitter interpoliert und erst
         # danach (bilinear, in C) auf die Zielbreite skaliert; die Landmaske wird
@@ -385,7 +584,6 @@ class ClimateData:
         ll, height, width = self._pixel_grid(width)
 
         vmax_data = float(np.nanmax(counts)) if np.isfinite(counts).any() else 1.0
-        limit = self.month_limit(month)
         if fixed_scale:
             vmax = limit
         else:
@@ -419,6 +617,7 @@ class ClimateData:
             "n_points": int(self.n_points),
             "values": np.rint(counts).astype(int).tolist(),
         }
+        info.update(meta or {})
         return buf.getvalue(), info
 
     def _alpha_for(self, ll: np.ndarray, size: tuple[int, int] | None = None) -> np.ndarray:
@@ -510,8 +709,12 @@ class ClimateData:
             out[label] = round(float(mask.sum() / self.years), 1)
         return out
 
-    def point_report(self, lat: float, lon: float, p: Params, month: int | None = None) -> dict:
-        """Alles, was die Detailkarte zu einem Ort zeigt."""
+    def point_report(self, lat: float, lon: float, p: Params, month=None) -> dict:
+        """Alles, was die Detailkarte zu einem Ort zeigt.
+
+        ``month`` ist der Vergleichszeitraum für ``days_here``/``percentile`` –
+        ``None`` (Jahr), eine Monatsnummer oder ein Monatsfenster.
+        """
         idx = self.point_index(lat, lon)
         days = self.days_mask(p, point=idx)[0]
         per_month = [round(float(days[self.day_month == m].sum() / self.years), 1) for m in range(12)]
@@ -545,19 +748,285 @@ class ClimateData:
             "percentile": percentile,
             "europe_best": best,
             "params": p.query(),
-            "month": month,
+            "month": month if isinstance(month, int) else None,
+            "months": list(norm_months(month)) if norm_months(month) else None,
             "month_limit": round(self.month_limit(month), 1),
             "limit": round(self.month_limit(month), 1),
         }
-        if month is not None:
+        if isinstance(month, (int, np.integer)):
             rep["selected_month"] = int(month)
             rep["days_selected_month"] = per_month[int(month)]
         return rep
 
-    def ranking(self, p: Params, month: int | None = None, limit: int = 12) -> list[dict]:
+    def winterquarters_point(self, lat: float, lon: float, f: Filter) -> dict:
+        """Sommer-, Winter- und Kombinations-Tage an einem Ort (Winterquartier-Modus)."""
+        idx = self.point_index(lat, lon)
+        sm = self.point_monthly(f.p, idx)
+        wm = self.point_monthly(f.winter, idx)
+        sm_months = list(f.summer_months)
+        wm_months = list(f.winter_months)
+        summer = float(sm[sm_months].sum())
+        winter = float(wm[wm_months].sum())
+
+        # Einordnung an der Kombinations-Kennzahl (gleiche Zahlen wie die Karte)
+        counts = f.counts(self)
+        own = summer + winter
+        best_idx = int(np.argmax(counts))
+        best = {"days": round(float(counts[best_idx]), 1),
+                "lat": round(float(self.lat[best_idx]), 2),
+                "lon": round(float(self.lon[best_idx]), 2)}
+        best_city = self.nearest_city(float(self.lat[best_idx]), float(self.lon[best_idx]))
+        if best_city:
+            best["place"] = best_city["name"]
+            best["country"] = best_city["name_de"] or ""
+        return {
+            "percentile": round(float((counts <= own).mean()) * 100.0, 1),
+            "europe_best": best,
+            "summer_days": round(summer, 1),
+            "winter_days": round(winter, 1),
+            "total_days": round(summer + winter, 1),
+            "summer_months": sm_months,
+            "winter_months": wm_months,
+            "summer_label": months_label(f.summer_months),
+            "winter_label": months_label(f.winter_months),
+            # Was übers Jahr möglich wäre, wenn das jeweilige Wetter überall gälte
+            "summer_year_days": round(float(sm.sum()), 1),
+            "winter_year_days": round(float(wm.sum()), 1),
+            "summer_monthly": [round(float(v), 1) for v in sm],
+            "winter_monthly": [round(float(v), 1) for v in wm],
+            "params": f.p.query(),
+            "winter_params": f.winter.query(),
+        }
+
+    # ------------------------------------------------- Winterquartier-Auswertung
+    @staticmethod
+    def month_windows(min_len: int = 1, max_len: int = 11) -> list[tuple[int, int]]:
+        """Alle zusammenhängenden Monatsfenster als (Startmonat, Länge).
+
+        Ein Fenster darf über den Jahreswechsel laufen (November – März), deshalb
+        wird zyklisch gedacht: Start 0–11, Länge ``min_len``–``max_len`` (höchstens
+        11, damit beide Quartiere mindestens einen Monat behalten).
+        """
+        lo = max(1, int(min_len))
+        hi = min(11, max(lo, int(max_len)))
+        return [(start, length) for length in range(lo, hi + 1) for start in range(12)]
+
+    @staticmethod
+    def _window_sums(delta: np.ndarray, min_len: int, max_len: int) -> tuple[np.ndarray, list[tuple[int, int]]]:
+        """Fenstersummen über ``delta`` (12, P) für alle zyklischen Monatsfenster.
+
+        Rückgabe: ``(S, P)``-Matrix der Summen und die zugehörige Fensterliste.
+        Über die doppelte Jahreskette (24 Monate) lässt sich jedes Fenster als
+        Differenz zweier Präfixsummen ziehen – das macht die Optimierung über
+        alle Aufteilungen billig (eine Vektoroperation statt 24 Zählungen).
+        """
+        windows = ClimateData.month_windows(min_len, max_len)
+        doubled = np.concatenate([delta, delta], axis=0)
+        prefix = np.vstack([np.zeros((1, delta.shape[1])), np.cumsum(doubled, axis=0)])
+        sums = np.stack([prefix[s + length] - prefix[s] for s, length in windows])
+        return sums, windows
+
+    def _window_report(self, values: np.ndarray, windows: list[tuple[int, int]],
+                       idx_windows: list[int], limit: int) -> list[dict]:
+        """Beschreibt ausgewählte Fenster: Mittelwert, Bestwert (Ort) und beste Stadt."""
+        city_counts = None
+        city_points = None
+        if self.cities and self.city_point_idx.size:
+            city_points = self.city_point_idx
+            city_counts = values[:, city_points]
+        rows: list[dict] = []
+        for w in idx_windows[:limit]:
+            start, length = windows[w]
+            months = cyclic_months(start, length)
+            row_values = values[w]
+            best_idx = int(np.argmax(row_values))
+            best = {
+                "days": round(float(row_values[best_idx]), 1),
+                "lat": round(float(self.lat[best_idx]), 2),
+                "lon": round(float(self.lon[best_idx]), 2),
+            }
+            city = self.nearest_city(float(self.lat[best_idx]), float(self.lon[best_idx]))
+            if city:
+                best["place"] = city["name"]
+                best["country"] = city["name_de"] or ""
+                best["city_km"] = city["dist_km"]
+            row = {
+                "start": start, "length": length, "months": list(months),
+                "summer_label": months_label(months),
+                "winter_label": months_label(tuple(m for m in range(12) if m not in months)),
+                "mean_days": round(float(row_values.mean()), 1),
+                "best": best,
+            }
+            if city_counts is not None:
+                ci = int(np.argmax(city_counts[w]))
+                row["best_city"] = {
+                    "name": self.cities[ci]["name"],
+                    "country": self.cities[ci].get("name_de", ""),
+                    "lat": float(self.cities[ci]["lat"]), "lon": float(self.cities[ci]["lon"]),
+                    "days": round(float(city_counts[w][ci]), 1),
+                }
+            rows.append(row)
+        return rows
+
+    def season_split_report(self, summer: Params, winter: Params, min_len: int = 3,
+                            max_len: int = 9, limit: int = 8) -> dict:
+        """Beste Aufteilung des Jahres in Sommer- und Winterquartier-Monate.
+
+        Für jeden Ort und jede zusammenhängende Aufteilung (Sommerfenster der
+        Länge ``min_len``–``max_len`` Monate, Winterquartier ist der Rest) wird
+        gezählt, wie viele Wohlfühl-Tage dabei im Jahr zusammenkommen – Sommer
+        nach ``summer``, Winter nach ``winter``. Gesucht ist die Kombination aus
+        Aufteilung **und** Ort mit der höchsten Summe.
+        """
+        sm = self.monthly_counts(summer)              # (12, P)
+        wm = self.monthly_counts(winter)
+        sums, windows = self._window_sums(sm - wm, min_len, max_len)
+        values = wm.sum(axis=0)[None, :] + sums       # (S, P) Tage/Jahr
+        mean = values.mean(axis=1)
+        best_points = values.max(axis=1)
+        order = np.argsort(-np.round(best_points, 3))[:max(1, int(limit))]
+        rows = self._window_report(values, windows, [int(i) for i in order], limit)
+
+        # Punktweises Optimum (unabhängig davon, ob eine Aufteilung überall passt)
+        per_point = values.argmax(axis=0)
+        per_point_days = values[per_point, np.arange(values.shape[1])]
+        idx_best = int(np.argmax(per_point_days))
+        return {
+            "window_range": {"min_months": int(min_len), "max_months": int(max_len)},
+            "summer_params": summer.query(),
+            "winter_params": winter.query(),
+            "candidates": rows,
+            "best": rows[0] if rows else None,
+            "point_optimum": {
+                "days": round(float(per_point_days[idx_best]), 1),
+                "lat": round(float(self.lat[idx_best]), 2),
+                "lon": round(float(self.lon[idx_best]), 2),
+                "summer_months": list(cyclic_months(*windows[int(per_point[idx_best])])),
+                "mean_days": round(float(per_point_days.mean()), 1),
+            },
+            "city_optimum": self._best_city(per_point_days, windows, per_point),
+        }
+
+    def _best_city(self, per_point_days: np.ndarray, windows: list[tuple[int, int]],
+                   per_point: np.ndarray) -> dict | None:
+        """Beste Stadt im punktweisen Optimum (dort darf die Aufteilung variieren)."""
+        if not self.cities or not self.city_point_idx.size:
+            return None
+        city_days = per_point_days[self.city_point_idx]
+        ci = int(np.argmax(city_days))
+        start, length = windows[int(per_point[self.city_point_idx[ci]])]
+        months = cyclic_months(start, length)
+        return {
+            "name": self.cities[ci]["name"], "country": self.cities[ci].get("name_de", ""),
+            "lat": float(self.cities[ci]["lat"]), "lon": float(self.cities[ci]["lon"]),
+            "days": round(float(city_days[ci]), 1),
+            "summer_months": list(months),
+            "summer_label": months_label(months),
+        }
+
+    def pair_report(self, lat: float, lon: float, role: str, summer: Params, winter: Params,
+                    summer_months=None, limit: int = 8, max_km: float | None = None,
+                    min_len: int = 3, max_len: int = 9) -> dict:
+        """Bestes Gegenstück zu einem festen Quartier (Zwei-Orte-Kombination).
+
+        ``role`` sagt, was der gewählte Ort *ist*: ``'summer'`` (dann wird das
+        Winterquartier gesucht) oder ``'winter'`` (dann das Sommerquartier).
+        Für jeden Kandidaten werden die Wohlfühl-Tage im gesuchten Zeitraum
+        gezählt und die Summe mit dem eigenen Quartier gebildet – inklusive der
+        für das Paar besten Aufteilung der Monate.
+        """
+        role = "winter" if str(role).lower().startswith("w") else "summer"
+        ms = norm_months(summer_months) or DEFAULT_SUMMER_MONTHS
+        rest = tuple(m for m in range(12) if m not in ms)
+        cd_want = winter if role == "summer" else summer      # Profil des Gegenstücks
+        months_want = rest if role == "summer" else ms        # dessen Zeitraum
+        want_name = "winter" if role == "summer" else "summer"
+        want_label = "Winterquartier" if role == "summer" else "Sommerquartier"
+
+        anchor = self.point_index(lat, lon)
+        sm_a = self.point_monthly(summer, anchor)
+        wm_a = self.point_monthly(winter, anchor)
+        # Eigene Wohlfühl-Tage des Ankers in *seinem* Quartier-Fenster
+        own_days = (float(sm_a[list(ms)].sum()) if role == "summer"
+                    else float(wm_a[list(rest)].sum()))
+
+        counts = self.counts(cd_want, months_want)
+        city_days = counts[self.city_point_idx] if self.city_point_idx.size else np.zeros(0)
+        order = np.argsort(-city_days)[: max(limit * 6, 40)]
+        picked: list[tuple[float, float]] = []
+        out: list[dict] = []
+        for i in order:
+            i = int(i)
+            c = self.cities[i]
+            klat, klon = float(c["lat"]), float(c["lon"])
+            km = float(self.city_point_km[i])
+            if max_km is not None and km > float(max_km):
+                continue
+            if any(abs(klat - a) < 0.35
+                   and abs((klon - b) * math.cos(math.radians(klat))) < 0.35 for a, b in picked):
+                continue
+            picked.append((klat, klon))
+            # Monatswerte des Kandidaten für beide Profile (jeweils 12 kleine Zählungen)
+            sm_b = self.point_monthly(summer, int(self.city_point_idx[i]))
+            wm_b = self.point_monthly(winter, int(self.city_point_idx[i]))
+            if role == "summer":      # Anker = Sommer, Kandidat = Winter
+                base = float(wm_b.sum())
+                delta = sm_a - wm_b
+            else:                     # Anker = Winter, Kandidat = Sommer
+                base = float(sm_b.sum())
+                delta = wm_a - sm_b
+            sums, windows = self._window_sums(delta[:, None], min_len, max_len)
+            w = int(np.argmax(sums[:, 0]))
+            start, length = windows[w]
+            best_months = cyclic_months(start, length)
+            total = base + float(sums[w, 0])
+            own_in_window = (float(sm_a[list(best_months)].sum()) if role == "summer"
+                             else float(wm_a[list(best_months)].sum()))
+            other_outside = total - own_in_window
+            out.append({
+                "name": c["name"], "country": c.get("name_de", ""),
+                "lat": klat, "lon": klon, "pop": int(c.get("pop", 0)),
+                "days": round(float(city_days[i]), 1),         # Tage im gesuchten Quartier
+                "own_days": round(own_in_window, 1),
+                "counterpart_days": round(other_outside, 1),
+                "total_days": round(total, 1),
+                "km": round(km),
+                "summer_months": list(best_months),
+                "summer_label": months_label(best_months),
+                "winter_label": months_label(tuple(m for m in range(12) if m not in best_months)),
+            })
+            if len(out) >= limit:
+                break
+        out.sort(key=lambda r: (-r["total_days"], r["km"]))
+        return {
+            "role": role,
+            "wanted": want_name,
+            "wanted_label": want_label,
+            "anchor": {
+                "lat": round(float(self.lat[anchor]), 2),
+                "lon": round(float(self.lon[anchor]), 2),
+                "query_lat": lat, "query_lon": lon,
+                "city": self.nearest_city(lat, lon),
+                "own_days": round(own_days, 1),
+                "summer_days": round(float(sm_a[list(ms)].sum()), 1),
+                "winter_days": round(float(wm_a[list(rest)].sum()), 1),
+                "total_days": round(float(sm_a[list(ms)].sum()) + float(wm_a[list(rest)].sum()), 1),
+                "summer_months": list(ms), "winter_months": list(rest),
+                "summer_label": months_label(ms), "winter_label": months_label(rest),
+            },
+            "window_range": {"min_months": int(min_len), "max_months": int(max_len)},
+            "max_km": max_km,
+            "candidates": out,
+        }
+
+    def ranking(self, p: Params, month=None, limit: int = 12) -> list[dict]:
+        """Beste Städte für ein Wetterprofil (Rückwärtskompatibel, s. a. counts)."""
+        return self.ranking_counts(self.counts(p, month), limit)
+
+    def ranking_counts(self, counts: np.ndarray, limit: int = 12) -> list[dict]:
+        """Beste Städte zu einer bereits berechneten Tageszahl-Folge."""
         if not self.cities:
             return []
-        counts = self.counts(p, month)
         city_counts = counts[self.city_point_idx]
         order = np.argsort(-city_counts)[: max(limit * 8, 60)]
         seen, picked, out = set(), [], []
@@ -583,11 +1052,14 @@ class ClimateData:
                 break
         return out
 
-    def cities_for_map(self, p: Params, month: int | None = None, limit: int = 400) -> list[dict]:
+    def cities_for_map(self, p: Params, month=None, limit: int = 400) -> list[dict]:
         """Die größten Orte (nach Einwohnern) mit ihrer Tageszahl – für Kartenmarker."""
+        return self.cities_for_map_counts(self.counts(p, month), limit)
+
+    def cities_for_map_counts(self, counts: np.ndarray, limit: int = 400) -> list[dict]:
+        """Wie :meth:`cities_for_map`, aber für eine fertige Tageszahl-Folge."""
         if not self.cities:
             return []
-        counts = self.counts(p, month)
         city_counts = counts[self.city_point_idx]
         pops = np.array([int(c.get("pop", 0)) for c in self.cities], dtype=np.int64)
         order = np.argsort(-pops)[: max(1, min(limit, len(self.cities)))]

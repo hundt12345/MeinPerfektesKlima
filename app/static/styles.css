@@ -14,6 +14,10 @@
 
 * { box-sizing: border-box; }
 
+/* `hidden` muss jedes `display` der eigenen Regeln schlagen – sonst bleibt z. B.
+   die Monatsauswahl (`.month-picker { display: flex }`) auch im Jahresmodus sichtbar. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   padding: 0;
@@ -72,7 +76,17 @@ main {
 }
 .segmented button[aria-selected="true"] { background: var(--accent); color: #20160a; }
 
+.segmented.tri { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.segmented.tri button { font-size: .8rem; padding: .5rem .3rem; }
+.segmented button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.segmented.views { margin-top: .7rem; }
+
 .month-picker { display: flex; align-items: center; gap: .5rem; margin-top: .7rem; }
+.month-picker label { color: var(--muted); font-size: .84rem; }
+.card .row label { font-size: .88rem; font-weight: 600; }
+#wq-result { color: var(--accent); }
+#wq-result strong { color: var(--text); }
+#wq-alternatives { margin-top: .5rem; }
 select, input[type="text"], input[type="search"] {
   background: var(--card-2); color: var(--text); border: 1px solid var(--line);
   border-radius: 9px; padding: .45rem .6rem; font: inherit;
@@ -188,7 +202,7 @@ input[type="range"]::-moz-range-thumb {
 .legend {
   position: absolute; right: 12px; bottom: 22px; z-index: 600;
   background: rgba(13, 21, 32, .88); border: 1px solid var(--line); border-radius: 11px;
-  padding: .55rem .7rem .45rem; min-width: 190px; backdrop-filter: blur(4px);
+  padding: .55rem .7rem .45rem; min-width: 190px; max-width: min(300px, 52%); backdrop-filter: blur(4px);
 }
 .legend-bar { height: 10px; border-radius: 999px; }
 .legend-ticks { display: flex; justify-content: space-between; color: var(--muted); font-size: .68rem; margin-top: .25rem; font-variant-numeric: tabular-nums; }
@@ -216,6 +230,22 @@ input[type="range"]::-moz-range-thumb {
 .detail .close { background: transparent; border: 0; color: var(--muted); font-size: 1.1rem; cursor: pointer; }
 .detail .big { font-size: 2rem; font-weight: 700; color: var(--accent); line-height: 1; }
 .detail .sub { color: var(--muted); font-size: .8rem; margin-bottom: .5rem; }
+/* Quartier-Balken (Sommer-/Winterprofil je Monat) in der Ortsauswertung */
+.bars.qbars { height: 62px; gap: 2px; margin-top: .3rem; }
+.bars .qcol {
+  flex: 1; display: flex; align-items: flex-end; justify-content: center; gap: 1px;
+  height: 100%; border-radius: 3px 3px 1px 1px; padding: 0 1px;
+}
+.bars .qcol.in-summer { background: rgba(255, 180, 84, .10); }
+.bars .qcol.in-winter { background: rgba(87, 201, 214, .08); }
+.bars .qbar { flex: 1; min-height: 1px; border-radius: 2px 2px 0 0; }
+.bars .qbar.summer { background: linear-gradient(180deg, var(--accent), #b06a1b); }
+.bars .qbar.winter { background: linear-gradient(180deg, var(--accent-2), #217d8b); }
+.wqlegend { display: flex; gap: .8rem; color: var(--muted); font-size: .7rem; margin-top: .15rem; }
+.wqlegend i { display: inline-block; width: .6rem; height: .6rem; border-radius: 2px; margin-right: .25rem; }
+.wqlegend i.summer { background: var(--accent); }
+.wqlegend i.winter { background: var(--accent-2); }
+
 .bars { display: flex; align-items: flex-end; gap: 3px; height: 74px; margin: .5rem 0 .2rem; }
 .bars .bar { flex: 1; background: linear-gradient(180deg, var(--accent), #b06a1b); border-radius: 3px 3px 1px 1px; min-height: 2px; position: relative; }
 .bars .bar.sel { background: linear-gradient(180deg, var(--accent-2), #217d8b); }

@@ -94,6 +94,13 @@ while (Date.now() < deadline && !ready()) await new Promise((r) => setTimeout(r,
 const doc = window.document;
 console.log("\nOberfläche:");
 ok(doc.querySelectorAll("#controls .ctrl").length === 5, `5 Regler aufgebaut (${doc.querySelectorAll("#controls .ctrl").length})`);
+ok(doc.querySelector("#month-picker").hidden, "Monatsauswahl im Jahresmodus ausgeblendet");
+ok([...doc.querySelectorAll("[data-wq-only]")].every(n => n.hidden),
+  "Winterquartier-Karten erst im Winterquartier-Modus");
+// Regression: `display:flex` der eigenen Regel darf `hidden` nicht aushebeln
+const css = await (await fetch(BASE + "/static/styles.css")).text();
+ok(/\[hidden\]\s*\{\s*display:\s*none\s*!important/.test(css),
+  "styles.css erzwingt display:none für [hidden] (Monatsauswahl bleibt sonst sichtbar)");
 ok(doc.querySelectorAll("#presets .preset").length >= 4, `Voreinstellungen vorhanden (${doc.querySelectorAll("#presets .preset").length})`);
 ok((doc.querySelector("#dataset-badge").textContent || "").length > 5, "Datensatz-Info im Kopfbereich: " + doc.querySelector("#dataset-badge").textContent);
 ok(!doc.querySelector("#legend").hidden, "Legende sichtbar");
@@ -152,6 +159,80 @@ doc.querySelector("#mode-month").click();
 await new Promise((r) => setTimeout(r, 3500));
 ok(!doc.querySelector("#month-picker").hidden, "Monatsauswahl sichtbar");
 ok((doc.querySelector("#legend-title").textContent || "").includes("Tage im "), "Legende auf Monatsmodus: " + doc.querySelector("#legend-title").textContent);
+
+console.log("\nInteraktion – Winterquartier-Modus:");
+doc.querySelector("#mode-wq").click();
+const d5 = Date.now() + 25_000;
+while (Date.now() < d5 && !(doc.querySelector("#legend-title").textContent || "").includes("Sommer + Winter")) {
+  await new Promise((r) => setTimeout(r, 250));
+}
+ok(doc.querySelector("#month-picker").hidden, "Monatsauswahl im Winterquartier-Modus wieder ausgeblendet");
+ok(doc.querySelectorAll("#winter-controls .ctrl").length === 5,
+  `5 Regler fürs Winterquartier-Wetter (${doc.querySelectorAll("#winter-controls .ctrl").length})`);
+ok(!doc.querySelector("#wq-setup").hidden && !doc.querySelector("#pair-card").hidden,
+  "Aufteilung und Gegenstück-Suche sichtbar");
+ok((doc.querySelector("#feel-title").textContent || "").includes("Sommer"),
+  "Überschrift: " + doc.querySelector("#feel-title").textContent);
+ok((doc.querySelector("#wq-window").textContent || "").includes("Winterquartier:"),
+  "Aufteilung im Klartext: " + doc.querySelector("#wq-window").textContent);
+ok((doc.querySelector("#legend-title").textContent || "").includes("Sommer + Winter"),
+  "Legende auf Kombination: " + doc.querySelector("#legend-title").textContent);
+ok(doc.querySelector("#wq-view-winter").getAttribute("aria-selected") === "false",
+  "Kartenansicht startet auf „Kombination“");
+
+// Ansicht wechseln: nur Winterquartier-Tage
+doc.querySelector("#wq-view-winter").click();
+const d6 = Date.now() + 25_000;
+while (Date.now() < d6 && !(doc.querySelector("#legend-title").textContent || "").includes("Winterquartier (")) {
+  await new Promise((r) => setTimeout(r, 250));
+}
+ok((doc.querySelector("#legend-title").textContent || "").includes("Winterquartier ("),
+  "Legende auf Winteransicht: " + doc.querySelector("#legend-title").textContent);
+
+// Sommerfenster verschieben
+const sfrom = doc.querySelector("#wq-sfrom");
+sfrom.value = "4";
+sfrom.dispatchEvent(new window.Event("change", { bubbles: true }));
+await new Promise((r) => setTimeout(r, 3000));
+ok((doc.querySelector("#wq-window").textContent || "").includes("April"),
+  "Sommerfenster verschoben: " + doc.querySelector("#wq-window").textContent);
+
+// Optimierung
+doc.querySelector("#btn-wq-optimize").click();
+const d7 = Date.now() + 30_000;
+while (Date.now() < d7 && !/Beste Kombination/.test(doc.querySelector("#wq-result").textContent || "")) {
+  await new Promise((r) => setTimeout(r, 250));
+}
+const opt = (doc.querySelector("#wq-result").textContent || "").replace(/\s+/g, " ");
+ok(/Beste Kombination/.test(opt) && /Tage\/Jahr/.test(opt), "Optimierung liefert Aufteilung: " + opt.slice(0, 140));
+ok(doc.querySelectorAll("#wq-alternatives .preset").length > 0,
+  `Alternativen als Knöpfe (${doc.querySelectorAll("#wq-alternatives .preset").length})`);
+
+// Ortsauswertung + Gegenstück
+doc.querySelector("#wq-view-combo").click();
+await new Promise((r) => setTimeout(r, 2500));
+handlers.click[0]({ latlng: { lat: 43.3, lng: 5.4 }, containerPoint: { x: 10, y: 10 } });
+const d8 = Date.now() + 30_000;
+const wqReady = () => /Quartier-Kombination/.test(doc.querySelector("#detail").textContent || "")
+  && doc.querySelectorAll("#pair-list li button").length > 0;
+while (Date.now() < d8 && !wqReady()) await new Promise((r) => setTimeout(r, 250));
+const wqText = doc.querySelector("#detail").textContent.replace(/\s+/g, " ");
+ok(/Quartier-Kombination/.test(wqText), "Detailbox zeigt die Quartier-Kombination: " + wqText.slice(0, 120));
+ok(doc.querySelectorAll("#detail .qbars .qcol").length === 12, "12 Monatsbalken mit Sommer-/Winterprofil");
+const pairRows = [...doc.querySelectorAll("#pair-list li button")].map(b => b.textContent.trim());
+ok(pairRows.length > 0, `Gegenstück-Vorschläge (${pairRows.length}): ${pairRows.slice(0, 2).join(" | ")}`);
+
+doc.querySelector("#pair-role-winter").click();
+await new Promise((r) => setTimeout(r, 3500));
+ok(doc.querySelector("#pair-role-winter").getAttribute("aria-selected") === "true",
+  "Rollenwechsel Sommer/Winter in der Gegenstück-Suche");
+
+console.log("\nZurück in den Jahresmodus:");
+doc.querySelector("#mode-year").click();
+await new Promise((r) => setTimeout(r, 3000));
+ok(doc.querySelector("#month-picker").hidden, "Monatsauswahl wieder versteckt");
+ok([...doc.querySelectorAll("[data-wq-only]")].every(n => n.hidden), "Winterquartier-Karten wieder versteckt");
+ok(doc.querySelector("#feel-title").textContent === "Dein Wohlfühlwetter", "Überschrift zurückgesetzt");
 
 console.log(failures.length ? `\n${failures.length} Fehler` : "\nAlle Prüfungen bestanden");
 process.exit(failures.length ? 1 : 0);
