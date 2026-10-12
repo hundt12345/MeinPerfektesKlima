@@ -82,8 +82,18 @@ function toast(msg, ms = 2600) {
 
 async function getJSON(url) {
   const r = await fetch(url);
-  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
-  return r.json();
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const detail = body.detail || body;
+    const text = typeof detail === "string"
+      ? detail
+      : ((detail.reasons && detail.reasons[0]) || body.error || r.statusText);
+    const err = new Error(text);
+    err.status = r.status;
+    err.payload = detail;
+    throw err;
+  }
+  return body;
 }
 
 /* Farbskala der Karte (aus META.color_stops) – auch für Städtemarker benutzt */
@@ -730,16 +740,189 @@ function showDataStatus() {
   }
 }
 
+/* ------------------------------- Statusseite: Daten fehlen / werden gebaut */
+const BUILD_POLL_MS = 15000;
+let buildTimer = null;
+let buildReasons = [];
+let gateState = "";        // Zustand des Datentors aus der 503-Antwort (missing/unusable)
+
+/**
+ * Welcher Zustand ist für die Besucherin die beste Auskunft?
+ * Ein laufender, stehengebliebener oder fehlgeschlagener Datenlauf sagt mehr als
+ * der statische Tor-Zustand; liegt aber ein *abgelehnter* Datensatz und kein
+ * aktiver Lauf vor, muss die Seite „Datensatz abgelehnt" heißen – sonst wirkt es,
+ * als sei noch nie etwas gebaut worden.
+ */
+function effectiveState(info) {
+  const build = info.state || "not_started";
+  if (info.data_ready) return "finished";
+  if (["building", "failed", "stalled"].includes(build)) return build;
+  if (gateState === "unusable") return "unusable";
+  return build;
+}
+
+const BUILD_TEXT = {
+  building: {
+    title: "Klimadaten werden aufgebaut",
+    lead: "Die echten ERA5-Werte für Europa werden gerade geladen. Die Karte erscheint automatisch, "
+      + "sobald der Datenlauf fertig und geprüft ist – diese Seite bleibt offen.",
+  },
+  finished: {
+    title: "Datenlauf fertig – Website wartet auf das Deployment",
+    lead: "Der Datensatz ist gebaut und geprüft. Render übernimmt den neuen Stand automatisch; "
+      + "nach dem Deployment erscheint die Karte von selbst.",
+  },
+  failed: {
+    title: "Datenlauf fehlgeschlagen",
+    lead: "Der letzte Aufbau der Klimadaten ist nicht durchgelaufen. Ohne geprüfte ERA5-Daten "
+      + "bleibt die Karte leer – bitte den Workflow erneut starten.",
+  },
+  stalled: {
+    title: "Datenlauf unterbrochen",
+    lead: "Der Aufbau hat sich seit längerem nicht mehr gemeldet (Zeitbudget oder Abbruch). "
+      + "Ein erneuter Start macht am letzten Kontrollpunkt weiter.",
+  },
+  not_started: {
+    title: "Noch keine Klimadaten",
+    lead: "Für diese Website liegen bisher keine echten ERA5-Klimadaten vor. Der Aufbau läuft "
+      + "als GitHub-Action „Klimadaten bauen“ – danach verschwindet diese Seite automatisch.",
+  },
+  unusable: {
+    title: "Datensatz abgelehnt",
+    lead: "Es liegt ein Datensatz vor, der das Qualitätstor nicht besteht. Die Website zeigt "
+      + "bewusst keine Zahlen daraus – bitte den Datenlauf wiederholen.",
+  },
+};
+
+function fmtAge(seconds) {
+  if (seconds === null || seconds === undefined || Number.isNaN(seconds)) return "–";
+  const s = Math.max(0, Math.round(Number(seconds)));
+  if (s < 90) return `vor ${s} s`;
+  const m = Math.round(s / 60);
+  if (m < 90) return `vor ${m} min`;
+  return `vor ${num(m / 60, 1)} h`;
+}
+
+function fmtDuration(minutes) {
+  const m = Math.round(Number(minutes));
+  if (!Number.isFinite(m) || m <= 0) return "–";
+  if (m < 60) return `${m} min`;
+  return `${Math.floor(m / 60)} h ${m % 60} min`;
+}
+
+function renderBuild(info) {
+  const state = effectiveState(info);
+  const texts = BUILD_TEXT[state] || BUILD_TEXT.not_started;
+  $("#build-title").textContent = texts.title;
+  $("#build-lead").textContent = texts.lead;
+  $("#dataset-badge").textContent = state === "building"
+    ? "⏳ Daten im Aufbau" : "⚠ keine belastbaren Daten";
+  $("#dataset-badge").classList.add("warn");
+
+  const bar = $("#build-bar"), wrap = $("#build-bar-wrap"), label = $("#build-percent");
+  const pct = Number(info.percent);
+  const known = Number.isFinite(pct) && pct > 0;
+  wrap.classList.toggle("indeterminate", !known);
+  wrap.classList.toggle("warn", state === "failed" || state === "stalled" || state === "unusable");
+  wrap.classList.toggle("done", state === "finished");
+  if (known) {
+    const clamped = Math.max(0, Math.min(100, pct));
+    bar.style.width = `${clamped}%`;
+    label.textContent = `${num(clamped, 1)} %`;
+    wrap.setAttribute("aria-valuenow", String(Math.round(clamped)));
+  } else if (state === "finished") {
+    bar.style.width = "100%";
+    label.textContent = "fertig";
+    wrap.setAttribute("aria-valuenow", "100");
+  } else {
+    bar.style.width = "0%";
+    label.textContent = "warten auf Fortschritt";
+    wrap.setAttribute("aria-valuenow", "0");
+  }
+
+  const rows = [];
+  if (info.phase) rows.push(["Phase", info.phase]);
+  if (info.message) rows.push(["Stand", info.message]);
+  if (info.blocks_done !== undefined && info.blocks_total) {
+    rows.push(["Teilabschnitte", `${num(info.blocks_done)} von ${num(info.blocks_total)}`]);
+  }
+  if (info.rate) rows.push(["Tempo", String(info.rate)]);
+  if (state === "building" && info.eta_minutes) rows.push(["Restzeit (ca.)", fmtDuration(info.eta_minutes)]);
+  if (info.updated_at) rows.push(["Letztes Lebenszeichen", fmtAge(info.age_seconds)]);
+  if (info.source) rows.push(["Datenquelle", String(info.source)]);
+  if (info.progress_source) rows.push(["Fortschritt von", String(info.progress_source)]);
+  $("#build-meta").innerHTML = "";
+  for (const [k, v] of rows) $("#build-meta").append(el("li", {}, el("b", { text: k }), el("span", { text: v })));
+
+  const allReasons = buildReasons.length ? buildReasons : (info.reasons || []);
+  const reasons = allReasons.slice(0, 5);
+  const box = $("#build-reasons");
+  if (reasons.length) {
+    box.hidden = false;
+    box.innerHTML = "";
+    const list = el("ul", {}, reasons.map(r => el("li", { text: r })));
+    if (allReasons.length > reasons.length) {
+      list.append(el("li", { text: `… und ${allReasons.length - reasons.length} weitere Prüfungen` }));
+    }
+    box.append(el("strong", { text: "Warum die Karte leer bleibt:" }), list);
+  } else {
+    box.hidden = true;
+  }
+
+  const log = $("#build-log");
+  const tail = info.log_tail || [];
+  if (tail.length) {
+    log.hidden = false;
+    log.textContent = tail.join("\n");
+  } else {
+    log.hidden = true;
+  }
+
+  const link = info.workflow_url || "https://github.com/";
+  $("#build-hint").innerHTML = "";
+  $("#build-hint").append(
+    el("span", { text: "Diese Seite zeigt ausschließlich echte, automatisch geprüfte ERA5-Klimadaten. " }),
+    el("a", { href: link, target: "_blank", rel: "noopener", text: "Workflow „Klimadaten bauen“" }),
+    el("span", { text: " · der Fortschritt wird alle 15 s aktualisiert. " }),
+    el("button", { class: "mini", text: "Jetzt prüfen", onclick: () => pollBuild(true) }));
+}
+
+async function pollBuild(manual = false) {
+  let info = {};
+  try {
+    info = await getJSON("/api/build" + (manual ? "?refresh=true" : ""));
+  } catch (err) {
+    info = { state: "not_started", progress_source: `nicht erreichbar (${err.message})` };
+  }
+  renderBuild(info);
+  if (info.data_ready) {           // Daten sind da: Seite neu laden, Karte zeigen
+    setTimeout(() => location.reload(), 800);
+    return;
+  }
+  if (buildTimer) clearTimeout(buildTimer);
+  buildTimer = setTimeout(() => pollBuild(false), BUILD_POLL_MS);
+}
+
+async function showStatusScreen(payload) {
+  buildReasons = (payload && payload.reasons) || [];
+  gateState = (payload && payload.state) || "";
+  document.querySelector("main").hidden = true;
+  $("#building").hidden = false;
+  if (payload && payload.state === "unusable") buildReasons = buildReasons.length
+    ? buildReasons : ["Datensatz nicht verwendbar"];
+  await pollBuild(true);
+}
+
 /* ------------------------------------------------------------------- Start */
 async function boot() {
   try {
     META = await getJSON("/api/meta");
   } catch (err) {
-    document.querySelector(".mapwrap").innerHTML =
-      `<div style="padding:2rem;color:#9db0c6"><h3>Klimadaten fehlen noch</h3>
-       <p>${err.message || err}</p>
-       <p>Der Datensatz wird vom GitHub-Action-Workflow <code>Klimadaten bauen</code> erzeugt
-       (<code>scripts/fetch_climate_grid.py</code>). Nach dem Lauf erscheint die Karte hier automatisch.</p></div>`;
+    await showStatusScreen(err.payload || null);
+    return;
+  }
+  if (!META.data_ready) {
+    await showStatusScreen(META);
     return;
   }
   readHash();

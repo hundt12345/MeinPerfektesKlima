@@ -108,7 +108,7 @@ ok(calls.attribution === 0, `kein Attributions-/Watermark-Balken in der Karte ($
 ok(calls.geoJSON >= 1, `Länderflächen selbst gezeichnet (geoJSON: ${calls.geoJSON})`);
 ok(calls.overlay >= 1, `Daten-Overlay eingebunden (${calls.overlay})`);
 ok(calls.circles >= 5, `Städtemarker gesetzt (${calls.circles})`);
-ok(doc.querySelector("#attribution").textContent.includes("Open-Meteo"), "Quellenangabe im Fußbereich der Seite");
+ok(doc.querySelector("#attribution").textContent.includes("Copernicus"), "Quellenangabe (Copernicus/ERA5) im Fußbereich der Seite");
 
 console.log("\nInteraktion – Klick auf die Karte:");
 handlers.click[0]({ latlng: { lat: 48.85, lng: 2.35 }, containerPoint: { x: 10, y: 10 } });

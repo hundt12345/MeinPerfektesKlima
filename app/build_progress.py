@@ -36,7 +36,7 @@ PROGRESS_FILE = "app/data/build_progress.json"
 DEFAULT_REPO = os.environ.get("KLIMA_REPO", "hundt12345/MeinPerfektesKlima")
 PROGRESS_BRANCH = os.environ.get("KLIMA_PROGRESS_BRANCH", "klima-fortschritt")
 
-_cache: dict = {"at": 0.0, "value": None}
+_cache: dict = {"at": 0.0, "value": None, "key": None}
 _lock = Lock()
 
 
@@ -109,7 +109,7 @@ def classify(progress: dict | None, source: str) -> dict:
     out["progress_source"] = source
     if status in ("done", "finished", "complete", "completed", "success"):
         out["state"] = "finished"          # Daten sind gebaut, Deployment steht aus
-    elif status in ("failed", "error", "gate_failed"):
+    elif status in ("failed", "failure", "error", "gate_failed", "cancelled", "aborted"):
         out["state"] = "failed"
     elif age is not None and age > STALE_AFTER_SECONDS:
         out["state"] = "stalled"           # kein Lebenszeichen mehr
@@ -122,12 +122,14 @@ def classify(progress: dict | None, source: str) -> dict:
 def build_status(data_dir: Path, force_refresh: bool = False) -> dict:
     """Fortschritt des Datenbaus (ferngeladen, sonst lokal, sonst „unbekannt")."""
     now = time.monotonic()
+    url = progress_url()
+    key = (url, str(data_dir))
     with _lock:
-        fresh = _cache["value"] is not None and (now - _cache["at"]) < CACHE_SECONDS
+        fresh = (_cache["value"] is not None and _cache["key"] == key
+                 and (now - _cache["at"]) < CACHE_SECONDS)
         if fresh and not force_refresh:
             return dict(_cache["value"])
 
-    url = progress_url()
     result: dict | None = None
     source = "keine"
     if url:
@@ -145,5 +147,6 @@ def build_status(data_dir: Path, force_refresh: bool = False) -> dict:
     status["fetched_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     with _lock:
         _cache["at"] = now
+        _cache["key"] = key
         _cache["value"] = status
     return dict(status)

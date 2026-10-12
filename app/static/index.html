@@ -24,6 +24,28 @@
 
 <div class="banner" id="banner" hidden></div>
 
+<!-- Statusseite: wird gezeigt, solange keine echten, geprüften ERA5-Daten vorliegen.
+     Die Karte bleibt dann bewusst leer – lieber ein ehrlicher Baufortschritt als
+     synthetische oder unplausible Zahlen. -->
+<section class="building" id="building" hidden>
+  <div class="card build-card">
+    <h2 id="build-title">Klimadaten werden aufgebaut</h2>
+    <p class="lead" id="build-lead">Die Karte zeigt ausschließlich echte ERA5-Klimadaten.</p>
+
+    <div class="bar" id="build-bar-wrap" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+         aria-valuenow="0" aria-label="Fortschritt des Datenbaus">
+      <div class="bar-fill" id="build-bar"></div>
+      <span class="bar-label" id="build-percent">–</span>
+    </div>
+
+    <ul class="build-meta" id="build-meta"></ul>
+    <div class="build-reasons" id="build-reasons" hidden></div>
+    <pre class="build-log" id="build-log" hidden></pre>
+
+    <p class="hint" id="build-hint"></p>
+  </div>
+</section>
+
 <main>
   <aside class="panel" id="panel">
     <section class="card">
@@ -113,7 +135,7 @@
     <div>
       <h3>Daten &amp; Grenzen</h3>
       <p>
-        Quelle: <span id="about-source">ERA5-Reanalyse über die Open-Meteo-API</span>. ERA5 ist ein
+        Quelle: <span id="about-source">ERA5-Reanalyse (Copernicus/ECMWF)</span>. ERA5 ist ein
         Reanalyse-Modell (ca. 0,25°) und damit kein Stationsmesswert – in Gebirgen und an Küsten sind
         Abweichungen von mehreren Grad möglich. Die Auflösung dieses Datensatzes beträgt
         <span id="about-grid">0,75°</span>, die Werte sind auf 0,5 °C (Temperatur), 0,25 h (Sonne) und
@@ -125,8 +147,8 @@
   </div>
   <footer>
     <span id="attribution">
-      Klimadaten: ERA5/ERA5-Land (Copernicus Climate Change Service / ECMWF) via
-      <a href="https://open-meteo.com/" rel="noopener">Open-Meteo.com</a> ·
+      Klimadaten: enthält modifizierte Copernicus-Climate-Change-Service-Informationen (ERA5 / ECMWF),
+      gelesen aus der offenen <a href="https://github.com/google-research/arco-era5" rel="noopener">ARCO-ERA5-Kopie</a> ·
       Ländergrenzen: Natural Earth (gemeinfrei) · Orte: <a href="https://www.geonames.org/" rel="noopener">GeoNames</a> (CC-BY 4.0) ·
       Kartenbibliothek: <a href="https://leafletjs.com/" rel="noopener">Leaflet</a> (BSD-2) ·
       Grundkarte selbst gerendert, keine Kartenkacheln von Drittanbietern.

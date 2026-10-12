@@ -47,24 +47,33 @@ Deshalb prüft `scripts/check_grid.py` nach jedem Datenlauf automatisch gegen
 **Klimanormalwerte von 22 europäischen Städten** (Monatsmittel Jan/Jul für Höchst- und
 Tiefsttemperatur, Sonnenscheindauer, Jahresniederschlag) sowie gegen strukturelle
 Erwartungen (Jahresgang, Wertebereiche, Vollständigkeit). Das Ergebnis steht in
-`app/data/quality_report.json`; schlägt das Tor fehl, wird der Action-Lauf rot **und**
-die Website blendet einen deutlichen Warnhinweis ein, statt falsche Zahlen stillschweigend
-zu zeigen. Fehlende Tage eines abgebrochenen Abrufs werden beim Zusammenbauen aus
+`app/data/quality_report.json`; schlägt das Tor fehl, wird der Action-Lauf rot.
+
+Seit dem Umbau ist das Tor **hart**, nicht mehr nur ein Warnbanner: Bestehen die
+bereitgestellten Daten die Prüfung nicht (oder fehlen sie ganz), antworten alle
+Karten-Endpunkte mit **HTTP 503** und die Startseite zeigt statt einer Karte mit
+falschen Zahlen den **Baufortschritt** des Datenlaufs (Balken, Phase, ETA, Logzeilen).
+Die Website zeigt also entweder geprüfte echte ERA5-Daten oder gar keine.
+Für Entwicklung/Demos lässt sich das Tor mit der Umgebungsvariable
+`KLIMA_ALLOW_UNVERIFIED=1` öffnen – die Kennzeichnung `synthetic: true` bleibt dann
+sichtbar. Fehlende Tage eines abgebrochenen Abrufs werden beim Zusammenbauen aus
 Nachbarpunkten ergänzt und als `coverage` in den Metadaten ausgewiesen.
 
 ## Daten
 
 | Was | Woher | Auflösung / Umfang |
 |---|---|---|
-| Temperatur, Taupunkt, Sonnenschein, Niederschlag | **ERA5**-Reanalyse (Copernicus/ECMWF) über die [Open-Meteo](https://open-meteo.com/)-Historical-API | täglich, 2016–2025, Raster 0,75° über 34°–72° N / 25° W–45° O (~2.250 Landpunkte) |
+| Temperatur, Taupunkt, Sonnenschein, Niederschlag | **ERA5**-Reanalyse (Copernicus/ECMWF), offene Kopie [ARCO ERA5](https://github.com/google-research/arco-era5) auf Google Cloud (`gs://gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3`) | stündlich gelesen → täglich abgeleitet, 2016–2025, Raster 0,75° über 34°–72° N / 25° W–45° O (~2.250 Landpunkte) |
 | Landmaske fürs Ausblenden der Meeresflächen | [global-land-mask](https://pypi.org/project/global-land-mask/) (Natural Earth/OSM-basiert) | 0,05° |
 | Ländergrenzen (Grundkarte) | [world-atlas](https://www.npmjs.com/package/world-atlas) (Natural Earth 1:10m) | Vektor, selbst gerendert |
 | Städteliste für Suche/Marker/Top-Orte | [GeoNames cities15000](https://www.geonames.org/) | 4.099 Orte ≥ 25.000 Einwohner in Europa |
 
-Lizenzen/Attribution: ERA5-Daten © Copernicus/ECMWF, bereitgestellt über Open-Meteo
-(CC-BY-4.0; die Open-Meteo-API selbst CC-BY-NC-4.0 – für eine kommerzielle Nutzung
-bitte eigene Hosting-/API-Lizenz klären). Natural Earth ist gemeinfrei, GeoNames
-CC-BY-4.0, Leaflet BSD-2.
+Lizenzen/Attribution: ERA5-Daten enthalten modifizierte Copernicus-Klimadaten
+(2026); bereitgestellt von ECMWF, gespiegelt als offene, analysis-ready Kopie durch
+Google Research (Copernicus-Lizenz, keine API-Nutzungsbedingungen, kein Tageskontingent,
+kein Schlüssel nötig). Natural Earth ist gemeinfrei, GeoNames CC-BY-4.0, Leaflet BSD-2.
+Der frühere Weg über die Open-Meteo-API entfällt – siehe
+[„Warum nicht die Open-Meteo-API?“](#warum-nicht-die-open-meteo-api).
 
 **Grenzen der Aussage:** ERA5 ist ein Reanalyse-Modell (≈0,25°), kein Stationsmesswert.
 In Gebirgen und an Küsten sind Abweichungen von mehreren Grad möglich; der Datensatz
@@ -81,13 +90,16 @@ app/
   data/              Datensätze (Klimaraster, Ländergrenzen, Städte, Qualitätsbericht)
   static/            Startseite (index.html), Styles, Leaflet (vendored)
 scripts/
-  fetch_climate_grid.py   ERA5-Daten über Open-Meteo holen + quantisieren  (braucht Internet)
+  fetch_era5_zarr.py      ERA5 aus offenen Zarr-Daten lesen, Tageswerte ableiten   (Standard)
+  build_progress.py       Baufortschritt schreiben + auf Zweig „klima-fortschritt" veröffentlichen
+  fetch_climate_grid.py   alternativer Abruf über die Open-Meteo-API (nur mit Kontingent)
   make_dev_grid.py        plausibles synthetisches Raster für Offline-Entwicklung/Demo
   check_grid.py           Qualitätstor: Vergleich mit Klimanormalwerten (22 Städte)
   build_geo.py            Ländergrenzen + Städteliste bauen
   download_sources.sh     Rohquellen (world-atlas, Leaflet, GeoNames) laden
+app/build_progress.py     liest den Fortschritt (Datei/GitHub) und bewertet ihn für die UI
 .github/workflows/
-  build-climate-data.yml  führt fetch_climate_grid.py + check_grid.py auf einem
+  build-climate-data.yml  führt fetch_era5_zarr.py + check_grid.py auf einem
                           GitHub-Runner aus und committet das Ergebnis zurück
 render.yaml          Render-Blueprint (Web-Service, Free-Plan)
 ```
@@ -103,24 +115,35 @@ Parameteränderung serverseitig ~0,1–0,3 s statt ~1 s – wichtig auf kleinen 
 
 ### Warum ein separater Daten-Workflow?
 
-Der Datenabruf braucht offenen Internetzugang zu `archive-api.open-meteo.com`.
-Sandboxes/CI-Umgebungen ohne diesen Zugang können das Raster nicht erzeugen – der
-GitHub-Action-Runner schon. Deshalb:
+Der Datenabruf braucht offenen Internetzugang (hier: anonym zu
+`storage.googleapis.com`) und liest rund 700 GB Stundenwerte – das ist auf einer
+Free-Web-Instanz weder möglich noch sinnvoll (kein persistentes Datenvolumen,
+6-Stunden-Lauf beim Deploy, CPU-Kontingent). Deshalb:
 
-* **Datenernte** = GitHub Action (einmalig bzw. zur Aktualisierung),
+* **Datenernte** = GitHub Action (einmalig bzw. zur Aktualisierung), ~2–3 h,
+  mit Kontrollpunkten je Jahr und live veröffentlichtem Fortschritt,
 * **Web-App** = liest nur die fertige `app/data/climate_grid.npz` (kein Netzzugriff zur Laufzeit,
   keine API-Limits im Betrieb).
+
+Die Fortschrittsdatei wird während des Laufs auf den Zweig `klima-fortschritt`
+geschrieben (nicht auf `main`, damit Render nicht pro Meldung neu deployt); die App
+liest sie über `raw.githubusercontent.com` und zeigt daraus den Balken.
 
 ## Daten aktualisieren
 
 1. `scripts/grid_config.json` anpassen (Zeitraum/Ausschnitt/Auflösung;
    `"test_mode": false` = voller Lauf, `true` = winziges Testraster).
-2. GitHub → *Actions* → **Klimadaten bauen** → *Run workflow*.
-   Der Lauf dauert ca. 1–3 Stunden und committet
+2. GitHub → *Actions* → **Klimadaten bauen** → *Run workflow*
+   (Eingaben: `quelle` = `zarr`, `max_minutes` = 290, `jahre`/`sonnenschwelle` optional,
+   `reset` = `true` verwirft Kontrollpunkte).
+   Der Lauf dauert ca. 2–3 Stunden und committet
    `app/data/climate_grid.npz` + `climate_meta.json` + `quality_report.json` zurück.
    Erreicht er sein Zeitbudget, bleiben Kontrollpunkte liegen und der nächste Lauf
-   macht dort weiter.
+   macht dort weiter. Solange zeigt die Website den Balken mit Zwischenstand.
 3. Render deployt den neuen Commit automatisch.
+
+Der Lauf startet auch von selbst, wenn sich an `scripts/fetch_era5_zarr.py`,
+`scripts/grid_config.json` oder am Workflow etwas ändert (Push auf `main`).
 
 ## Lokal starten
 
@@ -158,9 +181,36 @@ verbinden. Render liest `render.yaml` und legt den Service an:
 **Variante B – manuell:** *New → Web Service*, Repo verbinden, Runtime *Python 3*,
 Build- und Startkommando wie oben, Region Frankfurt.
 
+### Warum nicht die Open-Meteo-API?
+
+Der erste Datenlauf über die Open-Meteo-Archive-API ist am **freien Kontingent**
+gescheitert, und zwar grundsätzlich – nicht an einer zu hohen Rate:
+
+| Messwert | Wert |
+|---|---|
+| Freie Aufrufe je IP | 600/min, 5.000/h, **10.000/Tag**, 300.000/Monat |
+| Zählweise | Ein Aufruf zählt mehrfach, wenn > 2 Wochen Zeitraum oder > 10 Variablen je Ort |
+| Bedarf für dieses Raster | 2.250 Landpunkte × 3.653 Tage ≈ **290.000 gewichtete Aufrufe** |
+| Folge | ~30 Läufe à 10.000 – und GitHub-Runner teilen sich IPs, das Kontingent ist oft schon vor dem ersten Aufruf weg (HTTP 429) |
+| Messung im Runner | 1 Block (12 Punkte × 10 Jahre) = 200 OK in 4,8 s; ganzer Lauf ≈ 5 Blöcke/Tag ≈ 38 Tage |
+| Kostenpflichtige Alternative | Professional-Tarif 99 $/Monat (Historical + Climate API inklusive) |
+
+Belege: `data/quellen-probe.txt`, `data/quellen-probe-tageswerte.txt`, `build-log.txt`.
+
+Der jetzige Weg liest **dieselben ERA5-Werte** aus der offenen, analysis-ready Kopie
+von Google Research (ARCO): anonym, ohne Schlüssel, ohne Tageskontingent. Kosten
+entstehen dabei nur als ausgehender Traffic des Runners; die Aktion dauert statt
+38 Tagen etwa 2–3 Stunden. Der Nachteil: Es sind Stundenwerte (≈700 GB Lesevolumen),
+aus denen Tageshöchst-/tiefstwerte, Taupunktmittel, Niederschlagssumme und
+Sonnenscheindauer (Stunden ≥ 120 W/m² Direktstrahlung) erst abgeleitet werden.
+Die Open-Meteo-Variante bleibt als `quelle: open-meteo` im Workflow erhalten, falls
+jemand später einen API-Schlüssel hat.
+
 ### Reicht der Free-Plan?
 
-**Ja, für den privaten/probierenden Betrieb.** Eckdaten:
+**Für den Betrieb der Website: ja.** Für das **Bauen** der Daten: nein – das
+übernimmt bewusst die GitHub Action (siehe oben), Render free hat dafür weder
+ausreichend CPU-Stunden noch persistenten Speicher. Eckdaten:
 
 * Speicher: Der Dienst liegt im Betrieb bei ~250–300 MB RAM (Datensatz 41 MB entpackt +
   Render-Caches) – die Free-Instanz hat 512 MB, das passt mit Reserve.
@@ -169,6 +219,9 @@ Build- und Startkommando wie oben, Region Frankfurt.
 * Der Datensatz (~26 MB komprimiert) liegt im Repo, Render nimmt ihn beim Deploy mit;
   die App lädt ihn beim Start im Hintergrund vor, der erste Nutzer wartet also nicht
   auf den Daten-Load.
+* Solange **keine** geprüften Daten im Repo liegen, antwortet die App mit 503 und zeigt
+  den Baufortschritt – ein leerer Free-Service wirkt also nicht „kaputt“, sondern
+  erklärt, was gerade passiert.
 * **Einziger echter Nachteil:** Free-Instanzen schlafen nach Inaktivität ein. Der erste
   Aufruf nach einer Pause dauert ~10–50 s (Cold Start), danach ist alles schnell.
   Für Dauerbetrieb oder mehrere gleichzeitige Nutzer: in `render.yaml`
@@ -199,9 +252,16 @@ Alle Karten-Endpunkte verstehen dieselben Parameter:
 ## Tests
 
 ```bash
-pytest tests                 # Zähl-Kern, Rendering, API (mit generiertem Testraster)
+pytest tests                 # Zähl-Kern, Rendering, API, Datentor, ERA5-Ableitungen
 node tests/ui_smoketest.mjs  # Oberfläche in jsdom gegen eine laufende Instanz
 ```
+
+`tests/test_fetch_era5_zarr.py` baut einen kleinen Zarr-Speicher mit **geschlossenen
+Funktionen** als Wetter und prüft die Ableitung auf exakte Tageswerte (inklusive
+Längengrad-Umbruch bei 0°, Akkumulationsfenster 01:00–24:00, Sonnenschein-Schwelle,
+unvollständige Tage als Lücken) – ganz ohne Internet.
+`tests/test_data_gate.py` prüft das harte Tor: synthetische Daten ⇒ 503 +
+Baufortschritt, `KLIMA_ALLOW_UNVERIFIED=1` ⇒ Karte mit Kennzeichnung.
 
 Der UI-Smoketest prüft u. a., dass **keine** Kacheln von Drittanbietern geladen werden
 (kein Watermark), dass Länderflächen selbst gezeichnet werden und dass Klicks auf Karte,

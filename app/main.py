@@ -118,6 +118,30 @@ def climate() -> ClimateData:
         raise HTTPException(status_code=503, detail=_load_error) from exc
 
 
+def report_matches_dataset(cd: ClimateData) -> tuple[bool, str]:
+    """Gehört der committete Qualitätsbericht zum gerade geladenen Raster?
+
+    Ein Datenlauf kann einen Bericht zu einem *anderen* Datensatz hinterlassen –
+    etwa ein abgebrochener Altlauf, der noch das synthetische Testraster geprüft
+    hat, während längst echte ERA5-Daten deployed sind. Dessen Urteil gilt dann
+    nicht: Es würde die Website für Daten sperren, die nie geprüft werden
+    mussten. Umgekehrt darf ein fehlender/alter Bericht echte Daten nicht
+    automatisch „grün“ schreiben – deshalb gibt die Funktion auch den Grund zurück.
+    """
+    report = cd.quality or {}
+    meta = getattr(cd, "meta", {}) or {}
+    if not report:
+        return False, "kein Qualitätsbericht vorhanden"
+    if report.get("model") and meta.get("model") and report["model"] != meta["model"]:
+        return False, (f"Bericht prüfte Modell '{report['model']}', "
+                       f"geladen ist '{meta['model']}'")
+    fingerprint = report.get("dataset") or {}
+    for key in ("generated_at", "n_points", "n_days", "start_date", "end_date", "grid_step_deg"):
+        if key in fingerprint and key in meta and fingerprint[key] != meta[key]:
+            return False, f"Bericht und Datensatz unterscheiden sich in „{key}“"
+    return True, ""
+
+
 def dataset_blockers(cd: ClimateData) -> list[str]:
     """Harte Gründe, warum dieser Datensatz nicht angezeigt werden darf.
 
@@ -133,7 +157,8 @@ def dataset_blockers(cd: ClimateData) -> list[str]:
     if cd.coverage < 0.9:
         blockers.append(f"Nur {cd.coverage * 100:.1f} % der Punkt-Tage sind vorhanden")
     report = cd.quality or {}
-    if report.get("ok") is False:
+    gehoert, _ = report_matches_dataset(cd)
+    if report.get("ok") is False and gehoert:
         errors = [e for e in (report.get("errors") or [])]
         blockers.extend(errors or ["Qualitätsprüfung nicht bestanden"])
     seen: list[str] = []
@@ -230,9 +255,21 @@ def render_cached(p: Params, month: int | None, width: int, fixed: bool) -> tupl
 
 @app.get("/healthz")
 def healthz():
-    return {"ok": _climate is not None or _load_error is None,
-            "loaded": _climate is not None, "warm": _warm,
-            "error": _load_error if _climate is None else None}
+    """Immer HTTP 200 – Render prüft den Dienst, nicht den Datenstand.
+
+    Der Inhalt sagt trotzdem ehrlich, ob schon belastbare Klimadaten geladen
+    sind (``data_ready``) und woran es sonst hängt (``error``).
+    """
+    loaded = _climate is not None
+    data_ready = False
+    if loaded:
+        try:
+            data_ready = not dataset_blockers(_climate) or ALLOW_UNVERIFIED
+        except Exception:  # noqa: BLE001
+            data_ready = False
+    return {"ok": True, "loaded": loaded, "warm": _warm, "data_ready": data_ready,
+            "allow_unverified": ALLOW_UNVERIFIED,
+            "error": _load_error if not data_ready else None}
 
 
 @app.get("/api/meta")
@@ -247,6 +284,11 @@ def api_meta():
     if blockers and not ALLOW_UNVERIFIED:
         return JSONResponse(not_ready_payload("unusable", blockers, cd), status_code=503)
     quality = cd.quality or {}
+    gehoert, grund = report_matches_dataset(cd)
+    veraltet = bool(quality) and not gehoert
+    stale_warnings = ([f"Qualitätsbericht passt nicht zum geladenen Datensatz ({grund}) – "
+                       f"bitte den Workflow „Klimadaten bauen“ erneut ausführen"]
+                      if veraltet else [])
     season_errors = [] if cd.season_ok else [
         f"Jahresgang invertiert oder flach (Juli − Januar im Süden: "
         f"{round(cd.season_delta, 1)} K) – Datensatz unbrauchbar"]
@@ -275,11 +317,14 @@ def api_meta():
         "coverage": round(cd.coverage, 4),
         "repaired": cd.repaired,
         "quality": {
-            "ok": bool(quality.get("ok", not cd.is_synthetic)) and cd.season_ok,
-            "checked_at": quality.get("checked_at"),
-            "checks": quality.get("checks", []),
-            "warnings": quality.get("warnings", []),
-            "errors": list(quality.get("errors", [])) + season_errors,
+            "ok": ((bool(quality.get("ok", not cd.is_synthetic)) and cd.season_ok)
+                   if gehoert else (not cd.is_synthetic and cd.season_ok)),
+            "checked_at": quality.get("checked_at") if gehoert else None,
+            "checks": quality.get("checks", []) if gehoert else [],
+            "warnings": list(quality.get("warnings", [])) + stale_warnings if gehoert
+                        else stale_warnings,
+            "errors": (list(quality.get("errors", [])) if gehoert else []) + season_errors,
+            "stale": veraltet,
             "season_delta_k": round(cd.season_delta, 1),
         },
         "years_in_record": round(cd.years, 2),

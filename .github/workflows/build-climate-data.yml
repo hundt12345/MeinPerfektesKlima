@@ -1,26 +1,38 @@
 name: Klimadaten bauen
 
-# Holt tägliche ERA5-Werte über die Open-Meteo-API und committet das Raster
-# (app/data/climate_grid.npz + climate_meta.json + quality_report.json) zurück
-# in den Branch, auf dem der Lauf gestartet wurde.
+# Baut den Klima-Datensatz der Website und committet das Ergebnis
+# (app/data/climate_grid.npz + climate_meta.json + quality_report.json) zurück in
+# den Branch, auf dem der Lauf gestartet wurde.
 #
-# Der Lauf ist in ~4,5-Stunden-Häppchen möglich: erreicht ein Lauf sein Zeitbudget,
-# bleiben die Kontrollpunkte (data/checkpoints/) erhalten und der nächste Lauf macht
-# dort weiter. Wiederholt „Run workflow“ klicken, bis das Protokoll „Vollständig“
-# meldet – danach sind die Kontrollpunkte aufgeräumt.
+# Quelle: **offene ERA5-Daten** auf Google Cloud (ARCO-Zarr, anonym lesbar,
+# kein Kontingent) – nicht mehr die Open-Meteo-API. Deren freies Kontingent
+# (10.000 gewichtete Aufrufe/Tag je IP, GitHub-Runner-IPs sind geteilt) reichte
+# für den Europa-Abruf nicht: ein vollständiger Lauf entspräche ~290.000
+# Aufrufen, also etwa einem Monat. Messungen dazu: data/quellen-probe.txt.
 #
-# Nach dem Abruf läuft scripts/check_grid.py als **Qualitätstor**: Es vergleicht den
-# Datensatz mit Klimanormalwerten von 22 Städten. Schlägt es fehl, wird der Lauf rot
-# (die Dateien werden trotzdem committet, damit die Website den Zustand ehrlich
-# anzeigen kann – die App blendet dann einen Warnhinweis ein).
+# Der Lauf arbeitet mit Kontrollpunkten je Jahr: Wird das Zeitbudget erreicht,
+# bleiben sie liegen und der nächste Lauf macht dort weiter. Seinen Fortschritt
+# meldet der Lauf zusätzlich live auf den Zweig „klima-fortschritt" – daraus
+# zeichnet die Startseite den Balken, solange sie keine Daten zeigen darf.
+#
+# Danach läuft scripts/check_grid.py als **Qualitätstor** (Vergleich mit
+# Klimanormalwerten von 22 Städten). Schlägt es fehl, wird der Lauf rot; die
+# Dateien werden trotzdem committet, damit die Website den Zustand ehrlich
+# anzeigen kann – sie zeigt dann weiterhin keine Karte.
 on:
   workflow_dispatch:
     inputs:
+      quelle:
+        description: "Datenquelle: zarr (offene ERA5-Daten, empfohlen) oder open-meteo"
+        default: "zarr"
       max_minutes:
         description: "Zeitbudget für diesen Lauf (Minuten)"
-        default: "285"
-      rate:
-        description: "Punkt-Tage pro Minute (leer = Vorgabe aus grid_config.json)"
+        default: "290"
+      jahre:
+        description: "Nur die ersten N Jahre lesen (leer = alle, für Tests)"
+        default: ""
+      sonnenschwelle:
+        description: "Schwelle für Sonnenschein in W/m² (leer = 120)"
         default: ""
       reset:
         description: "Kontrollpunkte verwerfen und von vorn beginnen (true/false)"
@@ -28,21 +40,32 @@ on:
   push:
     branches: [main]
     paths:
+      - "scripts/fetch_era5_zarr.py"
       - "scripts/fetch_climate_grid.py"
+      - "scripts/build_progress.py"
       - "scripts/grid_config.json"
+      - "requirements-data.txt"
       - ".github/workflows/build-climate-data.yml"
 
 permissions:
   contents: write
 
+# Eigene Gruppe: In der alten Gruppe „climate-data" standen noch abgebrochene
+# Open-Meteo-Läufe, die sich nicht beenden ließen (API 403) und diesen Lauf
+# stundenlang blockiert hätten.
 concurrency:
-  group: climate-data
+  group: klimadaten-zarr
   cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 355
+    timeout-minutes: 350
+    env:
+      # Fortschritt live auf diesen Zweig (nicht main: kein Render-Deploy pro Meldung)
+      KLIMA_PROGRESS_BRANCH: klima-fortschritt
+      # Der Datenlauf veröffentlicht seinen Fortschritt selbst über die GitHub-API
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -51,29 +74,74 @@ jobs:
           python-version: "3.12"
 
       - name: Abhängigkeiten
-        run: pip install --quiet numpy scipy pillow global-land-mask
+        run: |
+          pip install --quiet -r requirements-data.txt
+          python - <<'PY'
+          import PIL, numpy, scipy, xarray, zarr, global_land_mask
+          print("Bibliotheken vorhanden:", numpy.__version__, xarray.__version__, zarr.__version__)
+          PY
 
-      - name: ERA5-Raster über Open-Meteo abrufen
+      - name: Überspringen, wenn schon ein vollständiger Datensatz liegt
+        id: skip
+        if: github.event_name == 'push'
+        run: |
+          # Ein Push auf die Pipeline-Skripte soll nicht jedes Mal 2–3 Stunden
+          # ERA5 neu lesen. Manuell gestartet (workflow_dispatch) läuft immer.
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          skip = False
+          grund = "kein Datensatz vorhanden"
+          try:
+              meta = json.loads(Path("app/data/climate_meta.json").read_text())
+              report = json.loads(Path("app/data/quality_report.json").read_text())
+              jahre = str((meta.get("coverage") or {}).get("years", ""))
+              if (meta.get("model") == "era5" and report.get("ok") is True
+                      and jahre.split("/")[-1] and jahre.split("/")[0] == jahre.split("/")[-1]):
+                  skip = True
+                  grund = f"vollständiger, geprüfter ERA5-Datensatz liegt vor ({jahre} Jahre)"
+              else:
+                  grund = f"Datensatz unvollständig oder ungeprüft ({jahre}, ok={report.get('ok')})"
+          except Exception as exc:
+              grund = f"Datensatz nicht lesbar ({type(exc).__name__})"
+          print("Überspringen:" if skip else "Datenlauf nötig:", grund)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"skip={'true' if skip else 'false'}\n")
+          PY
+
+      - name: ERA5-Raster lesen
         id: fetch
+        if: steps.skip.outputs.skip != 'true'
         continue-on-error: true
         env:
+          KLIMA_LOG_FILE: fetch.log        # Balken zeigt die live geschriebenen Zeilen
+          IN_QUELLE: ${{ github.event.inputs.quelle }}
           IN_MAX_MINUTES: ${{ github.event.inputs.max_minutes }}
-          IN_RATE: ${{ github.event.inputs.rate }}
+          IN_JAHRE: ${{ github.event.inputs.jahre }}
+          IN_SCHWELLE: ${{ github.event.inputs.sonnenschwelle }}
           IN_RESET: ${{ github.event.inputs.reset }}
         run: |
           set -o pipefail
           git config user.name "klima-datenbot"
           git config user.email "klima-datenbot@users.noreply.github.com"
+          QUELLE="${IN_QUELLE:-zarr}"
+          if [ "$QUELLE" = "open-meteo" ]; then
+            export SKRIPT="scripts/fetch_climate_grid.py"
+          else
+            export SKRIPT="scripts/fetch_era5_zarr.py"
+          fi
           python - <<'PY' > fetch.log 2>&1 &
           import json, os, subprocess, sys
           cfg = json.load(open("scripts/grid_config.json"))
-          cmd = [sys.executable, "-u", "scripts/fetch_climate_grid.py"]
+          cmd = [sys.executable, "-u", os.environ["SKRIPT"]]
           if cfg.get("test_mode"):
               cmd.append("--test")
           if os.environ.get("IN_MAX_MINUTES"):
               cmd += ["--max-minutes", os.environ["IN_MAX_MINUTES"]]
-          if os.environ.get("IN_RATE"):
-              cmd += ["--rate", os.environ["IN_RATE"]]
+          if os.environ.get("IN_JAHRE"):
+              cmd += ["--years", os.environ["IN_JAHRE"]]
+          if os.environ.get("IN_SCHWELLE"):
+              cmd += ["--threshold", os.environ["IN_SCHWELLE"]]
           if os.environ.get("IN_RESET", "").lower() == "true":
               cmd.append("--reset")
           print("Aufruf:", " ".join(cmd), flush=True)
@@ -82,8 +150,7 @@ jobs:
           FETCH_PID=$!
           START=$(date +%s)
           TICK=0
-          PUSHED=0
-          echo "Abruf läuft (PID $FETCH_PID). Zwischenstände werden alle 10 Minuten als Commit gesichert."
+          echo "Datenlauf (PID $FETCH_PID, Quelle $QUELLE). Zwischenstände werden alle 10 Minuten gesichert."
           while kill -0 "$FETCH_PID" 2>/dev/null; do
             sleep 60
             TICK=$((TICK + 1))
@@ -95,20 +162,29 @@ jobs:
             git add -f -- build-log.txt data/checkpoints ':(exclude)data/checkpoints/*/.tmp' 2>/dev/null || true
             git diff --cached --quiet && continue
             git commit -q -m "Klimadaten: Zwischenstand nach ${MIN} Minuten [skip ci]" || true
-            # Einmal nach ~45 Minuten veröffentlichen, damit der Fortschritt von außen
-            # sichtbar ist (jeder Push löst sonst einen Render-Deploy aus).
-            if [ "$PUSHED" -eq 0 ] && [ $(( $(date +%s) - START )) -ge 2700 ]; then
-              PUSHED=1
-              git push -q origin "HEAD:refs/heads/${GITHUB_REF_NAME}" \
-                || echo "::warning::Zwischenstand konnte nicht veröffentlicht werden"
+            # Zwischenstand auch sichern, falls der Runner hart abbricht – die
+            # Kontrollpunkte sind sonst Stunden von Arbeit umsonst.
+            if ! git pull -q --rebase origin "${GITHUB_REF_NAME}" 2>/dev/null; then
+              git rebase --abort 2>/dev/null || true
             fi
+            git push -q origin "HEAD:refs/heads/${GITHUB_REF_NAME}" \
+              || echo "  (Zwischenstand nicht gepusht – folgt am Laufende)"
           done
           wait "$FETCH_PID"
           FETCH_EXIT=$?
           cp fetch.log build-log.txt
-          echo "--- Protokoll des Abrufs:"
+          echo "--- Protokoll des Datenlaufs:"
           cat build-log.txt
           exit $FETCH_EXIT
+
+      - name: Abhängigkeiten für das Qualitätstor sicherstellen
+        if: always()
+        run: |
+          # Ein abgebrochener Runner hat hier früher ohne PIL weitergemacht –
+          # dann blieb quality_report.json alt und die Website wusste nichts.
+          python - <<'PY' || pip install --quiet -r requirements-data.txt
+          import PIL, numpy, scipy, global_land_mask
+          PY
 
       - name: Qualitätstor (Plausibilität gegen Klimanormalwerte)
         id: gate
@@ -124,12 +200,34 @@ jobs:
         run: |
           python -u scripts/make_docs_image.py 2>&1 | tee -a build-log.txt || true
 
-      - name: Ergebnis committen (auch bei Fehlern – inkl. Protokoll und Kontrollpunkte)
+      - name: Ergebnis committen (auch bei Fehlern – inkl. Protokoll und Kontrollpunkten)
         if: always()
         run: |
           git config user.name "klima-datenbot"
           git config user.email "klima-datenbot@users.noreply.github.com"
-          git add -f -- build-log.txt app/data/climate_grid.npz app/data/climate_meta.json app/data/quality_report.json || true
+          if [ "${{ steps.fetch.outcome }}" = "skipped" ]; then
+            echo "Nichts zu committen – Datenlauf wurde übersprungen."
+            exit 0
+          fi
+          GATE="$(cat gate-exit.txt 2>/dev/null || echo 1)"
+          if [ "${{ steps.fetch.outcome }}" = "skipped" ]; then
+            echo "Datenlauf übersprungen – der vorhandene Datensatz bleibt unverändert."
+            exit 0
+          fi
+          if [ "${{ steps.fetch.outcome }}" = "success" ] && [ "$GATE" = "0" ]; then
+            STATUS="done"
+            MELDUNG="Datensatz gebaut und Qualitätstor bestanden – Deployment läuft"
+            PROZENT=100
+          else
+            STATUS="failed"
+            MELDUNG="Datenlauf unvollständig oder Qualitätstor nicht bestanden – bitte erneut starten"
+            PROZENT=""
+          fi
+          python -u scripts/build_progress.py --status "$STATUS" --phase "Abschluss" \
+            --message "$MELDUNG" ${PROZENT:+--percent "$PROZENT"} \
+            --tail build-log.txt --source "ERA5 (offene Zarr-Daten, Google Cloud)" || true
+          git add -f -- build-log.txt app/data/climate_grid.npz app/data/climate_meta.json \
+                       app/data/quality_report.json app/data/build_progress.json || true
           git add -A -f -- data/checkpoints ':(exclude)data/checkpoints/*/.tmp' 2>/dev/null || true
           git add -f -- docs/beispiel-jahr.png docs/beispiel-juli.png docs/beispiele.json 2>/dev/null || true
           if git diff --cached --quiet; then
@@ -137,8 +235,6 @@ jobs:
           else
             git commit -m "Klimadaten: ERA5-Raster aktualisiert [skip ci]"
           fi
-          # Auch die Zwischenstands-Commits müssen veröffentlicht werden, selbst wenn
-          # hier nichts Neues mehr anfällt.
           git push origin "HEAD:refs/heads/${GITHUB_REF_NAME}" || {
             git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:refs/heads/${GITHUB_REF_NAME}";
           }
@@ -146,11 +242,17 @@ jobs:
       - name: Fehler weiterreichen
         if: always()
         run: |
+          if [ "${{ steps.fetch.outcome }}" = "skipped" ]; then
+            echo "Datenlauf übersprungen – vorhandener Datensatz wurde geprüft."
+            [ "$(cat gate-exit.txt 2>/dev/null || echo 1)" = "0" ] || {
+              echo "::error::Qualitätstor nicht bestanden"; exit 1; }
+            exit 0
+          fi
           GATE="$(cat gate-exit.txt 2>/dev/null || echo 1)"
           ORDERLY=0
-          grep -qE "Zeitbudget|Blöcke zusammengesetzt|Vollständig" build-log.txt 2>/dev/null && ORDERLY=1
+          grep -qE "Zeitbudget|Vollständig|zusammengesetzt" build-log.txt 2>/dev/null && ORDERLY=1
           if [ "${{ steps.fetch.outcome }}" != "success" ] && [ "$ORDERLY" != "1" ]; then
-            echo "::error::Der Datenabruf ist fehlgeschlagen – siehe build-log.txt."
+            echo "::error::Der Datenlauf ist fehlgeschlagen – siehe build-log.txt."
             exit 1
           fi
           if [ "${{ steps.fetch.outcome }}" != "success" ]; then

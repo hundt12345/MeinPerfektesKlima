@@ -13,3 +13,11 @@ node_modules/
 # Arbeitsdateien des Datenabrufs
 fetch.log
 data/checkpoints/*/.tmp/
+
+# Erzeugte Klimadaten: gehören nicht in den Quellbaum, sie werden von der
+# GitHub-Action „Klimadaten bauen" mit `git add -f` in das Repo geschrieben.
+# Ohne sie zeigt die Website den Baufortschritt statt einer Karte (Datentor).
+app/data/climate_grid.npz
+app/data/climate_meta.json
+app/data/quality_report.json
+app/data/build_progress.json

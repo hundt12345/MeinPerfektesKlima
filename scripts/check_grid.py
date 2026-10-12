@@ -216,6 +216,14 @@ def main() -> int:
         "ok": ok,
         "checked_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "model": cd.meta.get("model"),
+        # Fingerabdruck: Die App prüft damit, ob dieser Bericht überhaupt zum
+        # geladenen Raster gehört – ein liegengebliebener Bericht aus einem
+        # älteren Datenlauf soll nicht echte Daten sperren.
+        "dataset": {"generated_at": cd.meta.get("generated_at"),
+                    "n_points": int(cd.n_points), "n_days": int(cd.n_days),
+                    "start_date": cd.meta.get("start_date"),
+                    "end_date": cd.meta.get("end_date"),
+                    "grid_step_deg": cd.meta.get("grid_step_deg")},
         "coverage": round(float(cov), 6),
         "mean_temp_deviation_k": round(mean_dev, 2),
         "checks": checks,
