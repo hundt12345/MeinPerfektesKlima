@@ -138,12 +138,29 @@ liest sie über `raw.githubusercontent.com` und zeigt daraus den Balken.
    `reset` = `true` verwirft Kontrollpunkte).
    Der Lauf dauert ca. 2–3 Stunden und committet
    `app/data/climate_grid.npz` + `climate_meta.json` + `quality_report.json` zurück.
-   Erreicht er sein Zeitbudget, bleiben Kontrollpunkte liegen und der nächste Lauf
-   macht dort weiter. Solange zeigt die Website den Balken mit Zwischenstand.
+   Erreicht er sein Zeitbudget (`max_minutes`, Vorgabe 290 – der GitHub-Job bricht
+   erst bei 350 Minuten hart ab), beendet er sich **geordnet**; die Kontrollpunkte
+   (`data/checkpoints/zarr-…/y<jahr>.npz`) bleiben liegen und der nächste Lauf macht
+   dort weiter. Also: erneut *Run workflow* klicken, bis das Protokoll „Vollständig“ meldet.
 3. Render deployt den neuen Commit automatisch.
 
 Der Lauf startet auch von selbst, wenn sich an `scripts/fetch_era5_zarr.py`,
 `scripts/grid_config.json` oder am Workflow etwas ändert (Push auf `main`).
+
+Hinweise zum Lauf:
+
+* **Fortschritt beobachten:** Die Startseite zeigt während des Laufs einen Balken
+  (Phase, Jahre, Restzeit, letzte Protokollzeilen) – sie aktualisiert sich alle 15 s
+  selbst und lädt neu, sobald die Daten geprüft vorliegen. Zusätzlich entsteht alle
+  10 Minuten ein Commit „Klimadaten: Zwischenstand …“ mit Protokoll und Kontrollpunkten,
+  falls der Runner hart abbricht.
+* **Keine Drosselung:** Die Zarr-Quelle kennt kein Aufrufkontingent; das Zeitbudget
+  ist die einzige Grenze. (Nur der Fallback `quelle: open-meteo` teilt Anfragen bei
+  HTTP 429 weiterhin auf und braucht dafür ~38 Tage – siehe
+  [„Warum nicht die Open-Meteo-API?“](#warum-nicht-die-open-meteo-api).)
+* **Nichts zu tun:** Liegt bei einem Push-Auslöser schon ein vollständiger, geprüfter
+  ERA5-Datensatz, überspringt der Lauf den Abruf. Manuell gestartet (`workflow_dispatch`)
+  läuft er immer; mit `reset: true` (bzw. lokal `--force`) wird komplett neu aufgebaut.
 
 ## Lokal starten
 
