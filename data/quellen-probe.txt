@@ -1,0 +1,87 @@
+Datenquellen-Probe für 'Mein perfektes Klima'
+BBOX: {'lat_min': 34.0, 'lat_max': 72.0, 'lon_min': -25.0, 'lon_max': 45.0}
+Zeit: 2026-10-12 10:17:46 UTC
+
+==============================================================================
+1) Open-Meteo Archive-API (bisherige Quelle)
+==============================================================================
+  klein: HTTP 200 in 0.6s, 0.00 MB
+    Antwort: {"latitude":52.47803,"longitude":13.3829,"generationtime_ms":0.05984306335449219,"utc_offset_seconds":0,"timezone":"GMT","timezone_abbreviation":"GMT","elevation":43.0,"daily_units":{"time":"iso8601","temperature_2m_max":"°C"},"daily":{"time":["2024-01-01","2024-01-02"],"temperature_2m_max":[7.7,8.1]}}
+  12 Punkte x 10 Jahre (wie im Abruf): HTTP 200 in 4.8s, 1.83 MB
+    Antwort: [{"latitude":34.0,"longitude":10.0,"generationtime_ms":553.551435470581,"utc_offset_seconds":0,"timezone":"GMT","timezone_abbreviation":"GMT","elevation":13.0,"daily_units":{"time":"iso8601","temperature_2m_max":"°C","temperature_2m_min":"°C","dew_point_2m_mean":"°C","sunshine_duration":"s","precipitation_sum":"mm"},"daily":{"time":["2016-01-01","2016-01-02","2016-01-03","2016-01-04","2016-01-0
+
+==============================================================================
+2) Google Cloud ARCO ERA5 (gs://gcp-public-data-arco-era5)
+==============================================================================
+
+-- gcp-public-data-arco-era5/  (3 Ordner, 0 Objekte) 
+   [dir] ar/
+   [dir] co/
+   [dir] raw/
+
+-- gcp-public-data-arco-era5/ar/  (19 Ordner, 0 Objekte) 
+   [dir] ar/1959-2022-1h-240x121_equiangular_with_poles_conservative.zarr/
+   [dir] ar/1959-2022-1h-360x181_equiangular_with_poles_conservative.zarr/
+   [dir] ar/1959-2022-6h-128x64_equiangular_conservative.zarr/
+   [dir] ar/1959-2022-6h-128x64_equiangular_with_poles_conservative.zarr/
+   [dir] ar/1959-2022-6h-1440x721.zarr/
+   [dir] ar/1959-2022-6h-240x121_equiangular_with_poles_conservative.zarr/
+   [dir] ar/1959-2022-6h-512x256_equiangular_conservative.zarr/
+   [dir] ar/1959-2022-6h-64x32_equiangular_conservative.zarr/
+   [dir] ar/1959-2022-6h-64x32_equiangular_with_poles_conservative.zarr/
+   [dir] ar/1959-2022-full_37-1h-0p25deg-chunk-1.zarr-v2/
+   [dir] ar/1959-2022-full_37-6h-0p25deg-chunk-1.zarr-v2/
+   [dir] ar/1959-2022-full_37-6h-0p25deg_derived.zarr/
+   [dir] ar/1959-2022-wb13-6h-0p25deg-chunk-1.zarr-v2/
+   [dir] ar/1959-2023_01_10-6h-64x32_equiangular_conservative.zarr/
+   [dir] ar/1959-2023_01_10-full_37-1h-0p25deg-chunk-1.zarr/
+   [dir] ar/1959-2023_01_10-full_37-1h-1440x721.zarr/
+   [dir] ar/full_37-1h-0p25deg-chunk-1.zarr-v3/
+   [dir] ar/model-level-1h-0p25deg.zarr-v1/
+   [dir] ar/model-level-1h-0p25deg.zarr-v2/
+
+   == ar/1959-2022-1h-240x121_equiangular_with_poles_conservative.zarr/  (Format v2, ? Mitglieder)
+      10m_u_component_of_wind                              shape=[552264, 240, 121] chunks=[8, 240, 121] dtype=<f4 comp=blosc   <-- gebraucht
+      10m_v_component_of_wind                              shape=[552264, 240, 121] chunks=[8, 240, 121] dtype=<f4 comp=blosc 
+      2m_temperature                                       shape=[552264, 240, 121] chunks=[8, 240, 121] dtype=<f4 comp=blosc   <-- gebraucht
+      angle_of_sub_gridscale_orography                     shape=[240, 121] chunks=[240, 121] dtype=<f4 comp=blosc 
+      anisotropy_of_sub_gridscale_orography                shape=[240, 121] chunks=[240, 121] dtype=<f4 comp=blosc 
+      geopotential                                         shape=[552264, 37, 240, 121] chunks=[8, 37, 240, 121] dtype=<f4 comp=blosc 
+      geopotential_at_surface                              shape=[240, 121] chunks=[240, 121] dtype=<f4 comp=blosc 
+      high_vegetation_cover                                shape=[240, 121] chunks=[240, 121] dtype=<f4 comp=blosc 
+      lake_cover                                           shape=[240, 121] chunks=[240, 121] dtype=<f4 comp=blosc 
+      lake_depth                                           shape=[240, 121] chunks=[240, 121] dtype=<f4 comp=blosc 
+      land_sea_mask                                        shape=[240, 121] chunks=[240, 121] dtype=<f4 comp=blosc 
+      latitude                                             shape=[121] chunks=[121] dtype=<f8 comp=blosc 
+      level                                                shape=[37] chunks=[37] dtype=<i8 comp=blosc 
+      longitude                                            shape=[240] chunks=[240] dtype=<f8 comp=blosc 
+      low_vegetation_cover                                 shape=[240, 121] chunks=[240, 121] dtype=<f4 comp=blosc 
+      mean_sea_level_pressure                              shape=[552264, 240, 121] chunks=[8, 240, 121] dtype=<f4 comp=blosc 
+      sea_ice_cover                                        shape=[552264, 240, 121] chunks=[8, 240, 121] dtype=<f4 comp=blosc 
+      sea_surface_temperature                              shape=[552264, 240, 121] chunks=[8, 240, 121] dtype=<f4 comp=blosc 
+      slope_of_sub_gridscale_orography                     shape=[240, 121] chunks=[240, 121] dtype=<f4 comp=blosc 
+      soil_type                                            shape=[240, 121] chunks=[240, 121] dtype=<f4 comp=blosc 
+      specific_humidity                                    shape=[552264, 37, 240, 121] chunks=[8, 37, 240, 121] dtype=<f4 comp=blosc 
+      standard_deviation_of_filtered_subgrid_orography     shape=[240, 121] chunks=[240, 121] dtype=<f4 comp=blosc 
+      standard_deviation_of_orography                      shape=[240, 121] chunks=[240, 121] dtype=<f4 comp=blosc 
+      surface_pressure                                     shape=[552264, 240, 121] chunks=[8, 240, 121] dtype=<f4 comp=blosc 
+      temperature                                          shape=[552264, 37, 240, 121] chunks=[8, 37, 240, 121] dtype=<f4 comp=blosc 
+      time                                                 shape=[552264] chunks=[69033] dtype=<i8 comp=blosc 
+      toa_incident_solar_radiation                         shape=[552264, 240, 121] chunks=[8, 240, 121] dtype=<f4 comp=blosc 
+      total_cloud_cover                                    shape=[552264, 240, 121] chunks=[8, 240, 121] dtype=<f4 comp=blosc 
+      total_column_water_vapour                            shape=[552264, 240, 121] chunks=[8, 240, 121] dtype=<f4 comp=blosc 
+      total_precipitation                                  shape=[552264, 240, 121] chunks=[8, 240, 121] dtype=<f4 comp=blosc   <-- gebraucht
+      type_of_high_vegetation                              shape=[240, 121] chunks=[240, 121] dtype=<f4 comp=blosc 
+      type_of_low_vegetation                               shape=[240, 121] chunks=[240, 121] dtype=<f4 comp=blosc 
+      u_component_of_wind                                  shape=[552264, 37, 240, 121] chunks=[8, 37, 240, 121] dtype=<f4 comp=blosc 
+      v_component_of_wind                                  shape=[552264, 37, 240, 121] chunks=[8, 37, 240, 121] dtype=<f4 comp=blosc 
+      vertical_velocity                                    shape=[552264, 37, 240, 121] chunks=[8, 37, 240, 121] dtype=<f4 comp=blosc 
+Traceback (most recent call last):
+  File "/home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/scripts/probe_sources.py", line 375, in <module>
+    main()
+  File "/home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/scripts/probe_sources.py", line 360, in main
+    probe_gcs("gcp-public-data-arco-era5", ["", "ar/", "co/", "analysis/", "model/"],
+  File "/home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/scripts/probe_sources.py", line 228, in probe_gcs
+    f"min {min(sizes)/1e6:.3f} MB, median {statistics.median(sizes)/1e6:.3f} MB, "
+           ~~~~~~~~~~^~~~
+TypeError: unsupported operand type(s) for /: 'str' and 'float'
