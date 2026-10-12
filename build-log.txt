@@ -16,3 +16,5 @@ Aufruf: /opt/hostedtoolcache/Python/3.12.15/x64/bin/python -u scripts/fetch_era5
 [13:13:27]   Jahr 2018: 365 Tage (2018-01-01 … 2018-12-31)
 [13:25:28]   Jahr 2018 fertig in 721s (1977 ms/Tag), 3/10 Jahre, noch ca. 83 min
 [13:25:29]   Jahr 2019: 365 Tage (2019-01-01 … 2019-12-31)
+[13:37:30]   Jahr 2019 fertig in 721s (1976 ms/Tag), 4/10 Jahre, noch ca. 72 min
+[13:37:32]   Jahr 2020: 366 Tage (2020-01-01 … 2020-12-31)
