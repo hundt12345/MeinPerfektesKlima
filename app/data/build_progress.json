@@ -3,23 +3,23 @@
   "status": "running",
   "phase": "Abruf",
   "percent": 90.0,
-  "message": "Jahr 2024 gelesen (9 von 10 Jahren)",
+  "message": "2m_dewpoint_temperature 2025-08-14 … 2025-08-18",
   "blocks_done": 9,
   "blocks_total": 10,
   "rate": "935 s/Jahr",
   "eta_minutes": 13,
   "source": "ERA5-Reanalyse (Copernicus Climate Change Service / ECMWF), offene analysis-ready Kopie von Google Research",
   "started_at": "2026-10-12T12:49:40Z",
-  "updated_at": "2026-10-12T14:49:13Z",
+  "updated_at": "2026-10-12T14:51:45Z",
   "run_url": "https://github.com/hundt12345/MeinPerfektesKlima/actions/runs/38251440135",
   "log_tail": [
-    "[13:50:30]   Jahr 2021: 365 Tage (2021-01-01 … 2021-12-31)",
     "[14:04:50]   Jahr 2021 fertig in 861s (2358 ms/Tag), 6/10 Jahre, noch ca. 50 min",
     "[14:04:52]   Jahr 2022: 365 Tage (2022-01-01 … 2022-12-31)",
     "[14:19:15]   Jahr 2022 fertig in 863s (2365 ms/Tag), 7/10 Jahre, noch ca. 38 min",
     "[14:19:16]   Jahr 2023: 365 Tage (2023-01-01 … 2023-12-31)",
     "[14:33:37]   Jahr 2023 fertig in 860s (2357 ms/Tag), 8/10 Jahre, noch ca. 26 min",
     "[14:33:38]   Jahr 2024: 366 Tage (2024-01-01 … 2024-12-31)",
-    "[14:49:13]   Jahr 2024 fertig in 935s (2555 ms/Tag), 9/10 Jahre, noch ca. 13 min"
+    "[14:49:13]   Jahr 2024 fertig in 935s (2555 ms/Tag), 9/10 Jahre, noch ca. 13 min",
+    "[14:49:14]   Jahr 2025: 365 Tage (2025-01-01 … 2025-12-31)"
   ]
 }
