@@ -24,3 +24,5 @@ Aufruf: /opt/hostedtoolcache/Python/3.12.15/x64/bin/python -u scripts/fetch_era5
 [14:04:52]   Jahr 2022: 365 Tage (2022-01-01 … 2022-12-31)
 [14:19:15]   Jahr 2022 fertig in 863s (2365 ms/Tag), 7/10 Jahre, noch ca. 38 min
 [14:19:16]   Jahr 2023: 365 Tage (2023-01-01 … 2023-12-31)
+[14:33:37]   Jahr 2023 fertig in 860s (2357 ms/Tag), 8/10 Jahre, noch ca. 26 min
+[14:33:38]   Jahr 2024: 366 Tage (2024-01-01 … 2024-12-31)
