@@ -12,8 +12,15 @@ name: Datenquellen-Diagnose
 # Ergebnis landet als data/quellen-probe.txt im Repo.
 on:
   workflow_dispatch:
+    inputs:
+      skript:
+        description: "Probe-Skript"
+        default: "scripts/probe_daily.py"
+      ausgabe:
+        description: "Berichtsdatei im Repo"
+        default: "data/quellen-probe-tageswerte.txt"
   push:
-    branches: ["**"]
+    branches: [main, "arena/**"]
     paths:
       - ".github/workflows/probe-datenquellen.yml"
 
@@ -38,12 +45,17 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p data
-          python -u scripts/probe_sources.py 2>&1 | tee data/quellen-probe.txt
+          SKRIPT="${{ github.event.inputs.skript }}"
+          SKRIPT="${SKRIPT:-scripts/probe_daily.py}"
+          AUSGABE="${{ github.event.inputs.ausgabe }}"
+          AUSGABE="${AUSGABE:-data/quellen-probe-tageswerte.txt}"
+          echo "Probe: $SKRIPT -> $AUSGABE"
+          python -u "$SKRIPT" 2>&1 | tee "$AUSGABE"
 
       - name: Ergebnis committen
         if: always()
         run: |
           git config user.name "klima-datenbot"
           git config user.email "klima-datenbot@users.noreply.github.com"
-          git add -f data/quellen-probe.txt || true
+          git add -f data/ || true
           git diff --cached --quiet || { git commit -q -m "Diagnose: Datenquellen-Bestand [skip ci]" && git push -q origin "HEAD:refs/heads/${GITHUB_REF_NAME}"; }

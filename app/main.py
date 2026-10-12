@@ -1,7 +1,9 @@
 """FastAPI-Anwendung: „Mein perfektes Klima – Europa“.
 
-  GET /                 Startseite mit Karte
+  GET /                 Startseite mit Karte (bzw. Statusseite, solange keine
+                        echten ERA5-Daten vorliegen)
   GET /api/meta         Datensatz-Infos, Standardwerte, Voreinstellungen
+  GET /api/build        Live-Fortschritt des Datenbaus (GitHub-Action)
   GET /api/map          Statistik + Rasterwerte für die aktuellen Parameter
   GET /api/map.png      Kartenbild (Web-Mercator-PNG)
   GET /api/point        Auswertung für einen Ort (Monatsaufschlüsselung)
@@ -21,12 +23,21 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from .build_progress import DEFAULT_REPO, build_status
 from .climate import FIELD_WIDTH, ClimateData, Params
 
 BASE = Path(__file__).resolve().parent
 # Eigener Datenordner für Entwicklung/Tests (KLIMA_DATA_DIR=/tmp/devgrid)
 DATA_DIR = Path(os.environ.get("KLIMA_DATA_DIR", BASE / "data")).resolve()
 STATIC_DIR = BASE / "static"
+
+# Die Website zeigt ausschließlich echte, geprüfte Klimadaten. Für Entwicklung
+# und Tests (synthetisches Raster) kann das Tor bewusst geöffnet werden:
+#   KLIMA_ALLOW_UNVERIFIED=1 uvicorn app.main:app
+ALLOW_UNVERIFIED = os.environ.get("KLIMA_ALLOW_UNVERIFIED", "").strip().lower() in (
+    "1", "true", "yes", "on")
+
+WORKFLOW_URL = f"https://github.com/{DEFAULT_REPO}/actions/workflows/build-climate-data.yml"
 
 MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni",
           "Juli", "August", "September", "Oktober", "November", "Dezember"]
@@ -68,9 +79,13 @@ async def lifespan(_app: FastAPI):
     def warm_up() -> None:
         global _warm, _load_error
         try:
-            climate()                                  # Datensatz laden (Lazy Load)
+            ready_dataset()                             # Datensatz laden + prüfen
             render_cached(Params(), None, 1000, False)  # IDW-Gewichte, Landmaske, PNG-Cache
             _warm = True
+        except HTTPException as exc:
+            # Keine belastbaren Daten: nichts vorwärmen, die Statusseite antwortet sofort.
+            detail = exc.detail if isinstance(exc.detail, dict) else {}
+            _load_error = "; ".join(detail.get("reasons") or [str(exc.detail)])
         except Exception as exc:  # noqa: BLE001
             _load_error = f"{type(exc).__name__}: {exc}"
 
@@ -101,6 +116,73 @@ def climate() -> ClimateData:
             "GitHub-Action-Workflow „Klimadaten bauen“ erzeugt – bitte diesen Workflow starten."
         )
         raise HTTPException(status_code=503, detail=_load_error) from exc
+
+
+def dataset_blockers(cd: ClimateData) -> list[str]:
+    """Harte Gründe, warum dieser Datensatz nicht angezeigt werden darf.
+
+    Leere Liste = Daten sind echt und haben das Qualitätstor bestanden.
+    """
+    blockers: list[str] = []
+    if cd.is_synthetic:
+        blockers.append("Das Raster stammt aus synthetischen Testdaten "
+                        "(scripts/make_dev_grid.py), nicht aus ERA5")
+    if not cd.season_ok:
+        blockers.append(f"Jahresgang unplausibel: Juli − Januar im Süden "
+                        f"= {round(cd.season_delta, 1)} K")
+    if cd.coverage < 0.9:
+        blockers.append(f"Nur {cd.coverage * 100:.1f} % der Punkt-Tage sind vorhanden")
+    report = cd.quality or {}
+    if report.get("ok") is False:
+        errors = [e for e in (report.get("errors") or [])]
+        blockers.extend(errors or ["Qualitätsprüfung nicht bestanden"])
+    seen: list[str] = []
+    for b in blockers:
+        if b not in seen:
+            seen.append(b)
+    return seen
+
+
+def not_ready_payload(state: str, reasons: list[str], cd: ClimateData | None = None) -> dict:
+    """Antwortrumpf für „noch keine belastbaren Daten" – inkl. Baufortschritt."""
+    payload: dict = {
+        "data_ready": False,
+        "state": state,
+        "reasons": reasons,
+        "allow_unverified": ALLOW_UNVERIFIED,
+        "build": build_status(DATA_DIR),
+        "workflow_url": WORKFLOW_URL,
+    }
+    if cd is not None:
+        payload["dataset"] = {
+            "source": cd.meta.get("source"), "model": cd.meta.get("model"),
+            "generated_at": cd.meta.get("generated_at"), "n_points": cd.meta.get("n_points"),
+            "start_date": cd.meta.get("start_date"), "end_date": cd.meta.get("end_date"),
+        }
+        payload["quality"] = cd.quality or {}
+    return payload
+
+
+def missing_data_reason(exc: Exception) -> str:
+    return ("Die Klimadaten (app/data/climate_grid.npz) fehlen noch – der Datensatz wird vom "
+            "GitHub-Action-Workflow „Klimadaten bauen“ erzeugt.")
+
+
+def ready_dataset() -> ClimateData:
+    """Datensatz, aber nur wenn er echt und geprüft ist – sonst HTTP 503.
+
+    Jeder Karten-/Orts-Endpunkt benutzt diesen Zugriff. Damit ist
+    sichergestellt, dass die Website niemals synthetische oder vom Qualitätstor
+    verworfene Zahlen als Klima ausweist (früher: Banner über einer falschen Karte).
+    """
+    try:
+        cd = climate()
+    except HTTPException as exc:
+        raise HTTPException(503, detail=not_ready_payload("missing", [missing_data_reason(exc)])) from exc
+    blockers = dataset_blockers(cd)
+    if blockers and not ALLOW_UNVERIFIED:
+        raise HTTPException(503, detail=not_ready_payload("unusable", blockers, cd))
+    return cd
 
 
 def parse_params(
@@ -138,7 +220,7 @@ def render_cached(p: Params, month: int | None, width: int, fixed: bool) -> tupl
         if hit is not None:
             _png_cache.move_to_end(key)
             return hit
-    png, info = climate().render(p, month, width, fixed)
+    png, info = ready_dataset().render(p, month, width, fixed)
     with _lock:
         _png_cache[key] = (png, info)
         while len(_png_cache) > _CACHE_MAX:
@@ -155,16 +237,22 @@ def healthz():
 
 @app.get("/api/meta")
 def api_meta():
+    """Datensatz-Infos – antwortet mit 503, solange keine echten Daten vorliegen."""
     try:
         cd = climate()
-    except HTTPException as exc:
-        return JSONResponse({"error": exc.detail, "data_ready": False}, status_code=503)
+    except HTTPException:
+        return JSONResponse(not_ready_payload("missing", [missing_data_reason(None)]),
+                            status_code=503)
+    blockers = dataset_blockers(cd)
+    if blockers and not ALLOW_UNVERIFIED:
+        return JSONResponse(not_ready_payload("unusable", blockers, cd), status_code=503)
     quality = cd.quality or {}
     season_errors = [] if cd.season_ok else [
         f"Jahresgang invertiert oder flach (Juli − Januar im Süden: "
         f"{round(cd.season_delta, 1)} K) – Datensatz unbrauchbar"]
     return {
         "data_ready": True,
+        "state": "ready",
         "months": MONTHS,
         "presets": PRESETS,
         "defaults": Params().query(),
@@ -207,7 +295,7 @@ def api_map(p: Params = Depends(parse_params), month: str | None = Query(None),
     p = p or Params()
     m = parse_month(month)
     _, info = render_cached(p, m, int(width), bool(fixed))
-    ticks = climate().legend_ticks(info["vmax"])
+    ticks = ready_dataset().legend_ticks(info["vmax"])
     return {**{k: v for k, v in info.items() if k != "values"},
             "values": info["values"], "legend_ticks": ticks,
             "month": m, "params": p.query(),
@@ -231,7 +319,7 @@ def api_point(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge
     """Auswertung für einen Ort: Wohlfühl-Tage, Monatsprofil und Klima."""
     p = p or Params()
     m = parse_month(month)
-    return climate().point_report(lat, lon, p, m)
+    return ready_dataset().point_report(lat, lon, p, m)
 
 
 @app.get("/api/ranking")
@@ -241,7 +329,7 @@ def api_ranking(p: Params = Depends(parse_params), month: str | None = Query(Non
     return {
         "month": m,
         "month_label": "ganzes Jahr" if m is None else MONTHS[m],
-        "cities": climate().ranking(p, m, max(1, min(40, limit))),
+        "cities": ready_dataset().ranking(p, m, max(1, min(40, limit))),
     }
 
 
@@ -250,7 +338,34 @@ def api_cities_map(p: Params = Depends(parse_params), month: str | None = Query(
     """Größte Orte mit ihrer Tageszahl – für anklickbare Kartenmarker."""
     p = p or Params()
     m = parse_month(month)
-    return {"month": m, "cities": climate().cities_for_map(p, m, max(20, min(1200, limit)))}
+    return {"month": m, "cities": ready_dataset().cities_for_map(p, m, max(20, min(1200, limit)))}
+
+
+@app.get("/api/build")
+def api_build(refresh: bool = False):
+    """Fortschritt des Datenbaus – für den Balken auf der Statusseite.
+
+    Antwortet immer mit 200: Der Status ist auch dann interessant, wenn gerade
+    nichts gebaut wird oder GitHub nicht erreichbar ist.
+    """
+    payload = build_status(DATA_DIR, force_refresh=bool(refresh))
+    payload["workflow_url"] = WORKFLOW_URL
+    payload["repo"] = DEFAULT_REPO
+    try:
+        cd = climate()
+    except HTTPException:
+        payload["data_ready"] = False
+        payload["reasons"] = [missing_data_reason(None)]
+        return payload
+    blockers = dataset_blockers(cd)
+    payload["data_ready"] = not blockers or ALLOW_UNVERIFIED
+    payload["reasons"] = blockers
+    payload["dataset"] = {
+        "model": cd.meta.get("model"), "source": cd.meta.get("source"),
+        "generated_at": cd.meta.get("generated_at"), "n_points": cd.meta.get("n_points"),
+        "start_date": cd.meta.get("start_date"), "end_date": cd.meta.get("end_date"),
+    }
+    return payload
 
 
 @app.get("/api/countries")
@@ -274,7 +389,7 @@ def api_cities():
 @app.get("/api/cities/search")
 def api_cities_search(q: str = Query("", min_length=1), limit: int = 8):
     """Ortssuche (Prefix + Teilstring) über die Städteliste – schlankes JSON."""
-    cd = climate()
+    cd = ready_dataset()
     needle = q.strip().lower()
     if not needle or not cd.cities:
         return {"q": q, "cities": []}
