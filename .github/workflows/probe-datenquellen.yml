@@ -1,0 +1,49 @@
+name: Datenquellen-Diagnose
+
+# Einmalige Bestandsaufnahme: Welche frei zugänglichen ERA5-Quellen taugen für
+# den kompletten Europa-Raster-Abruf? Gemessen wird direkt auf dem Runner:
+#
+#   1. Open-Meteo (bisherige Quelle) – warum kommt HTTP 429? (Antworttext!)
+#   2. Google Cloud „ARCO ERA5" / WeatherBench2 – öffentliche Zarr-Speicher,
+#      anonym lesbar, ohne Kontingent. Welche Variablen, welche Chunk-Größen,
+#      und wie lange dauert das Lesen eines Europa-Ausschnitts?
+#   3. AWS Open Data (era5-pds) – exists/anonymous listing.
+#
+# Ergebnis landet als data/quellen-probe.txt im Repo.
+on:
+  workflow_dispatch:
+  push:
+    branches: ["**"]
+    paths:
+      - ".github/workflows/probe-datenquellen.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Abhängigkeiten
+        run: pip install --quiet "zarr>=3,<4" "xarray>=2025.1.0" "gcsfs>=2024.10" numpy
+
+      - name: Bestand aufnehmen
+        run: |
+          set -o pipefail
+          mkdir -p data
+          python -u scripts/probe_sources.py 2>&1 | tee data/quellen-probe.txt
+
+      - name: Ergebnis committen
+        if: always()
+        run: |
+          git config user.name "klima-datenbot"
+          git config user.email "klima-datenbot@users.noreply.github.com"
+          git add -f data/quellen-probe.txt || true
+          git diff --cached --quiet || { git commit -q -m "Diagnose: Datenquellen-Bestand [skip ci]" && git push -q origin "HEAD:refs/heads/${GITHUB_REF_NAME}"; }
