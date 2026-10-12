@@ -29,6 +29,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 fetch_era5_zarr = pytest.importorskip("fetch_era5_zarr")
 xr = pytest.importorskip("xarray")
 pd = pytest.importorskip("pandas")
+pytest.importorskip("zarr")        # ohne zarr kann der künstliche Speicher nicht entstehen
 
 LAT = np.arange(25.0, 76.0, 5.0)
 LON = np.arange(0.0, 360.0, 5.0)

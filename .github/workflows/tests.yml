@@ -1,0 +1,51 @@
+name: Tests
+
+# Läuft bei jedem Push und jedem Pull Request: Zähl-Kern, Rendering, API,
+# Datentor und die ERA5-Ableitungen. Ohne diese Prüfung war früher nicht
+# sichtbar, dass ein Datenlauf kaputte Dateien ins Repo geschrieben hatte.
+on:
+  push:
+    branches: [main, "arena/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Abhängigkeiten
+        run: pip install --quiet -r requirements-dev.txt -r requirements-data.txt
+
+      - name: Pytest
+        run: python -m pytest tests -q
+
+  oberflaeche:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Abhängigkeiten
+        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+      # Selbstversorgt (keine laufende App nötig): prüft die Statusseite mit
+      # Balken, die erscheint, solange keine geprüften Klimadaten vorliegen.
+      - name: Statusseite (jsdom)
+        run: node tests/ui_statusseite.mjs

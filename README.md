@@ -269,9 +269,13 @@ Alle Karten-Endpunkte verstehen dieselben Parameter:
 ## Tests
 
 ```bash
-pytest tests                 # Zähl-Kern, Rendering, API, Datentor, ERA5-Ableitungen
-node tests/ui_smoketest.mjs  # Oberfläche in jsdom gegen eine laufende Instanz
+pytest tests                  # Zähl-Kern, Rendering, API, Datentor, ERA5-Ableitungen
+node tests/ui_statusseite.mjs # Statusseite mit Balken in jsdom (ohne Server)
+node tests/ui_smoketest.mjs   # Karte in jsdom gegen eine laufende Instanz
 ```
+
+Beides läuft auch als GitHub Action **Tests** bei jedem Push und Pull Request
+(`.github/workflows/tests.yml`).
 
 `tests/test_fetch_era5_zarr.py` baut einen kleinen Zarr-Speicher mit **geschlossenen
 Funktionen** als Wetter und prüft die Ableitung auf exakte Tageswerte (inklusive
