@@ -12,3 +12,5 @@ Aufruf: /opt/hostedtoolcache/Python/3.12.15/x64/bin/python -u scripts/fetch_era5
 [12:49:46]   Jahr 2016: 366 Tage (2016-01-01 … 2016-12-31)
 [13:01:49]   Jahr 2016 fertig in 723s (1975 ms/Tag), 1/10 Jahre, noch ca. 108 min
 [13:01:51]   Jahr 2017: 365 Tage (2017-01-01 … 2017-12-31)
+[13:13:26]   Jahr 2017 fertig in 695s (1904 ms/Tag), 2/10 Jahre, noch ca. 95 min
+[13:13:27]   Jahr 2018: 365 Tage (2018-01-01 … 2018-12-31)
