@@ -1,12 +1,18 @@
 name: Klimadaten bauen
 
 # Holt tägliche ERA5-Werte über die Open-Meteo-API und committet das Raster
-# (app/data/climate_grid.npz + climate_meta.json) zurück in den Branch.
+# (app/data/climate_grid.npz + climate_meta.json + quality_report.json) zurück
+# in den Branch, auf dem der Lauf gestartet wurde.
 #
 # Der Lauf ist in ~4,5-Stunden-Häppchen möglich: erreicht ein Lauf sein Zeitbudget,
 # bleiben die Kontrollpunkte (data/checkpoints/) erhalten und der nächste Lauf macht
 # dort weiter. Wiederholt „Run workflow“ klicken, bis das Protokoll „Vollständig“
 # meldet – danach sind die Kontrollpunkte aufgeräumt.
+#
+# Nach dem Abruf läuft scripts/check_grid.py als **Qualitätstor**: Es vergleicht den
+# Datensatz mit Klimanormalwerten von 22 Städten. Schlägt es fehl, wird der Lauf rot
+# (die Dateien werden trotzdem committet, damit die Website den Zustand ehrlich
+# anzeigen kann – die App blendet dann einen Warnhinweis ein).
 on:
   workflow_dispatch:
     inputs:
@@ -20,7 +26,7 @@ on:
         description: "Kontrollpunkte verwerfen und von vorn beginnen (true/false)"
         default: "false"
   push:
-    branches: [main, arena/813a301c-meinperfektesklima]
+    branches: [main]
     paths:
       - "scripts/fetch_climate_grid.py"
       - "scripts/grid_config.json"
@@ -45,7 +51,7 @@ jobs:
           python-version: "3.12"
 
       - name: Abhängigkeiten
-        run: pip install --quiet numpy global-land-mask
+        run: pip install --quiet numpy scipy pillow global-land-mask
 
       - name: ERA5-Raster über Open-Meteo abrufen
         id: fetch
@@ -72,10 +78,14 @@ jobs:
           sys.exit(subprocess.call(cmd))
           PY
 
-      - name: Datensatz prüfen (Plausibilität, nur Protokoll)
+      - name: Qualitätstor (Plausibilität gegen Klimanormalwerte)
+        id: gate
         if: always()
         run: |
-          python -u scripts/check_grid.py 2>&1 | tee -a build-log.txt || true
+          set +e
+          python -u scripts/check_grid.py 2>&1 | tee -a build-log.txt
+          echo "${PIPESTATUS[0]}" > gate-exit.txt
+          exit 0
 
       - name: Beispieldokumentation rendern
         if: always()
@@ -87,22 +97,33 @@ jobs:
         run: |
           git config user.name "klima-datenbot"
           git config user.email "klima-datenbot@users.noreply.github.com"
-          git add -f build-log.txt app/data/climate_grid.npz app/data/climate_meta.json || true
+          git add -f build-log.txt app/data/climate_grid.npz app/data/climate_meta.json app/data/quality_report.json || true
           git add -A -f -- data/checkpoints 2>/dev/null || true
           git add -f docs/beispiel-jahr.png docs/beispiel-juli.png docs/beispiele.json 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "keine Änderungen"
           else
             git commit -m "Klimadaten: ERA5-Raster aktualisiert [skip ci]"
-            git push || { git pull --rebase && git push; }
+            git push origin "HEAD:refs/heads/${GITHUB_REF_NAME}" || {
+              git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:refs/heads/${GITHUB_REF_NAME}";
+            }
           fi
 
       - name: Fehler weiterreichen
-        if: steps.fetch.outcome != 'success'
+        if: always()
         run: |
-          if grep -qE "Zeitbudget|Blöcke zusammengesetzt|Vollständig" build-log.txt 2>/dev/null; then
-            echo "Lauf geordnet beendet (Teilfortschritt gesichert) – beim nächsten Start geht es weiter."
-            exit 0
+          GATE="$(cat gate-exit.txt 2>/dev/null || echo 1)"
+          ORDERLY=0
+          grep -qE "Zeitbudget|Blöcke zusammengesetzt|Vollständig" build-log.txt 2>/dev/null && ORDERLY=1
+          if [ "${{ steps.fetch.outcome }}" != "success" ] && [ "$ORDERLY" != "1" ]; then
+            echo "::error::Der Datenabruf ist fehlgeschlagen – siehe build-log.txt."
+            exit 1
           fi
-          echo "Der Datenabruf ist fehlgeschlagen – siehe build-log.txt."
-          exit 1
+          if [ "${{ steps.fetch.outcome }}" != "success" ]; then
+            echo "Lauf geordnet beendet (Teilfortschritt gesichert) – beim nächsten Start geht es weiter."
+          fi
+          if [ "$GATE" != "0" ]; then
+            echo "::error::Qualitätstor nicht bestanden – Details in build-log.txt und app/data/quality_report.json."
+            exit 1
+          fi
+          echo "Qualitätstor bestanden."

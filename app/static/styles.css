@@ -50,6 +50,7 @@ em { color: var(--text); font-style: normal; font-weight: 600; }
   font-size: .74rem; color: var(--muted); background: var(--card);
   border: 1px solid var(--line); border-radius: 999px; padding: .35rem .7rem; max-width: 42ch;
 }
+.badge.warn { color: #ffd08a; border-color: #b06a1b; background: #3a2412; }
 
 main {
   display: grid; grid-template-columns: 360px minmax(0, 1fr);
@@ -61,7 +62,7 @@ main {
 .card-head { display: flex; align-items: center; justify-content: space-between; }
 
 .mapwrap { position: relative; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); box-shadow: var(--shadow); }
-#map { height: calc(100vh - 120px); min-height: 460px; background: #0a1622; }
+#map { height: calc(100vh - 120px); min-height: 460px; background: #0a1a2c; }
 
 /* ---------------- Bedienelemente ---------------- */
 .segmented { display: grid; grid-template-columns: 1fr 1fr; background: var(--card-2); border-radius: 10px; padding: 3px; gap: 3px; }
@@ -139,9 +140,50 @@ input[type="range"]::-moz-range-thumb {
 .muted { color: var(--muted); font-size: .84rem; }
 
 /* ---------------- Karte ---------------- */
-.leaflet-container { background: #0a1622; font: inherit; }
-.leaflet-control-attribution { background: rgba(10, 22, 34, .75) !important; color: var(--muted) !important; font-size: .68rem !important; }
-.leaflet-control-attribution a { color: var(--accent-2) !important; }
+/* Grundkarte: eigene Flächen, keine Drittanbieter-Kacheln -> kein Watermark */
+.leaflet-container { background: linear-gradient(180deg, #0b1c2e, #081420); font: inherit; }
+.leaflet-pane[data-pane="land"] { background: transparent; }
+.leaflet-control-zoom a { background: var(--card); color: var(--text); border-color: var(--line); }
+.leaflet-control-zoom a:hover { background: var(--card-2); color: var(--accent); }
+
+/* Städte */
+.city-label { background: transparent; border: 0; }
+.city-label span {
+  display: inline-block; transform: translate(7px, -8px);
+  color: #dce7f3; font-size: .66rem; font-weight: 600; letter-spacing: .01em;
+  text-shadow: 0 1px 3px #04080e, 0 0 6px #04080e; white-space: nowrap; pointer-events: none;
+}
+.city-marker { cursor: pointer; filter: drop-shadow(0 1px 2px rgba(0,0,0,.6)); }
+.city-marker:hover { stroke-width: 2.5; }
+.leaflet-tooltip.klima.city-tip { transform: translate(-50%, -8px); }
+
+.mapnote {
+  position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%);
+  margin: 0; padding: .3rem .7rem; border-radius: 999px; z-index: 550;
+  background: rgba(13, 21, 32, .8); border: 1px solid var(--line);
+  color: var(--muted); font-size: .74rem; pointer-events: none;
+}
+
+/* Ortssuche über der Karte */
+.searchbox { position: absolute; top: 10px; right: 10px; z-index: 900; width: min(260px, calc(100% - 70px)); }
+.searchbox input {
+  width: 100%; border-radius: 999px; padding: .45rem .8rem; font-size: .84rem;
+  background: rgba(13, 21, 32, .92); border: 1px solid var(--line); color: var(--text);
+  box-shadow: var(--shadow);
+}
+.searchbox input:focus { outline: 0; border-color: var(--accent); }
+.searchbox .results {
+  margin-top: .3rem; background: rgba(13, 21, 32, .96); border: 1px solid var(--line);
+  border-radius: 11px; overflow: hidden; box-shadow: var(--shadow); max-height: 46vh; overflow-y: auto;
+}
+.searchbox .results button {
+  display: flex; gap: .35rem; width: 100%; text-align: left; align-items: baseline;
+  background: transparent; border: 0; color: var(--text); font: inherit; font-size: .82rem;
+  padding: .4rem .6rem; cursor: pointer;
+}
+.searchbox .results button:hover { background: var(--card-2); }
+.searchbox .results .region { color: var(--muted); font-size: .74rem; }
+.searchbox .results .nohit { color: var(--muted); cursor: default; }
 
 .legend {
   position: absolute; right: 12px; bottom: 22px; z-index: 600;
@@ -153,9 +195,23 @@ input[type="range"]::-moz-range-thumb {
 .legend-title { color: var(--text); font-size: .74rem; margin-top: .2rem; text-align: center; }
 
 .detail {
-  position: absolute; left: 12px; bottom: 22px; z-index: 600; width: min(330px, calc(100% - 24px));
-  background: rgba(13, 21, 32, .94); backdrop-filter: blur(5px); padding: .8rem .9rem;
+  position: absolute; left: 12px; bottom: 22px; z-index: 700; width: min(352px, calc(100% - 24px));
+  max-height: min(78vh, 640px); overflow-y: auto; overscroll-behavior: contain;
+  background: rgba(11, 20, 32, .95); backdrop-filter: blur(5px); padding: .8rem .9rem;
 }
+.detail .title { overflow-wrap: anywhere; }
+.detail .best { color: var(--accent-2); }
+.detail-sep { height: 1px; background: var(--line); margin: .65rem 0 .5rem; }
+.bars-head { color: var(--muted); font-size: .72rem; margin: .1rem 0 .25rem; }
+.bars-head .muted { font-size: .68rem; }
+.climwrap { margin: .15rem 0 .25rem; }
+.climsvg { width: 100%; height: auto; display: block; }
+.climsvg .zero { stroke: rgba(255,255,255,.28); stroke-width: .7; stroke-dasharray: 2 2; }
+.climsvg .mlab { fill: var(--muted); font-size: 6.5px; text-anchor: middle; }
+.climsvg .mcol.sel rect { stroke: #fff; stroke-width: 1; }
+.climsvg .sunline { fill: none; stroke: #ffd479; stroke-width: 1.4; stroke-linejoin: round; }
+.climsvg .sundot { fill: #ffd479; stroke: #0b1420; stroke-width: .5; }
+.climnums { color: var(--muted); font-size: .72rem; line-height: 1.45; }
 .detail h3 { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
 .detail .close { background: transparent; border: 0; color: var(--muted); font-size: 1.1rem; cursor: pointer; }
 .detail .big { font-size: 2rem; font-weight: 700; color: var(--accent); line-height: 1; }
@@ -195,6 +251,9 @@ footer { margin-top: 1.2rem; color: var(--muted); font-size: .78rem; }
 @media (max-width: 980px) {
   main { grid-template-columns: minmax(0, 1fr); }
   .panel { max-height: none; overflow: visible; }
-  #map { height: 62vh; }
+  #map { height: 66vh; }
   .about-grid { grid-template-columns: 1fr; }
+  .detail { width: calc(100% - 24px); max-height: 56vh; }
+  .legend { min-width: 150px; right: 8px; bottom: 8px; }
+  .mapnote { display: none; }
 }

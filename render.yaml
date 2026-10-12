@@ -1,12 +1,19 @@
 # Render-Blueprint: https://render.com/docs/blueprint-spec
 # Nach dem Verbinden des Repos legt Render daraus automatisch den Web-Service an.
+#
+# Free-Plan: reicht für dieses Projekt (siehe README „Betrieb auf Render“).
+# Der Dienst braucht im Betrieb ~250–300 MB RAM; die Kartenberechnung läuft
+# serverseitig in <1 s (IDW-Gewichte sind pro Breite zwischengespeichert).
+# Einziger spürbarer Unterschied zum Starter-Plan: nach Inaktivität schläft die
+# Instanz ein, der erste Aufruf dauert dann ~10–50 s (Cold Start).
 services:
   - type: web
     name: mein-perfektes-klima
     runtime: python
-    plan: starter          # free geht auch, braucht aber mehr RAM beim Rendern der Karte
+    plan: free              # bei Bedarf: starter (kein Sleep, mehr CPU)
     region: frankfurt
     branch: main
+    numInstances: 1
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /healthz

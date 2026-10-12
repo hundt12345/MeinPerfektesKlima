@@ -1,5 +1,10 @@
 /* Mein perfektes Klima – Europa
-   Karte + Bedienung (Vanilla JS, Leaflet). */
+   Karte + Bedienung (Vanilla JS, Leaflet).
+
+   Die Grundkarte wird selbst gezeichnet (Länderflächen aus Natural Earth) – es
+   werden bewusst **keine** Kacheln von Drittanbietern geladen: kein Watermark,
+   keine Attribution im Kartenbild, keine externe Abhängigkeit zur Laufzeit.
+*/
 "use strict";
 
 const state = {
@@ -7,14 +12,20 @@ const state = {
   month: 7,                  // 1..12
   params: { tmax_min: 18, tmax_max: 30, tmin_min: 5, tmin_max: 20, tdew_max: 18, sun_min: 3, prec_max: 99 },
   fixedScale: false,
-  selected: null,            // {lat, lon, name}
+  showCities: true,
+  selected: null,            // {lat, lon, name, country, report}
 };
 
 let META = null;             // /api/meta
 let GRID = null;             // letzte /api/map-Antwort
-let map = null, overlay = null, countriesLayer = null, placeLayer = null, hoverTip = null, marker = null;
+let map = null, overlay = null, landLayer = null, borderLayer = null;
+let cityLayer = null, cityData = [], markerIndex = new Map();
+let hoverTip = null, marker = null;
 let seq = 0, hoverQueued = false, refreshTimer = null;
-const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+
+const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni",
+  "Juli", "August", "September", "Oktober", "November", "Dezember"];
+const monthLetters = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
 
 /* ------------------------------------------------------------------ Helfer */
 const $ = (sel) => document.querySelector(sel);
@@ -32,32 +43,33 @@ function el(tag, props = {}, ...kids) {
   return node;
 }
 
-function fmtDays(v) {
-  const r = Math.round(v);
-  return r.toLocaleString("de-DE");
+const num = (v, digits = 0) => Number(v).toLocaleString("de-DE", {
+  minimumFractionDigits: digits, maximumFractionDigits: digits,
+});
+function fmtDays(v) { return num(Math.round(v)); }
+function fmtTemp(v, digits = 1) {
+  const r = Math.round(v * (digits === 0 ? 1 : 2)) / (digits === 0 ? 1 : 2);
+  return `${r > 0 ? "" : r < 0 ? "−" : ""}${Math.abs(r).toLocaleString("de-DE", {
+    minimumFractionDigits: digits, maximumFractionDigits: digits })} °C`;
 }
-
-function fmtTemp(v) {
-  const r = Math.round(v * 2) / 2;
-  return `${r > 0 ? "+" : r < 0 ? "−" : ""}${Math.abs(r).toLocaleString("de-DE")} °C`.replace("−", "−");
-}
-
 function activeMonth() { return state.mode === "month" ? state.month : null; }
+function monthUnit() { return state.mode === "month" ? `Tage im ${monthNames[state.month - 1]}` : "Tage pro Jahr"; }
 
 function queryString() {
   const p = new URLSearchParams();
   for (const [k, v] of Object.entries(state.params)) p.set(k, v);
   const m = activeMonth();
-  if (m) p.set("month", m);
-  else p.set("month", "all");
+  p.set("month", m ? m : "all");
   p.set("width", currentWidth());
   if (state.fixedScale) p.set("fixed", "true");
   return p.toString();
 }
 
 function currentWidth() {
-  const w = $(".mapwrap").clientWidth || 1100;
-  return Math.max(420, Math.min(1800, Math.round(w)));
+  const w = $(".mapwrap").clientWidth || 1000;
+  // Das Feld wird serverseitig auf 640 px interpoliert und dann skaliert:
+  // größere Breiten kosten nur Rechenzeit, bringen aber kaum Schärfe.
+  return Math.max(420, Math.min(1200, Math.round(w)));
 }
 
 function toast(msg, ms = 2600) {
@@ -74,37 +86,77 @@ async function getJSON(url) {
   return r.json();
 }
 
+/* Farbskala der Karte (aus META.color_stops) – auch für Städtemarker benutzt */
+function colorFor(fraction) {
+  const stops = (META && META.color_stops) || [[0, 16, 38, 92], [1, 200, 40, 30]];
+  const f = Math.max(0, Math.min(1, fraction));
+  for (let i = 1; i < stops.length; i++) {
+    if (f <= stops[i][0]) {
+      const [f0, r0, g0, b0] = stops[i - 1], [f1, r1, g1, b1] = stops[i];
+      const t = f1 === f0 ? 0 : (f - f0) / (f1 - f0);
+      return `rgb(${Math.round(r0 + (r1 - r0) * t)},${Math.round(g0 + (g1 - g0) * t)},${Math.round(b0 + (b1 - b0) * t)})`;
+    }
+  }
+  const last = stops[stops.length - 1];
+  return `rgb(${last[1]},${last[2]},${last[3]})`;
+}
+
+/* Temperaturfarbe für das Klimadiagramm */
+function tempColor(t) {
+  const stops = [[-20, [120, 170, 235]], [-5, [150, 200, 240]], [5, [120, 205, 200]],
+    [15, [190, 220, 120]], [22, [245, 190, 90]], [30, [235, 120, 60]], [40, [190, 45, 35]]];
+  for (let i = 1; i < stops.length; i++) {
+    if (t <= stops[i][0]) {
+      const [t0, c0] = stops[i - 1], [t1, c1] = stops[i];
+      const k = (t - t0) / (t1 - t0);
+      return `rgb(${c0.map((v, j) => Math.round(v + (c1[j] - v) * k)).join(",")})`;
+    }
+  }
+  return `rgb(190,45,35)`;
+}
+
 /* ------------------------------------------------------------------- Karte */
 function initMap() {
-  const bbox = META.dataset ? (META.dataset.bbox || null) : null;
-  map = L.map("map", { zoomControl: true, minZoom: 2, maxZoom: 8, worldCopyJump: false })
-    .setView([50.5, 12], 4);
+  const bbox = (META.dataset && META.dataset.bbox) || { lat_min: 34, lat_max: 72, lon_min: -25, lon_max: 45 };
+  map = L.map("map", {
+    zoomControl: true, minZoom: 3, maxZoom: 8, worldCopyJump: false,
+    attributionControl: false,                 // kein Attributions-/Watermark-Balken im Kartenbild
+    maxBounds: L.latLngBounds([[bbox.lat_min - 6, bbox.lon_min - 8], [bbox.lat_max + 4, bbox.lon_max + 8]]),
+    maxBoundsViscosity: 0.7,
+  }).setView([52.5, 11], 4);
 
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png", {
-    attribution: 'Karte: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; <a href="https://carto.com/attributions">CARTO</a> · Daten: ERA5 via <a href="https://open-meteo.com/">Open-Meteo</a>',
-    subdomains: "abcd", maxZoom: 9, opacity: 0.85,
-  }).addTo(map);
-
-  placeLayer = L.layerGroup().addTo(map);
-  hoverTip = el("div", { class: "leaflet-tooltip klima", style: "position:absolute;display:none;pointer-events:none;z-index:800" });
-  map.getContainer().append(hoverTip);
+  // Ebenen-Reihenfolge: Landfläche < Datentoverlay < Grenzen < Städtemarker
+  const landPane = map.createPane("land"); landPane.style.zIndex = 350;
+  const borderPane = map.createPane("borders"); borderPane.style.zIndex = 450;
+  map.createPane("cities").style.zIndex = 550;
 
   fetch("/api/countries").then(r => r.json()).then(geo => {
-    countriesLayer = L.geoJSON(geo, {
-      style: { color: "#7d93ab", weight: 0.7, fillColor: "#1b2c42", fillOpacity: 0.55, opacity: 0.8 },
-      interactive: false,
+    landLayer = L.geoJSON(geo, {
+      pane: "land", interactive: false,
+      style: { stroke: false, fillColor: "#16283c", fillOpacity: 1 },
+    }).addTo(map);
+    borderLayer = L.geoJSON(geo, {
+      pane: "borders", interactive: false,
+      style: { color: "#8fa9c4", weight: 0.8, opacity: 0.55, fill: false },
     }).addTo(map);
   }).catch(() => {});
+
+  cityLayer = L.layerGroup([], { pane: "cities" }).addTo(map);
+
+  hoverTip = el("div", { class: "leaflet-tooltip klima", style: "position:absolute;display:none;pointer-events:none;z-index:800" });
+  map.getContainer().append(hoverTip);
 
   map.on("mousemove", onHover);
   map.on("mouseout", () => { hoverTip.style.display = "none"; });
   map.on("click", (e) => selectPlace(e.latlng.lat, e.latlng.lng));
+  map.on("zoomend", () => paintCities());
   map.on("moveend zoomend", () => {
     const w = currentWidth();
-    if (overlay && GRID && GRID.width && Math.abs(w - GRID.width) > 180) refresh();
+    if (overlay && GRID && GRID.width && Math.abs(w - GRID.width) > 160) refresh();
   });
   window.addEventListener("resize", () => { if (overlay && GRID) overlay.setBounds(bounds()); });
 }
+
 function bounds() {
   const b = GRID ? GRID.bounds : [[34, -25], [72, 45]];
   return L.latLngBounds([[b[0][0], b[0][1]], [b[1][0], b[1][1]]]);
@@ -113,10 +165,71 @@ function bounds() {
 function updateOverlay() {
   const url = "/api/map.png?" + queryString();
   if (!overlay) {
-    overlay = L.imageOverlay(url, bounds(), { opacity: 1, interactive: false, className: "klima-overlay" }).addTo(map);
+    overlay = L.imageOverlay(url, bounds(), {
+      opacity: 1, interactive: false, className: "klima-overlay", pane: "overlayPane",
+    }).addTo(map);
   } else {
     overlay.setUrl(url);
     overlay.setBounds(bounds());
+  }
+}
+
+/* ------------------------------------------------------------- Städtemarker */
+function cityZoomLimit() {
+  const z = map ? map.getZoom() : 4;
+  if (z <= 3) return 3_000_000;
+  if (z === 4) return 900_000;
+  if (z === 5) return 350_000;
+  if (z === 6) return 120_000;
+  return 45_000;
+}
+
+async function loadCities() {
+  try {
+    const q = new URLSearchParams({ limit: 900 });
+    for (const [k, v] of Object.entries(state.params)) q.set(k, v);
+    q.set("month", activeMonth() || "all");
+    const data = await getJSON("/api/cities/map?" + q);
+    cityData = data.cities || [];
+    paintCities();
+  } catch { cityData = []; }
+}
+
+function paintCities() {
+  if (!cityLayer || !map) return;
+  cityLayer.clearLayers();
+  if (!state.showCities || !cityData.length) return;
+  const vmax = Math.max(1, (GRID && GRID.vmax) || 1);
+  const limit = cityZoomLimit();
+  const zoom = map.getZoom();
+  const unit = state.mode === "month" ? `Tage im ${monthNames[state.month - 1]}` : "Tage/Jahr";
+  let added = 0;
+  for (const c of cityData) {
+    if (c.pop < limit || added >= 420) continue;
+    added++;
+    const dot = L.circleMarker([c.lat, c.lon], {
+      pane: "cities", radius: c.pop > 1_000_000 ? 5 : 3.6,
+      color: "#0b1420", weight: 1.2,
+      fillColor: colorFor(c.days / vmax), fillOpacity: 0.95,
+      className: "city-marker",
+    });
+    dot.on("click", (e) => {
+      if (e && e.originalEvent) e.originalEvent.stopPropagation();
+      selectPlace(c.lat, c.lon, c.name, c.country);
+    });
+    dot.bindTooltip(
+      `<strong>${c.name}</strong>${c.country ? ` · ${c.country}` : ""}<br>${fmtDays(c.days)} ${unit}`,
+      { direction: "top", offset: [0, -4], className: "klima city-tip", opacity: 1 });
+    cityLayer.addLayer(dot);
+
+    // Dauerhafte Beschriftung nur für große Orte (sonst wird die Karte unleserlich)
+    const wantLabel = c.pop > 2_000_000 || (zoom >= 5 && c.pop > 900_000) || (zoom >= 6 && c.pop > 300_000);
+    if (wantLabel) {
+      cityLayer.addLayer(L.marker([c.lat, c.lon], {
+        pane: "cities", interactive: false, keyboard: false,
+        icon: L.divIcon({ className: "city-label", html: `<span>${c.name}</span>`, iconSize: null }),
+      }));
+    }
   }
 }
 
@@ -124,45 +237,43 @@ function updateOverlay() {
 function nearestPoint(lat, lon) {
   const { lat: lats, lon: lons } = META.points;
   let best = -1, bestD = Infinity;
+  const cosLat = Math.cos(lat * Math.PI / 180);
   for (let i = 0; i < lats.length; i++) {
-    const dLat = lats[i] - lat;
-    const dLon = (lons[i] - lon) * Math.cos(lat * Math.PI / 180);
+    const dLat = lats[i] - lat, dLon = (lons[i] - lon) * cosLat;
     const d = dLat * dLat + dLon * dLon;
     if (d < bestD) { bestD = d; best = i; }
   }
   return { idx: best, distKm: Math.sqrt(bestD) * 111 };
 }
 
-let CITY_CACHE = null;
-async function cities() {
-  if (!CITY_CACHE) CITY_CACHE = await getJSON("/api/cities").catch(() => []);
-  return CITY_CACHE;
-}
-async function nearestCity(lat, lon) {
-  const list = await cities();
+const cityByGridPoint = new Map();
+function nearestCityCached(lat, lon) {
+  const { idx } = nearestPoint(lat, lon);
+  if (cityByGridPoint.has(idx)) return cityByGridPoint.get(idx);
   let best = null, bestD = Infinity;
-  for (const c of list) {
+  for (const c of cityData) {
     const dLat = c.lat - lat, dLon = (c.lon - lon) * Math.cos(lat * Math.PI / 180);
     const d = dLat * dLat + dLon * dLon;
     if (d < bestD) { bestD = d; best = c; }
   }
-  return best;
+  const value = best ? { name: best.name, country: best.country, km: Math.sqrt(bestD) * 111 } : null;
+  cityByGridPoint.set(idx, value);
+  return value;
 }
 
 function onHover(e) {
   if (!GRID || !GRID.values) return;
   if (hoverQueued) return;
   hoverQueued = true;
-  requestAnimationFrame(async () => {
+  requestAnimationFrame(() => {
     hoverQueued = false;
     const { idx, distKm } = nearestPoint(e.latlng.lat, e.latlng.lng);
     const days = GRID.values[idx];
-    const unit = state.mode === "month" ? `Tage im ${monthNames[state.month - 1]}` : "Tage pro Jahr";
-    const city = await nearestCity(e.latlng.lat, e.latlng.lng).catch(() => null);
-    const label = city
-      ? `${city.name}${distKm > 40 ? ` · Datenpunkt ${Math.round(distKm)} km entfernt` : ""}`
-      : `${e.latlng.lat.toFixed(2)}°N ${e.latlng.lng.toFixed(2)}°E`;
-    hoverTip.innerHTML = `<strong>${fmtDays(days)}</strong> ${unit}<br><span style="opacity:.75">${label}</span>`;
+    const city = nearestCityCached(e.latlng.lat, e.latlng.lng);
+    const label = city && city.km < 60
+      ? `${city.name}${city.country ? " · " + city.country : ""}`
+      : `${e.latlng.lat.toFixed(2)}° N ${e.latlng.lng.toFixed(2)}° E · Datenpunkt ${Math.round(distKm)} km`;
+    hoverTip.innerHTML = `<strong>${fmtDays(days)}</strong> ${monthUnit()}<br><span style="opacity:.75">${label}</span>`;
     hoverTip.style.display = "block";
     hoverTip.style.left = (e.containerPoint.x + 14) + "px";
     hoverTip.style.top = (e.containerPoint.y - 6) + "px";
@@ -170,30 +281,83 @@ function onHover(e) {
 }
 
 /* ------------------------------------------------------------------ Details */
-async function selectPlace(lat, lon, name) {
+async function selectPlace(lat, lon, name, country) {
   const np = nearestPoint(lat, lon);
   const gridLat = META.points.lat[np.idx], gridLon = META.points.lon[np.idx];
-  state.selected = { lat: gridLat, lon: gridLon, name: name || null };
+  state.selected = { lat, lon, gridLat, gridLon, name: name || null, country: country || "" };
   if (map && L.circleMarker) {
     if (marker) marker.remove();
     marker = L.circleMarker([gridLat, gridLon], {
       radius: 7, color: "#fff", weight: 2.5, fillColor: "#ffb454", fillOpacity: 1,
-      className: "city-marker-pick", interactive: false,
+      pane: "cities", className: "city-marker-pick", interactive: false,
     }).addTo(map);
   }
+  const note = $("#mapnote"); if (note) note.hidden = true;
   renderDetail({ loading: true });
   try {
-    const q = new URLSearchParams({ lat: gridLat, lon: gridLon });
+    const q = new URLSearchParams({ lat, lon });
     for (const [k, v] of Object.entries(state.params)) q.set(k, v);
+    q.set("month", activeMonth() || "all");
     const rep = await getJSON("/api/point?" + q);
-    const city = name ? { name, name_de: "" } : await nearestCity(gridLat, gridLon);
-    state.selected.name = city ? city.name : null;
-    state.selected.country = city ? city.name_de : "";
+    const city = rep.city || nearestCityCached(lat, lon);
     state.selected.report = rep;
+    state.selected.name = name || (city && city.dist_km < 40 ? city.name : null);
+    state.selected.country = country || (city ? (city.name_de || "") : "");
+    state.selected.cityInfo = city || null;
     renderDetail();
   } catch (err) {
     renderDetail({ error: String(err.message || err) });
   }
+}
+
+function monthBars(rep) {
+  const maxBar = Math.max(1, ...rep.days_per_month);
+  const wrap = el("div", { class: "bars" });
+  rep.days_per_month.forEach((v, i) => {
+    const bar = el("div", {
+      class: "bar" + (i === state.month - 1 ? " sel" : ""),
+      style: `height:${Math.max(2, (v / maxBar) * 100)}%`,
+      title: `${monthNames[i]}: ${fmtDays(v)} Tage`,
+      onclick: () => { state.month = i + 1; setMode("month"); },
+    });
+    wrap.append(bar);
+  });
+  const labels = el("div", { class: "bar-labels" },
+    monthLetters.map(t => el("span", { text: t })));
+  return [wrap, labels];
+}
+
+function climateDiagram(rep) {
+  const c = (rep.climate && rep.climate.months) || null;
+  if (!c) return null;
+  const W = 306, H = 104, padL = 3, padR = 3, padT = 8, padB = 22;
+  const lo = Math.floor(Math.min(0, ...c.tmin) / 5) * 5;
+  const hi = Math.max(10, Math.ceil(Math.max(...c.tmax) / 5) * 5);
+  const sunMax = Math.max(12, ...c.sun);
+  const y = (t) => padT + (hi - t) / (hi - lo) * (H - padT - padB);
+  const ys = (s) => padT + (1 - s / sunMax) * (H - padT - padB);
+  const bw = (W - padL - padR) / 12;
+  let parts = [`<svg viewBox="0 0 ${W} ${H}" class="climsvg" role="img" aria-label="Klimadiagramm">`];
+  // Null-Grad-Linie
+  if (lo < 0) parts.push(`<line x1="${padL}" x2="${W - padR}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}" class="zero"/>`);
+  for (let i = 0; i < 12; i++) {
+    const x = padL + i * bw;
+    const yTop = y(c.tmax[i]), yBot = y(c.tmin[i]);
+    const sel = i === state.month - 1 ? " sel" : "";
+    parts.push(
+      `<g class="mcol${sel}"><title>${monthNames[i]}: Ø max ${num(c.tmax[i], 1)} °C, Ø min ${num(c.tmin[i], 1)} °C, `
+      + `Taupunkt ${num(c.tdew[i], 1)} °C, Sonne ${num(c.sun[i], 1)} h/Tag, Regen ${num(c.prec[i], 0)} mm</title>`
+      + `<rect x="${(x + 1).toFixed(1)}" y="${Math.min(yTop, yBot).toFixed(1)}" width="${(bw - 2).toFixed(1)}" `
+      + `height="${Math.max(2, Math.abs(yBot - yTop)).toFixed(1)}" rx="2" fill="${tempColor((c.tmax[i] + c.tmin[i]) / 2)}"/>`
+      + `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 8}" class="mlab">${monthLetters[i]}</text></g>`);
+  }
+  const sunPath = c.sun.map((s, i) =>
+    `${i === 0 ? "M" : "L"}${(padL + i * bw + bw / 2).toFixed(1)},${ys(s).toFixed(1)}`).join(" ");
+  parts.push(`<path d="${sunPath}" class="sunline"/>`);
+  c.sun.forEach((s, i) => parts.push(
+    `<circle cx="${(padL + i * bw + bw / 2).toFixed(1)}" cy="${ys(s).toFixed(1)}" r="1.7" class="sundot"/>`));
+  parts.push(`</svg>`);
+  return el("div", { class: "climwrap", html: parts.join("") });
 }
 
 function renderDetail(opts = {}) {
@@ -201,45 +365,113 @@ function renderDetail(opts = {}) {
   const sel = state.selected;
   if (!sel) { box.hidden = true; return; }
   box.hidden = false;
-  if (opts.loading) { box.innerHTML = `<h3>Auswertung …</h3><p class="muted">Tagesdaten werden gezählt.</p>`; return; }
-  if (opts.error) { box.innerHTML = `<h3>Fehler</h3><p class="muted">${opts.error}</p>`; return; }
+  if (opts.loading) {
+    box.innerHTML = "";
+    box.append(el("h3", {}, el("span", { text: "Auswertung …" }), closeBtn()),
+      el("p", { class: "muted", text: "Tagesdaten werden gezählt." }));
+    return;
+  }
+  if (opts.error) {
+    box.innerHTML = "";
+    box.append(el("h3", {}, el("span", { text: "Fehler" }), closeBtn()),
+      el("p", { class: "muted", text: opts.error }));
+    return;
+  }
 
   const rep = sel.report;
-  const monthUnit = "Ø Tage je Monat";
-  const maxBar = Math.max(1, ...rep.days_per_month);
   const mIdx = state.month - 1;
-  const headlineValue = state.mode === "month" ? rep.days_per_month[mIdx] : rep.days_per_year;
-  const headlineLabel = state.mode === "month"
-    ? `Tage im ${monthNames[mIdx]}`
-    : "Tage/Jahr";
-  const bars = rep.days_per_month.map((v, i) =>
-    el("div", {
-      class: "bar" + (i === state.month - 1 ? " sel" : ""),
-      style: `height:${Math.max(2, (v / maxBar) * 100)}%`,
-      title: `${monthNames[i]}: ${fmtDays(v)} Tage`,
-    })).map(n => n);
-  const labels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"].map(t => el("span", { text: t }));
+  const isMonth = state.mode === "month";
+  const headline = isMonth ? rep.days_per_month[mIdx] : rep.days_per_year;
+  const headlineLabel = isMonth ? `Tage im ${monthNames[mIdx]}` : "Tage pro Jahr";
+  const clim = rep.climate || {};
+  const year = clim.year || {};
+  const cityLine = sel.cityInfo && sel.cityInfo.dist_km > 1.5
+    ? `nächster Ort: ${sel.cityInfo.name} (${num(sel.cityInfo.dist_km, 1)} km)`
+    : `ERA5-Gitterpunkt ${num(rep.lat, 2)}° N ${num(rep.lon, 2)}° E`
+      + (rep.grid_distance_km > 1 ? ` · ${Math.round(rep.grid_distance_km)} km vom Klick` : "");
 
+  const [bars, barLabels] = monthBars(rep);
   box.innerHTML = "";
   box.append(
     el("h3", {},
-      el("span", { text: `${sel.name || "Ausgewählter Punkt"}${sel.country ? ", " + sel.country : ""}` }),
-      el("button", {
-        class: "close", title: "schließen",
-        onclick: () => { state.selected = null; box.hidden = true; if (marker) { marker.remove(); marker = null; } },
-      }, "✕")),
-    el("div", { class: "big", text: `${fmtDays(headlineValue)} ${headlineLabel}` }),
-    el("div", { class: "sub", text: `${fmtDays(rep.days_per_year)} Tage/Jahr · ${monthUnit}: `
-      + monthNames.map((mn, i) => `${mn.slice(0, 3)} ${fmtDays(rep.days_per_month[i])}`).join(" · ") }),
-    el("div", { class: "bars" }, bars),
-    el("div", { class: "bar-labels" }, labels),
-    el("div", { class: "sub", style: "margin-top:.4rem",
-      text: `ERA5-Gitterpunkt ${rep.lat.toFixed(2)}°N ${rep.lon.toFixed(2)}°E`
-        + (rep.grid_distance_km ? ` · ${rep.grid_distance_km} km von deinem Klick entfernt` : "") }),
+      el("span", {
+        text: (sel.name || "Ausgewählter Punkt") + (sel.country ? ", " + sel.country : ""),
+        class: "title",
+      }), closeBtn()),
+    el("div", { class: "big", text: `${fmtDays(headline)} ${headlineLabel}` }),
+    el("div", { class: "sub", text: `mit deiner Einstellung · besser als ${num(rep.percentile, 0)} % aller Rasterpunkte` }),
+    el("div", { class: "sub best", text: rep.europe_best
+      ? `Bestwert in Europa: ${fmtDays(rep.europe_best.days)} Tage${rep.europe_best.place ? ` (${rep.europe_best.place})` : ""}`
+      : "" }),
+    el("div", { class: "bars-head", text: `Wohlfühl-Tage je Monat · Ø ${fmtDays(rep.days_per_year)}/Jahr` }),
+    bars, barLabels,
+    el("div", { class: "detail-sep" }),
+    el("div", { class: "bars-head", html: `Klima hier <span class="muted">Ø min/max °C, gelb: Sonnenstunden</span>` }),
+    climateDiagram(rep) || el("p", { class: "muted", text: "keine Klimadaten" }),
+    el("div", {
+      class: "climnums",
+      text: `Jahr: Ø max ${num(year.tmax, 1)} °C · Ø min ${num(year.tmin, 1)} °C · Taupunkt ${num(year.tdew, 1)} °C · `
+        + `Sonne ${num(year.sun, 1)} h/Tag · Regen ${num(year.prec, 0)} mm`,
+    }),
+    el("div", {
+      class: "climnums",
+      text: `${fmtDays(clim.summer_days || 0)} Sommertage (≥ 25 °C) · ${fmtDays(clim.hot_days || 0)} heiße Tage (≥ 30 °C) · `
+        + `${fmtDays(clim.frost_days || 0)} Frosttage · ${fmtDays(clim.wet_days || 0)} Regentage`,
+    }),
+    el("div", { class: "sub", style: "margin-top:.35rem", text: cityLine }),
   );
 }
 
-/* --------------------------------------------------------------- Steuerung */
+function closeBtn() {
+  return el("button", {
+    class: "close", title: "schließen", "aria-label": "schließen",
+    onclick: () => {
+      state.selected = null; $("#detail").hidden = true;
+      if (marker) { marker.remove(); marker = null; }
+      const note = $("#mapnote"); if (note) note.hidden = false;
+    },
+  }, "✕");
+}
+
+/* ---------------------------------------------------------------- Ortssuche */
+let searchTimer = null;
+function initSearch() {
+  const input = $("#city-search"), results = $("#search-results");
+  if (!input) return;
+  const close = () => { results.hidden = true; };
+  input.addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    const q = input.value.trim();
+    if (q.length < 2) { close(); return; }
+    searchTimer = setTimeout(async () => {
+      try {
+        const data = await getJSON("/api/cities/search?q=" + encodeURIComponent(q) + "&limit=8");
+        results.innerHTML = "";
+        if (!data.cities.length) { results.append(el("button", { class: "nohit", text: "kein Treffer" })); }
+        for (const c of data.cities) {
+          results.append(el("button", {
+            onclick: () => {
+              close(); input.value = c.name;
+              map.flyTo([c.lat, c.lon], Math.max(map.getZoom(), 6), { duration: 0.7 });
+              selectPlace(c.lat, c.lon, c.name, c.country);
+            },
+          }, el("span", { class: "place", text: c.name }),
+            el("span", { class: "region", text: ` ${c.country}${c.pop ? " · " + num(c.pop) : ""}` })));
+        }
+        results.hidden = false;
+      } catch { close(); }
+    }, 180);
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") close();
+    if (e.key === "Enter") { const first = results.querySelector("button:not(.nohit)"); if (first) first.click(); }
+  });
+  document.addEventListener("click", (e) => {
+    if (!$("#searchbox").contains(e.target)) close();
+  });
+}
+
+/* ------------------------------------------------------------------ Steuerung */
 function rangeControl(cfg) {
   const wrap = el("div", { class: "ctrl" });
   const out = el("output");
@@ -292,8 +524,7 @@ function buildControls() {
 
   controls.tmax = rangeControl({
     label: "Höchsttemperatur", unit: "°C", min: -20, max: 45, step: 0.5,
-    lo: p.tmax_min, hi: p.tmax_max,
-    format: (v) => fmtTemp(v),
+    lo: p.tmax_min, hi: p.tmax_max, format: (v) => fmtTemp(v),
   });
   controls.tmin = rangeControl({
     label: "Tiefsttemperatur (nachts)", unit: "°C", min: -30, max: 30, step: 0.5,
@@ -305,26 +536,26 @@ function buildControls() {
   });
   controls.sun = singleControl({
     label: "Sonne mindestens", unit: "h/Tag", min: 0, max: 12, step: 0.5,
-    value: p.sun_min, format: (v) => (v <= 0 ? "egal" : `${v} h/Tag`),
+    value: p.sun_min, format: (v) => (v <= 0 ? "egal" : `${num(v, 1)} h/Tag`),
   });
   controls.prec = singleControl({
     label: "Niederschlag höchstens", unit: "mm/Tag", min: 0, max: 20, step: 0.5,
-    value: Math.min(p.prec_max, 20), format: (v) => (v >= 20 ? "egal" : `${v} mm`),
+    value: Math.min(p.prec_max, 20), format: (v) => (v >= 20 ? "egal" : `${num(v, 1)} mm`),
   });
 
   host.append(controls.tmax, controls.tmin, controls.tdew, controls.sun, controls.prec);
 }
 
 /** Reglerwerte -> state.params */
-function syncParams(ctrl = controls) {
-  const tmax = ctrl.tmax._get(), tmin = ctrl.tmin._get();
+function syncParams() {
+  const tmax = controls.tmax._get(), tmin = controls.tmin._get();
   state.params.tmax_min = tmax.lo;
   state.params.tmax_max = tmax.hi;
   state.params.tmin_min = tmin.lo;
   state.params.tmin_max = tmin.hi;
-  state.params.tdew_max = ctrl.tdew._get();
-  state.params.sun_min = ctrl.sun._get();
-  const prec = ctrl.prec._get();
+  state.params.tdew_max = controls.tdew._get();
+  state.params.sun_min = controls.sun._get();
+  const prec = controls.prec._get();
   state.params.prec_max = prec >= 20 ? 99 : prec;
 }
 
@@ -343,9 +574,11 @@ function buildPresets() {
   for (const preset of META.presets) {
     host.append(el("button", {
       class: "preset", title: preset.desc, text: preset.name,
-      onclick: () => {
+      onclick: (ev) => {
         state.params = { ...state.params, ...preset.params };
         applyParamsToControls();
+        host.querySelectorAll(".preset").forEach(b => b.classList.remove("active"));
+        ev.currentTarget.classList.add("active");
         refresh(true);
       },
     }));
@@ -381,15 +614,16 @@ async function refresh(immediate = false) {
       bar._hide = setTimeout(() => { bar.hidden = true; }, 250);
     }
   }
-  if (state.selected) selectPlace(state.selected.lat, state.selected.lon, state.selected.name);
+  if (mySeq !== seq) return;
+  loadCities();                                  // Markerwerte aktuell halten
   loadRanking();
+  if (state.selected) selectPlace(state.selected.lat, state.selected.lon, state.selected.name, state.selected.country);
 }
 
 async function loadRanking() {
   const q = new URLSearchParams({ limit: 12 });
   for (const [k, v] of Object.entries(state.params)) q.set(k, v);
-  const m = activeMonth();
-  q.set("month", m || "all");
+  q.set("month", activeMonth() || "all");
   try {
     const data = await getJSON("/api/ranking?" + q);
     const host = $("#ranking");
@@ -401,7 +635,7 @@ async function loadRanking() {
           title: `${c.name} – Datenpunkt ${c.dist_km} km entfernt`,
           onclick: () => {
             map.flyTo([c.lat, c.lon], Math.max(map.getZoom(), 6), { duration: 0.7 });
-            selectPlace(c.lat, c.lon, c.name);
+            selectPlace(c.lat, c.lon, c.name, c.country);
           },
         },
           el("span", {}, el("span", { class: "place", text: `${i + 1}. ${c.name}` }),
@@ -419,8 +653,8 @@ function renderLegend(info) {
   const stops = META.color_stops.map(([f, r, g, b]) => `rgb(${r},${g},${b}) ${Math.round(f * 100)}%`).join(", ");
   $("#legend-bar").style.background = `linear-gradient(90deg, ${stops})`;
   $("#legend-ticks").innerHTML = info.legend_ticks.map(t => `<span>${fmtDays(t)}</span>`).join("");
-  const base = state.mode === "month" ? `Tage im ${monthNames[state.month - 1]}` : "Tage pro Jahr";
-  $("#legend-title").textContent = `${base} (Skala bis ${fmtDays(info.vmax)}${info.fixed_scale ? ", fix" : ", auto"})`;
+  $("#legend-title").textContent =
+    `${monthUnit()} (Skala bis ${fmtDays(info.vmax)}${info.fixed_scale ? ", fix" : ", auto"})`;
 }
 
 /* -------------------------------------------------------------------- State */
@@ -442,6 +676,60 @@ function readHash() {
   if (p.get("fixed")) state.fixedScale = true;
 }
 
+/* ------------------------------------------------------- Datenbasis anzeigen */
+function showDataStatus() {
+  const badge = $("#dataset-badge");
+  const ds = META.dataset || {};
+  const period = `${String(ds.start_date || "").slice(0, 4)}–${String(ds.end_date || "").slice(0, 4)}`;
+  $("#about-period").textContent = period;
+  $("#about-source").textContent = ds.source || "";
+  $("#about-grid").textContent = `${String(ds.grid_step_deg).replace(".", ",")}°`;
+  $("#about-years").textContent = ds.n_years;
+
+  const problems = [];
+  if (META.synthetic) problems.push("synthetische Testdaten statt ERA5");
+  if (META.coverage < 0.999) problems.push(`nur ${num(META.coverage * 100, 1)} % der Punkt-Tage vorhanden`);
+  const qerrors = (META.quality && META.quality.errors) || [];
+  if (META.quality && META.quality.ok === false) {
+    problems.push(...(qerrors.length ? qerrors : ["Plausibilitätsprüfung nicht bestanden"]));
+  }
+
+  badge.textContent = META.synthetic
+    ? `⚠ Testdaten · ${ds.n_points} Punkte · ${period}`
+    : `${ds.n_points} Rasterpunkte · ERA5 ${period} · ${ds.n_days} Tage`;
+  badge.classList.toggle("warn", Boolean(problems.length));
+
+  const banner = $("#banner");
+  if (problems.length) {
+    banner.hidden = false;
+    banner.innerHTML = "";
+    banner.append(
+      el("strong", { text: "Diese Karte zeigt gerade keine belastbaren Klimadaten: " }),
+      el("span", { text: problems.join(" · ") + ". " }),
+      el("span", {
+        text: META.synthetic
+          ? "Das Raster stammt aus scripts/make_dev_grid.py (Demo). Die echten ERA5-Daten erzeugt der GitHub-Action-Workflow „Klimadaten bauen“ – danach verschwindet dieser Hinweis automatisch."
+          : "Bitte den Workflow „Klimadaten bauen“ erneut ausführen (Details in app/data/quality_report.json).",
+      }));
+  } else {
+    banner.hidden = true;
+  }
+
+  const q = $("#about-quality");
+  if (q) {
+    if (META.quality && META.quality.warnings && META.quality.warnings.length) {
+      q.textContent = "Hinweise zur Datenqualität: " + META.quality.warnings.join("; ");
+    } else if (META.repaired && META.repaired.missing_point_days) {
+      q.textContent = `Im Datensatz fehlten ${num(META.repaired.missing_point_days)} Punkt-Tage; `
+        + "sie wurden aus Nachbarpunkten ergänzt.";
+    } else if (!problems.length) {
+      q.textContent = "Datenqualität automatisch geprüft (scripts/check_grid.py): ohne Befund.";
+    } else {
+      q.textContent = "";
+    }
+  }
+}
+
 /* ------------------------------------------------------------------- Start */
 async function boot() {
   try {
@@ -456,19 +744,7 @@ async function boot() {
   }
   readHash();
   state.params = { ...META.defaults, ...state.params };
-  if (META.dataset.model && META.dataset.model !== "era5") {
-    const b = $("#banner");
-    b.hidden = false;
-    b.innerHTML = "<strong>Hinweis: Testdaten.</strong> Dieses Raster ist synthetisch erzeugt " +
-      "(<code>scripts/make_dev_grid.py</code>) und zeigt nur die Mechanik der Karte, keine echten Klimawerte. " +
-      "Die echten ERA5-Daten liefert der GitHub-Action-Workflow <em>Klimadaten bauen</em>.";
-  }
-  $("#dataset-badge").textContent =
-    `${META.dataset.n_points} Rasterpunkte · ERA5 ${META.dataset.start_date.slice(0, 4)}–${META.dataset.end_date.slice(0, 4)} · ${META.dataset.n_days} Tage`;
-  $("#about-period").textContent = `${META.dataset.start_date.slice(0, 4)}–${META.dataset.end_date.slice(0, 4)}`;
-  $("#about-source").textContent = META.dataset.source;
-  $("#about-grid").textContent = `${String(META.dataset.grid_step_deg).replace(".", ",")}°`;
-  $("#about-years").textContent = META.dataset.n_years;
+  showDataStatus();
 
   const sel = $("#month-select");
   monthNames.forEach((m, i) => sel.append(el("option", { value: i + 1, text: m })));
@@ -477,14 +753,17 @@ async function boot() {
   buildControls();
   applyParamsToControls();
   buildPresets();
+  initSearch();
 
   $("#mode-year").addEventListener("click", () => setMode("year"));
   $("#mode-month").addEventListener("click", () => setMode("month"));
   sel.addEventListener("change", () => { state.month = Number(sel.value); refresh(true); });
   $("#fixed-scale").addEventListener("change", (e) => { state.fixedScale = e.target.checked; refresh(true); });
+  $("#show-cities").addEventListener("change", (e) => { state.showCities = e.target.checked; paintCities(); });
   $("#btn-reset").addEventListener("click", () => {
     state.params = { ...META.defaults };
     applyParamsToControls();
+    $("#presets").querySelectorAll(".preset").forEach(b => b.classList.remove("active"));
     refresh(true);
   });
   $("#btn-link").addEventListener("click", async () => {
@@ -503,7 +782,9 @@ function setMode(mode, initial = false) {
   $("#mode-year").setAttribute("aria-selected", String(mode === "year"));
   $("#mode-month").setAttribute("aria-selected", String(mode === "month"));
   $("#month-picker").hidden = mode !== "month";
+  if (mode === "month") $("#month-select").value = state.month;
   if (!initial) refresh(true);
+  else if (state.selected) renderDetail();
 }
 
 document.addEventListener("DOMContentLoaded", boot);
