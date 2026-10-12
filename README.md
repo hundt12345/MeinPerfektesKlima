@@ -116,11 +116,29 @@ GitHub-Action-Runner schon. Deshalb:
 1. `scripts/grid_config.json` anpassen (Zeitraum/Ausschnitt/Auflösung;
    `"test_mode": false` = voller Lauf, `true` = winziges Testraster).
 2. GitHub → *Actions* → **Klimadaten bauen** → *Run workflow*.
-   Der Lauf dauert ca. 1–3 Stunden und committet
+   Der Lauf dauert ca. 2–4 Stunden und committet
    `app/data/climate_grid.npz` + `climate_meta.json` + `quality_report.json` zurück.
-   Erreicht er sein Zeitbudget, bleiben Kontrollpunkte liegen und der nächste Lauf
-   macht dort weiter.
+   Erreicht er sein Zeitbudget (`max_minutes`, Vorgabe 285), beendet er sich
+   **geordnet** vor dem GitHub-Job-Timeout; die Kontrollpunkte
+   (`data/checkpoints/`) bleiben liegen und der nächste Lauf macht dort weiter.
+   Also: einfach erneut *Run workflow* klicken, bis das Protokoll „Vollständig“ meldet.
 3. Render deployt den neuen Commit automatisch.
+
+Hinweise zum Lauf:
+
+* **Fortschritt beobachten:** alle 10 Minuten entsteht ein Commit
+  „Klimadaten: Zwischenstand …“, der erste wird nach ~45 Minuten veröffentlicht.
+  Daran sieht man von außen, wie viele Blöcke geholt sind und ob gedrosselt wird.
+* **Drosselung (HTTP 429):** Open-Meteo begrenzt die *Antwortgröße*, nicht die
+  Aufrufzahl. Deshalb halbiert das Skript bei wiederholter Drosselung die Anfrage
+  (erst den Zeitraum, dann die Punktzahl) und setzt die Teile wieder zusammen; die
+  Taktung sinkt nur mild und erholt sich nach erfolgreichen Anfragen wieder.
+  Eine einzelne Anfrage wartet nie länger als `max_wait_per_request` Sekunden –
+  ein Lauf kann dadurch nicht mehr „einfrieren“.
+* **Nichts zu tun:** Liegt schon ein vollständiger echter Datensatz
+  (Abdeckung ≥ 99,9 %) und kein Kontrollpunkt mehr im Repo, überspringt der Lauf
+  den Abruf. Wer trotzdem neu aufbauen will, nutzt den Workflow-Input
+  `reset: true` (Kontrollpunkte verwerfen) bzw. lokal `--force`.
 
 ## Lokal starten
 
