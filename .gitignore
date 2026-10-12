@@ -9,3 +9,7 @@ node_modules/
 # Test-/Dev-Ausgaben
 /tmp/
 *.test.npz
+
+# Arbeitsdateien des Datenabrufs
+fetch.log
+data/checkpoints/*/.tmp/

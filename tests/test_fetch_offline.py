@@ -106,3 +106,75 @@ def test_partial_run_writes_filled_raster(cfg, tmp_path, monkeypatch):
     with np.load(out) as z:
         assert z["tmax"].shape[0] == 14
         assert int(z["tmax"].min()) > -128, "Lücken wurden nicht gefüllt"
+
+
+# ------------------------------------------------- Drosselung: Anfrage teilen
+def _api_response(url: str, value: float = 1.0):
+    """Baut aus der Anfrage-URL eine Antwort im Open-Meteo-Format."""
+    import urllib.parse
+
+    qs = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
+    lats = qs["latitude"][0].split(",")
+    days = np.arange(np.datetime64(qs["start_date"][0]), np.datetime64(qs["end_date"][0]) + 1)
+    return [
+        {"daily": {"time": [str(d) for d in days],
+                   **{api: [value] * days.size for api in fetch.VARIABLES.values()}}}
+        for _ in lats
+    ]
+
+
+def _throttle_above(limit: float, seen: list, value: float = 1.0):
+    """``seen`` sammelt Paare (Punkt-Tage, durchgekommen) je Anfrage."""
+    def fake_http(url, pace, cost, **kwargs):
+        if cost > limit:
+            seen.append((cost, False))
+            raise fetch.Throttled("simulierte Drosselung")
+        seen.append((cost, True))
+        return _api_response(url, value)
+    return fake_http
+
+
+def test_gedrosselte_anfrage_teilt_punkte(monkeypatch):
+    """Eine zu große Anfrage wird halbiert, statt die Rate in den Keller zu fahren."""
+    seen: list = []
+    monkeypatch.setattr(fetch, "http_json", _throttle_above(100, seen))
+    lat = np.array([50.0, 51.0, 52.0, 53.0])
+    lon = np.array([7.0, 8.0, 9.0, 10.0])
+    res = fetch.fetch_batch(lat, lon, "2023-01-01", "2023-02-10", "era5", fetch.Pace(10_000))
+    assert res["tmax"].shape == (4, 41)
+    assert res["_time"].size == 41
+    ok = [c for c, good in seen if good]
+    assert ok and max(ok) <= 100, "die Anfrage wurde nicht verkleinert"
+    assert any(not good for _, good in seen), "es sollte mindestens eine Drosselung geben"
+
+
+def test_gedrosselte_anfrage_teilt_zeitraum(monkeypatch):
+    """Ein langer Zeitraum wird entlang der Tage geteilt und lückenlos zusammengesetzt."""
+    seen: list = []
+    monkeypatch.setattr(fetch, "http_json", _throttle_above(100, seen, value=2.0))
+    lat, lon = np.array([48.0]), np.array([11.0])
+    start, end = "2020-01-01", "2022-03-01"
+    res = fetch.fetch_batch(lat, lon, start, end, "era5", fetch.Pace(10_000))
+    n_days = int((np.datetime64(end) - np.datetime64(start)).astype(int)) + 1
+    assert res["tmax"].shape == (1, n_days)
+    gaps = np.diff(res["_time"].astype("datetime64[D]").astype(int))
+    assert (gaps == 1).all(), "Zeitachse hat Lücken oder Duplikate"
+    assert float(np.unique(res["tmax"])[0]) == 2.0
+    ok = [c for c, good in seen if good]
+    assert ok and max(ok) <= 100, "die Anfrage wurde nicht verkleinert"
+
+
+def test_rate_bleibt_handlungsfaehig_und_erholt_sich():
+    """Viele Drosselungen dürfen den Lauf nicht zum Stillstand bringen."""
+    import time
+
+    pace = fetch.Pace(60_000, max_wait_per_request=75.0)
+    for _ in range(30):
+        pace.penalize("HTTP 429", wait=0.0)
+    cost = 18_000.0
+    pace.next_at = time.monotonic()     # kein echtes Warten im Test
+    pace.acquire(cost)
+    assert pace.per_min >= cost / 75.0 * 60.0, "eine Anfrage würde länger als 75 s warten"
+    for _ in range(100):
+        pace.succeed()
+    assert pace.per_min == 60_000, "Rate erholt sich nicht auf den Zielwert"
