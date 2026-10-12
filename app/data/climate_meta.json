@@ -1,0 +1,67 @@
+{
+  "source": "ERA5-Reanalyse (Copernicus Climate Change Service / ECMWF), offene analysis-ready Kopie von Google Research",
+  "attribution": "Contains modified Copernicus Climate Change Service information (2026). ERA5 © ECMWF unter der Copernicus-Lizenz, bereitgestellt als offene ARCO-Zarr-Kopie über Google Cloud (gs://gcp-public-data-arco-era5).",
+  "model": "era5",
+  "start_date": "2016-01-01",
+  "end_date": "2025-12-31",
+  "n_days": 3653,
+  "n_years": 10.0,
+  "n_points": 2250,
+  "grid_step_deg": 0.75,
+  "bbox": {
+    "lat_min": 34.0,
+    "lat_max": 72.0,
+    "lon_min": -25.0,
+    "lon_max": 45.0
+  },
+  "variables": {
+    "tmax": {
+      "scale": 2.0,
+      "unit": "°C",
+      "api": "2m_temperature",
+      "derived_from": "max"
+    },
+    "tmin": {
+      "scale": 2.0,
+      "unit": "°C",
+      "api": "2m_temperature",
+      "derived_from": "min"
+    },
+    "tdew": {
+      "scale": 2.0,
+      "unit": "°C",
+      "api": "2m_dewpoint_temperature",
+      "derived_from": "mean"
+    },
+    "sun": {
+      "scale": 0.0011111111111111111,
+      "unit": "h",
+      "api": "total_sky_direct_solar_radiation_at_surface",
+      "derived_from": "sunshine_hours"
+    },
+    "prec": {
+      "scale": 2.0,
+      "unit": "mm",
+      "api": "total_precipitation",
+      "derived_from": "sum_mm"
+    }
+  },
+  "zarr_store": "gs://gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3",
+  "sun_threshold_w_m2": 120.0,
+  "land_mask": {
+    "step": 0.05,
+    "shape": [
+      761,
+      1401
+    ]
+  },
+  "coverage": {
+    "fraction": 1.0,
+    "missing_point_days": 0,
+    "filled_from_neighbour": 0,
+    "filled_from_climatology": 0,
+    "unfilled_point_days": 0,
+    "years": "10/10"
+  },
+  "generated_at": "2026-10-12T15:04:48Z"
+}

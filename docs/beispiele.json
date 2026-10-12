@@ -1,0 +1,13 @@
+{
+  "hinweis": "Erzeugt von scripts/make_docs_image.py",
+  "beispiele": [
+    {
+      "datei": "beispiel-jahr.png",
+      "beschriftung": "Ganzes Jahr, ausgewogen mild"
+    },
+    {
+      "datei": "beispiel-juli.png",
+      "beschriftung": "Juli, warm & schweißfrei"
+    }
+  ]
+}
