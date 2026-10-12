@@ -23,7 +23,7 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 28
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
 
