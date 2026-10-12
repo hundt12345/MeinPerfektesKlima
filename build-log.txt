@@ -20,3 +20,5 @@ Aufruf: /opt/hostedtoolcache/Python/3.12.15/x64/bin/python -u scripts/fetch_era5
 [13:37:32]   Jahr 2020: 366 Tage (2020-01-01 … 2020-12-31)
 [13:50:29]   Jahr 2020 fertig in 777s (2123 ms/Tag), 5/10 Jahre, noch ca. 61 min
 [13:50:30]   Jahr 2021: 365 Tage (2021-01-01 … 2021-12-31)
+[14:04:50]   Jahr 2021 fertig in 861s (2358 ms/Tag), 6/10 Jahre, noch ca. 50 min
+[14:04:52]   Jahr 2022: 365 Tage (2022-01-01 … 2022-12-31)
