@@ -1,0 +1,1235 @@
+Probe Tageswerte · 2026-10-12 10:34:46 UTC
+
+==============================================================================
+Auflistung gs://weatherbench2
+==============================================================================
+
+-- weatherbench2/datasets/era5_daily/  (3 Ordner, 0 Objekte) 
+   [dir] datasets/era5_daily/1959-2023_01_10-1h-240x121_equiangular_with_poles_conservative.zarr/
+   [dir] datasets/era5_daily/1959-2023_01_10-full_37-1h-0p25deg-chunk-1-s2s.zarr/
+   [dir] datasets/era5_daily/1959-2023_01_10-full_37-1h-512x256_equiangular_conservative.zarr/
+
+   == datasets/era5_daily/1959-2023_01_10-1h-240x121_equiangular_with_poles_conservative.zarr/  Format v2, 107 Mitglieder
+      Mitglieder: ['10m_u_component_of_wind', '10m_u_component_of_wind_max', '10m_u_component_of_wind_min', '10m_v_component_of_wind', '10m_v_component_of_wind_max', '10m_v_component_of_wind_min', '2m_dewpoint_temperature', '2m_dewpoint_temperature_max', '2m_dewpoint_temperature_min', '2m_temperature', '2m_temperature_max', '2m_temperature_min', 'boundary_layer_height', 'boundary_layer_height_max', 'boundary_layer_height_min', 'geopotential', 'geopotential_max', 'geopotential_min', 'latitude', 'leaf_area_index_high_vegetation', 'leaf_area_index_high_vegetation_max', 'leaf_area_index_high_vegetation_min', 'leaf_area_index_low_vegetation', 'leaf_area_index_low_vegetation_max', 'leaf_area_index_low_vegetation_min', 'level', 'longitude', 'mean_sea_level_pressure', 'mean_sea_level_pressure_max', 'mean_sea_level_pressure_min', 'mean_surface_latent_heat_flux', 'mean_surface_latent_heat_flux_max', 'mean_surface_latent_heat_flux_min', 'mean_surface_net_long_wave_radiation_flux', 'mean_surface_net_long_wave_radiation_flux_max', 'mean_surface_net_long_wave_radiation_flux_min', 'mean_surface_net_short_wave_radiation_flux', 'mean_surface_net_short_wave_radiation_flux_max', 'mean_surface_net_short_wave_radiation_flux_min', 'mean_surface_sensible_heat_flux', 'mean_surface_sensible_heat_flux_max', 'mean_surface_sensible_heat_flux_min', 'mean_top_downward_short_wave_radiation_flux', 'mean_top_downward_short_wave_radiation_flux_max', 'mean_top_downward_short_wave_radiation_flux_min', 'mean_top_net_long_wave_radiation_flux', 'mean_top_net_long_wave_radiation_flux_max', 'mean_top_net_long_wave_radiation_flux_min', 'mean_top_net_short_wave_radiation_flux', 'mean_top_net_short_wave_radiation_flux_max', 'mean_top_net_short_wave_radiation_flux_min', 'mean_vertically_integrated_moisture_divergence', 'mean_vertically_integrated_moisture_divergence_max', 'mean_vertically_integrated_moisture_divergence_min', 'potential_vorticity', 'potential_vorticity_max', 'potential_vorticity_min', 'sea_ice_cover', 'sea_ice_cover_max', 'sea_ice_cover_min', 'sea_surface_temperature', 'sea_surface_temperature_max', 'sea_surface_temperature_min', 'snow_depth', 'snow_depth_max', 'snow_depth_min', 'specific_humidity', 'specific_humidity_max', 'specific_humidity_min', 'surface_pressure']
+      10m_u_component_of_wind                      shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      10m_u_component_of_wind_max                  shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      10m_u_component_of_wind_min                  shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      10m_v_component_of_wind                      shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      10m_v_component_of_wind_max                  shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      10m_v_component_of_wind_min                  shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      2m_dewpoint_temperature                      shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      2m_dewpoint_temperature_max                  shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      2m_dewpoint_temperature_min                  shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      2m_temperature                               shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      2m_temperature_max                           shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      2m_temperature_min                           shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      boundary_layer_height                        shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      boundary_layer_height_max                    shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      boundary_layer_height_min                    shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      geopotential                                 shape=[23386, 13, 240, 121] chunks=[48, 13, 240, 121] dtype=<f4 
+      geopotential_max                             shape=[23386, 13, 240, 121] chunks=[48, 13, 240, 121] dtype=<f4 
+      geopotential_min                             shape=[23386, 13, 240, 121] chunks=[48, 13, 240, 121] dtype=<f4 
+      latitude                                     shape=[121] chunks=[121] dtype=<f8 
+      leaf_area_index_high_vegetation              shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      leaf_area_index_high_vegetation_max          shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      leaf_area_index_high_vegetation_min          shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      leaf_area_index_low_vegetation               shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      leaf_area_index_low_vegetation_max           shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      leaf_area_index_low_vegetation_min           shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      level                                        shape=[13] chunks=[13] dtype=<i8 
+      longitude                                    shape=[240] chunks=[240] dtype=<f8 
+      mean_sea_level_pressure                      shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_sea_level_pressure_max                  shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_sea_level_pressure_min                  shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_surface_latent_heat_flux                shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_surface_latent_heat_flux_max            shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_surface_latent_heat_flux_min            shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux    shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux_max shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux_min shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux   shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux_max shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux_min shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_surface_sensible_heat_flux              shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_surface_sensible_heat_flux_max          shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_surface_sensible_heat_flux_min          shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux  shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux_max shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux_min shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux        shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux_max    shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux_min    shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux       shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux_max   shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux_min   shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence_max shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence_min shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      potential_vorticity                          shape=[23386, 13, 240, 121] chunks=[48, 13, 240, 121] dtype=<f4 
+      potential_vorticity_max                      shape=[23386, 13, 240, 121] chunks=[48, 13, 240, 121] dtype=<f4 
+      potential_vorticity_min                      shape=[23386, 13, 240, 121] chunks=[48, 13, 240, 121] dtype=<f4 
+      sea_ice_cover                                shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      sea_ice_cover_max                            shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      sea_ice_cover_min                            shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      sea_surface_temperature                      shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      sea_surface_temperature_max                  shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      sea_surface_temperature_min                  shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      snow_depth                                   shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      snow_depth_max                               shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      snow_depth_min                               shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      specific_humidity                            shape=[23386, 13, 240, 121] chunks=[48, 13, 240, 121] dtype=<f4 
+      specific_humidity_max                        shape=[23386, 13, 240, 121] chunks=[48, 13, 240, 121] dtype=<f4 
+      specific_humidity_min                        shape=[23386, 13, 240, 121] chunks=[48, 13, 240, 121] dtype=<f4 
+      surface_pressure                             shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      surface_pressure_max                         shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      surface_pressure_min                         shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      temperature                                  shape=[23386, 13, 240, 121] chunks=[48, 13, 240, 121] dtype=<f4 
+      temperature_max                              shape=[23386, 13, 240, 121] chunks=[48, 13, 240, 121] dtype=<f4 
+      temperature_min                              shape=[23386, 13, 240, 121] chunks=[48, 13, 240, 121] dtype=<f4 
+      time                                         shape=[23386] chunks=[23386] dtype=<i8 
+      total_cloud_cover                            shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      total_cloud_cover_max                        shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      total_cloud_cover_min                        shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      total_column_water                           shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      total_column_water_max                       shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      total_column_water_min                       shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      total_column_water_vapour                    shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      total_column_water_vapour_max                shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      total_column_water_vapour_min                shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      total_precipitation_24hr                     shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      u_component_of_wind                          shape=[23386, 13, 240, 121] chunks=[48, 13, 240, 121] dtype=<f4 
+      u_component_of_wind_max                      shape=[23386, 13, 240, 121] chunks=[48, 13, 240, 121] dtype=<f4 
+      u_component_of_wind_min                      shape=[23386, 13, 240, 121] chunks=[48, 13, 240, 121] dtype=<f4 
+      v_component_of_wind                          shape=[23386, 13, 240, 121] chunks=[48, 13, 240, 121] dtype=<f4 
+      v_component_of_wind_max                      shape=[23386, 13, 240, 121] chunks=[48, 13, 240, 121] dtype=<f4 
+      v_component_of_wind_min                      shape=[23386, 13, 240, 121] chunks=[48, 13, 240, 121] dtype=<f4 
+      vertical_velocity                            shape=[23386, 13, 240, 121] chunks=[48, 13, 240, 121] dtype=<f4 
+      vertical_velocity_max                        shape=[23386, 13, 240, 121] chunks=[48, 13, 240, 121] dtype=<f4 
+      vertical_velocity_min                        shape=[23386, 13, 240, 121] chunks=[48, 13, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_1                shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_1_max            shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_1_min            shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_2                shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_2_max            shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_2_min            shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_3                shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_3_max            shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_3_min            shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_4                shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_4_max            shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_4_min            shape=[23386, 240, 121] chunks=[48, 240, 121] dtype=<f4 
+      Chunk-Objekte (200): min 0.000 MB · median 4.860 MB · max 4.870 MB
+
+   == datasets/era5_daily/1959-2023_01_10-full_37-1h-0p25deg-chunk-1-s2s.zarr/  Format v2, 107 Mitglieder
+      Mitglieder: ['10m_u_component_of_wind', '10m_u_component_of_wind_max', '10m_u_component_of_wind_min', '10m_v_component_of_wind', '10m_v_component_of_wind_max', '10m_v_component_of_wind_min', '2m_dewpoint_temperature', '2m_dewpoint_temperature_max', '2m_dewpoint_temperature_min', '2m_temperature', '2m_temperature_max', '2m_temperature_min', 'boundary_layer_height', 'boundary_layer_height_max', 'boundary_layer_height_min', 'geopotential', 'geopotential_max', 'geopotential_min', 'latitude', 'leaf_area_index_high_vegetation', 'leaf_area_index_high_vegetation_max', 'leaf_area_index_high_vegetation_min', 'leaf_area_index_low_vegetation', 'leaf_area_index_low_vegetation_max', 'leaf_area_index_low_vegetation_min', 'level', 'longitude', 'mean_sea_level_pressure', 'mean_sea_level_pressure_max', 'mean_sea_level_pressure_min', 'mean_surface_latent_heat_flux', 'mean_surface_latent_heat_flux_max', 'mean_surface_latent_heat_flux_min', 'mean_surface_net_long_wave_radiation_flux', 'mean_surface_net_long_wave_radiation_flux_max', 'mean_surface_net_long_wave_radiation_flux_min', 'mean_surface_net_short_wave_radiation_flux', 'mean_surface_net_short_wave_radiation_flux_max', 'mean_surface_net_short_wave_radiation_flux_min', 'mean_surface_sensible_heat_flux', 'mean_surface_sensible_heat_flux_max', 'mean_surface_sensible_heat_flux_min', 'mean_top_downward_short_wave_radiation_flux', 'mean_top_downward_short_wave_radiation_flux_max', 'mean_top_downward_short_wave_radiation_flux_min', 'mean_top_net_long_wave_radiation_flux', 'mean_top_net_long_wave_radiation_flux_max', 'mean_top_net_long_wave_radiation_flux_min', 'mean_top_net_short_wave_radiation_flux', 'mean_top_net_short_wave_radiation_flux_max', 'mean_top_net_short_wave_radiation_flux_min', 'mean_vertically_integrated_moisture_divergence', 'mean_vertically_integrated_moisture_divergence_max', 'mean_vertically_integrated_moisture_divergence_min', 'potential_vorticity', 'potential_vorticity_max', 'potential_vorticity_min', 'sea_ice_cover', 'sea_ice_cover_max', 'sea_ice_cover_min', 'sea_surface_temperature', 'sea_surface_temperature_max', 'sea_surface_temperature_min', 'snow_depth', 'snow_depth_max', 'snow_depth_min', 'specific_humidity', 'specific_humidity_max', 'specific_humidity_min', 'surface_pressure']
+      10m_u_component_of_wind                      shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      10m_u_component_of_wind_max                  shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      10m_u_component_of_wind_min                  shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      10m_v_component_of_wind                      shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      10m_v_component_of_wind_max                  shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      10m_v_component_of_wind_min                  shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      2m_dewpoint_temperature                      shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      2m_dewpoint_temperature_max                  shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      2m_dewpoint_temperature_min                  shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      2m_temperature                               shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      2m_temperature_max                           shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      2m_temperature_min                           shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      boundary_layer_height                        shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      boundary_layer_height_max                    shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      boundary_layer_height_min                    shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      geopotential                                 shape=[23386, 37, 721, 1440] chunks=[1, 37, 721, 1440] dtype=<f4 
+      geopotential_max                             shape=[23386, 37, 721, 1440] chunks=[1, 37, 721, 1440] dtype=<f4 
+      geopotential_min                             shape=[23386, 37, 721, 1440] chunks=[1, 37, 721, 1440] dtype=<f4 
+      latitude                                     shape=[721] chunks=[721] dtype=<f4 
+      leaf_area_index_high_vegetation              shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      leaf_area_index_high_vegetation_max          shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      leaf_area_index_high_vegetation_min          shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      leaf_area_index_low_vegetation               shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      leaf_area_index_low_vegetation_max           shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      leaf_area_index_low_vegetation_min           shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      level                                        shape=[37] chunks=[37] dtype=<i8 
+      longitude                                    shape=[1440] chunks=[1440] dtype=<f4 
+      mean_sea_level_pressure                      shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_sea_level_pressure_max                  shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_sea_level_pressure_min                  shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_surface_latent_heat_flux                shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_surface_latent_heat_flux_max            shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_surface_latent_heat_flux_min            shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux    shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux_max shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux_min shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux   shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux_max shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux_min shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_surface_sensible_heat_flux              shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_surface_sensible_heat_flux_max          shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_surface_sensible_heat_flux_min          shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux  shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux_max shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux_min shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux        shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux_max    shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux_min    shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux       shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux_max   shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux_min   shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence_max shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence_min shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      potential_vorticity                          shape=[23386, 37, 721, 1440] chunks=[1, 37, 721, 1440] dtype=<f4 
+      potential_vorticity_max                      shape=[23386, 37, 721, 1440] chunks=[1, 37, 721, 1440] dtype=<f4 
+      potential_vorticity_min                      shape=[23386, 37, 721, 1440] chunks=[1, 37, 721, 1440] dtype=<f4 
+      sea_ice_cover                                shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      sea_ice_cover_max                            shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      sea_ice_cover_min                            shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      sea_surface_temperature                      shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      sea_surface_temperature_max                  shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      sea_surface_temperature_min                  shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      snow_depth                                   shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      snow_depth_max                               shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      snow_depth_min                               shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      specific_humidity                            shape=[23386, 37, 721, 1440] chunks=[1, 37, 721, 1440] dtype=<f4 
+      specific_humidity_max                        shape=[23386, 37, 721, 1440] chunks=[1, 37, 721, 1440] dtype=<f4 
+      specific_humidity_min                        shape=[23386, 37, 721, 1440] chunks=[1, 37, 721, 1440] dtype=<f4 
+      surface_pressure                             shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      surface_pressure_max                         shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      surface_pressure_min                         shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      temperature                                  shape=[23386, 37, 721, 1440] chunks=[1, 37, 721, 1440] dtype=<f4 
+      temperature_max                              shape=[23386, 37, 721, 1440] chunks=[1, 37, 721, 1440] dtype=<f4 
+      temperature_min                              shape=[23386, 37, 721, 1440] chunks=[1, 37, 721, 1440] dtype=<f4 
+      time                                         shape=[23386] chunks=[23386] dtype=<i8 
+      total_cloud_cover                            shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      total_cloud_cover_max                        shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      total_cloud_cover_min                        shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      total_column_water                           shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      total_column_water_max                       shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      total_column_water_min                       shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      total_column_water_vapour                    shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      total_column_water_vapour_max                shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      total_column_water_vapour_min                shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      total_precipitation_24hr                     shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      u_component_of_wind                          shape=[23386, 37, 721, 1440] chunks=[1, 37, 721, 1440] dtype=<f4 
+      u_component_of_wind_max                      shape=[23386, 37, 721, 1440] chunks=[1, 37, 721, 1440] dtype=<f4 
+      u_component_of_wind_min                      shape=[23386, 37, 721, 1440] chunks=[1, 37, 721, 1440] dtype=<f4 
+      v_component_of_wind                          shape=[23386, 37, 721, 1440] chunks=[1, 37, 721, 1440] dtype=<f4 
+      v_component_of_wind_max                      shape=[23386, 37, 721, 1440] chunks=[1, 37, 721, 1440] dtype=<f4 
+      v_component_of_wind_min                      shape=[23386, 37, 721, 1440] chunks=[1, 37, 721, 1440] dtype=<f4 
+      vertical_velocity                            shape=[23386, 37, 721, 1440] chunks=[1, 37, 721, 1440] dtype=<f4 
+      vertical_velocity_max                        shape=[23386, 37, 721, 1440] chunks=[1, 37, 721, 1440] dtype=<f4 
+      vertical_velocity_min                        shape=[23386, 37, 721, 1440] chunks=[1, 37, 721, 1440] dtype=<f4 
+      volumetric_soil_water_layer_1                shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      volumetric_soil_water_layer_1_max            shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      volumetric_soil_water_layer_1_min            shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      volumetric_soil_water_layer_2                shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      volumetric_soil_water_layer_2_max            shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      volumetric_soil_water_layer_2_min            shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      volumetric_soil_water_layer_3                shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      volumetric_soil_water_layer_3_max            shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      volumetric_soil_water_layer_3_min            shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      volumetric_soil_water_layer_4                shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      volumetric_soil_water_layer_4_max            shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      volumetric_soil_water_layer_4_min            shape=[23386, 721, 1440] chunks=[1, 721, 1440] dtype=<f4 
+      Chunk-Objekte (200): min 0.000 MB · median 3.283 MB · max 3.302 MB
+
+   == datasets/era5_daily/1959-2023_01_10-full_37-1h-512x256_equiangular_conservative.zarr/  Format v2, 107 Mitglieder
+      Mitglieder: ['10m_u_component_of_wind', '10m_u_component_of_wind_max', '10m_u_component_of_wind_min', '10m_v_component_of_wind', '10m_v_component_of_wind_max', '10m_v_component_of_wind_min', '2m_dewpoint_temperature', '2m_dewpoint_temperature_max', '2m_dewpoint_temperature_min', '2m_temperature', '2m_temperature_max', '2m_temperature_min', 'boundary_layer_height', 'boundary_layer_height_max', 'boundary_layer_height_min', 'geopotential', 'geopotential_max', 'geopotential_min', 'latitude', 'leaf_area_index_high_vegetation', 'leaf_area_index_high_vegetation_max', 'leaf_area_index_high_vegetation_min', 'leaf_area_index_low_vegetation', 'leaf_area_index_low_vegetation_max', 'leaf_area_index_low_vegetation_min', 'level', 'longitude', 'mean_sea_level_pressure', 'mean_sea_level_pressure_max', 'mean_sea_level_pressure_min', 'mean_surface_latent_heat_flux', 'mean_surface_latent_heat_flux_max', 'mean_surface_latent_heat_flux_min', 'mean_surface_net_long_wave_radiation_flux', 'mean_surface_net_long_wave_radiation_flux_max', 'mean_surface_net_long_wave_radiation_flux_min', 'mean_surface_net_short_wave_radiation_flux', 'mean_surface_net_short_wave_radiation_flux_max', 'mean_surface_net_short_wave_radiation_flux_min', 'mean_surface_sensible_heat_flux', 'mean_surface_sensible_heat_flux_max', 'mean_surface_sensible_heat_flux_min', 'mean_top_downward_short_wave_radiation_flux', 'mean_top_downward_short_wave_radiation_flux_max', 'mean_top_downward_short_wave_radiation_flux_min', 'mean_top_net_long_wave_radiation_flux', 'mean_top_net_long_wave_radiation_flux_max', 'mean_top_net_long_wave_radiation_flux_min', 'mean_top_net_short_wave_radiation_flux', 'mean_top_net_short_wave_radiation_flux_max', 'mean_top_net_short_wave_radiation_flux_min', 'mean_vertically_integrated_moisture_divergence', 'mean_vertically_integrated_moisture_divergence_max', 'mean_vertically_integrated_moisture_divergence_min', 'potential_vorticity', 'potential_vorticity_max', 'potential_vorticity_min', 'sea_ice_cover', 'sea_ice_cover_max', 'sea_ice_cover_min', 'sea_surface_temperature', 'sea_surface_temperature_max', 'sea_surface_temperature_min', 'snow_depth', 'snow_depth_max', 'snow_depth_min', 'specific_humidity', 'specific_humidity_max', 'specific_humidity_min', 'surface_pressure']
+      10m_u_component_of_wind                      shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      10m_u_component_of_wind_max                  shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      10m_u_component_of_wind_min                  shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      10m_v_component_of_wind                      shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      10m_v_component_of_wind_max                  shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      10m_v_component_of_wind_min                  shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      2m_dewpoint_temperature                      shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      2m_dewpoint_temperature_max                  shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      2m_dewpoint_temperature_min                  shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      2m_temperature                               shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      2m_temperature_max                           shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      2m_temperature_min                           shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      boundary_layer_height                        shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      boundary_layer_height_max                    shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      boundary_layer_height_min                    shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      geopotential                                 shape=[23386, 37, 512, 256] chunks=[48, 1, 512, 256] dtype=<f4 
+      geopotential_max                             shape=[23386, 37, 512, 256] chunks=[48, 1, 512, 256] dtype=<f4 
+      geopotential_min                             shape=[23386, 37, 512, 256] chunks=[48, 1, 512, 256] dtype=<f4 
+      latitude                                     shape=[256] chunks=[256] dtype=<f8 
+      leaf_area_index_high_vegetation              shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      leaf_area_index_high_vegetation_max          shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      leaf_area_index_high_vegetation_min          shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      leaf_area_index_low_vegetation               shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      leaf_area_index_low_vegetation_max           shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      leaf_area_index_low_vegetation_min           shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      level                                        shape=[37] chunks=[37] dtype=<i8 
+      longitude                                    shape=[512] chunks=[512] dtype=<f8 
+      mean_sea_level_pressure                      shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_sea_level_pressure_max                  shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_sea_level_pressure_min                  shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_surface_latent_heat_flux                shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_surface_latent_heat_flux_max            shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_surface_latent_heat_flux_min            shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux    shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux_max shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux_min shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux   shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux_max shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux_min shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_surface_sensible_heat_flux              shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_surface_sensible_heat_flux_max          shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_surface_sensible_heat_flux_min          shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux  shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux_max shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux_min shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux        shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux_max    shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux_min    shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux       shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux_max   shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux_min   shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence_max shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence_min shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      potential_vorticity                          shape=[23386, 37, 512, 256] chunks=[48, 1, 512, 256] dtype=<f4 
+      potential_vorticity_max                      shape=[23386, 37, 512, 256] chunks=[48, 1, 512, 256] dtype=<f4 
+      potential_vorticity_min                      shape=[23386, 37, 512, 256] chunks=[48, 1, 512, 256] dtype=<f4 
+      sea_ice_cover                                shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      sea_ice_cover_max                            shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      sea_ice_cover_min                            shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      sea_surface_temperature                      shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      sea_surface_temperature_max                  shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      sea_surface_temperature_min                  shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      snow_depth                                   shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      snow_depth_max                               shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      snow_depth_min                               shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      specific_humidity                            shape=[23386, 37, 512, 256] chunks=[48, 1, 512, 256] dtype=<f4 
+      specific_humidity_max                        shape=[23386, 37, 512, 256] chunks=[48, 1, 512, 256] dtype=<f4 
+      specific_humidity_min                        shape=[23386, 37, 512, 256] chunks=[48, 1, 512, 256] dtype=<f4 
+      surface_pressure                             shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      surface_pressure_max                         shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      surface_pressure_min                         shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      temperature                                  shape=[23386, 37, 512, 256] chunks=[48, 1, 512, 256] dtype=<f4 
+      temperature_max                              shape=[23386, 37, 512, 256] chunks=[48, 1, 512, 256] dtype=<f4 
+      temperature_min                              shape=[23386, 37, 512, 256] chunks=[48, 1, 512, 256] dtype=<f4 
+      time                                         shape=[23386] chunks=[23386] dtype=<i8 
+      total_cloud_cover                            shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      total_cloud_cover_max                        shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      total_cloud_cover_min                        shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      total_column_water                           shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      total_column_water_max                       shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      total_column_water_min                       shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      total_column_water_vapour                    shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      total_column_water_vapour_max                shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      total_column_water_vapour_min                shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      total_precipitation_24hr                     shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      u_component_of_wind                          shape=[23386, 37, 512, 256] chunks=[48, 1, 512, 256] dtype=<f4 
+      u_component_of_wind_max                      shape=[23386, 37, 512, 256] chunks=[48, 1, 512, 256] dtype=<f4 
+      u_component_of_wind_min                      shape=[23386, 37, 512, 256] chunks=[48, 1, 512, 256] dtype=<f4 
+      v_component_of_wind                          shape=[23386, 37, 512, 256] chunks=[48, 1, 512, 256] dtype=<f4 
+      v_component_of_wind_max                      shape=[23386, 37, 512, 256] chunks=[48, 1, 512, 256] dtype=<f4 
+      v_component_of_wind_min                      shape=[23386, 37, 512, 256] chunks=[48, 1, 512, 256] dtype=<f4 
+      vertical_velocity                            shape=[23386, 37, 512, 256] chunks=[48, 1, 512, 256] dtype=<f4 
+      vertical_velocity_max                        shape=[23386, 37, 512, 256] chunks=[48, 1, 512, 256] dtype=<f4 
+      vertical_velocity_min                        shape=[23386, 37, 512, 256] chunks=[48, 1, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_1                shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_1_max            shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_1_min            shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_2                shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_2_max            shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_2_min            shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_3                shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_3_max            shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_3_min            shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_4                shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_4_max            shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_4_min            shape=[23386, 512, 256] chunks=[48, 512, 256] dtype=<f4 
+      Chunk-Objekte (200): min 0.000 MB · median 21.298 MB · max 21.348 MB
+
+-- weatherbench2/datasets/era5-daily-climatology/  (9 Ordner, 0 Objekte) 
+   [dir] datasets/era5-daily-climatology/1990-2017-biweekly_clim_daily_mean_61_dw_240x121_equiangular_with_poles_conservative.zarr/
+   [dir] datasets/era5-daily-climatology/1990-2017-daily_clim_daily_mean_61_dw_240x121_equiangular_with_poles_conservative.zarr/
+   [dir] datasets/era5-daily-climatology/1990-2017-weekly_clim_daily_mean_61_dw_240x121_equiangular_with_poles_conservative.zarr/
+   [dir] datasets/era5-daily-climatology/clim_daily_1959_to_2015_7_dw_240x121_equiangular_with_poles_conservative.zarr/
+   [dir] datasets/era5-daily-climatology/daily_clim_daily_mean_1959_to_2015_7_dw-240x121_equiangular_with_poles_conservative.zarr/
+   [dir] datasets/era5-daily-climatology/daily_clim_daily_mean_1959_to_2015_7_dw-full_37-1h-512x256_equiangular_conservative.zarr/
+   [dir] datasets/era5-daily-climatology/daily_clim_daily_mean_1981_to_2010_7_dw-240x121_equiangular_with_poles_conservative.zarr/
+   [dir] datasets/era5-daily-climatology/daily_clim_daily_mean_1981_to_2010_7_dw-full_37-1h-512x256_equiangular_conservative.zarr/
+   [dir] datasets/era5-daily-climatology/daily_clim_daily_mean_61_dw_240x121_equiangular_with_poles_conservative.zarr/
+
+   == datasets/era5-daily-climatology/1990-2017-biweekly_clim_daily_mean_61_dw_240x121_equiangular_with_poles_conservative.zarr/  Format v2, 107 Mitglieder
+      Mitglieder: ['10m_u_component_of_wind', '10m_u_component_of_wind_max', '10m_u_component_of_wind_min', '10m_v_component_of_wind', '10m_v_component_of_wind_max', '10m_v_component_of_wind_min', '2m_dewpoint_temperature', '2m_dewpoint_temperature_max', '2m_dewpoint_temperature_min', '2m_temperature', '2m_temperature_max', '2m_temperature_min', 'boundary_layer_height', 'boundary_layer_height_max', 'boundary_layer_height_min', 'dayofyear', 'geopotential', 'geopotential_max', 'geopotential_min', 'latitude', 'leaf_area_index_high_vegetation', 'leaf_area_index_high_vegetation_max', 'leaf_area_index_high_vegetation_min', 'leaf_area_index_low_vegetation', 'leaf_area_index_low_vegetation_max', 'leaf_area_index_low_vegetation_min', 'level', 'longitude', 'mean_sea_level_pressure', 'mean_sea_level_pressure_max', 'mean_sea_level_pressure_min', 'mean_surface_latent_heat_flux', 'mean_surface_latent_heat_flux_max', 'mean_surface_latent_heat_flux_min', 'mean_surface_net_long_wave_radiation_flux', 'mean_surface_net_long_wave_radiation_flux_max', 'mean_surface_net_long_wave_radiation_flux_min', 'mean_surface_net_short_wave_radiation_flux', 'mean_surface_net_short_wave_radiation_flux_max', 'mean_surface_net_short_wave_radiation_flux_min', 'mean_surface_sensible_heat_flux', 'mean_surface_sensible_heat_flux_max', 'mean_surface_sensible_heat_flux_min', 'mean_top_downward_short_wave_radiation_flux', 'mean_top_downward_short_wave_radiation_flux_max', 'mean_top_downward_short_wave_radiation_flux_min', 'mean_top_net_long_wave_radiation_flux', 'mean_top_net_long_wave_radiation_flux_max', 'mean_top_net_long_wave_radiation_flux_min', 'mean_top_net_short_wave_radiation_flux', 'mean_top_net_short_wave_radiation_flux_max', 'mean_top_net_short_wave_radiation_flux_min', 'mean_vertically_integrated_moisture_divergence', 'mean_vertically_integrated_moisture_divergence_max', 'mean_vertically_integrated_moisture_divergence_min', 'potential_vorticity', 'potential_vorticity_max', 'potential_vorticity_min', 'sea_ice_cover', 'sea_ice_cover_max', 'sea_ice_cover_min', 'sea_surface_temperature', 'sea_surface_temperature_max', 'sea_surface_temperature_min', 'snow_depth', 'snow_depth_max', 'snow_depth_min', 'specific_humidity', 'specific_humidity_max', 'specific_humidity_min']
+      10m_u_component_of_wind                      shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      10m_u_component_of_wind_max                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      10m_u_component_of_wind_min                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      10m_v_component_of_wind                      shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      10m_v_component_of_wind_max                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      10m_v_component_of_wind_min                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      2m_dewpoint_temperature                      shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      2m_dewpoint_temperature_max                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      2m_dewpoint_temperature_min                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      2m_temperature                               shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      2m_temperature_max                           shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      2m_temperature_min                           shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      boundary_layer_height                        shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      boundary_layer_height_max                    shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      boundary_layer_height_min                    shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      dayofyear                                    shape=[366] chunks=[366] dtype=<i8 
+      geopotential                                 shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      geopotential_max                             shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      geopotential_min                             shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      latitude                                     shape=[121] chunks=[121] dtype=<f8 
+      leaf_area_index_high_vegetation              shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      leaf_area_index_high_vegetation_max          shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      leaf_area_index_high_vegetation_min          shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      leaf_area_index_low_vegetation               shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      leaf_area_index_low_vegetation_max           shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      leaf_area_index_low_vegetation_min           shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      level                                        shape=[13] chunks=[13] dtype=<i8 
+      longitude                                    shape=[240] chunks=[240] dtype=<f8 
+      mean_sea_level_pressure                      shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_sea_level_pressure_max                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_sea_level_pressure_min                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_latent_heat_flux                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_latent_heat_flux_max            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_latent_heat_flux_min            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux    shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux_max shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux_min shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux   shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux_max shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux_min shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_sensible_heat_flux              shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_sensible_heat_flux_max          shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_sensible_heat_flux_min          shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux_max shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux_min shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux        shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux_max    shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux_min    shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux       shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux_max   shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux_min   shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence_max shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence_min shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      potential_vorticity                          shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      potential_vorticity_max                      shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      potential_vorticity_min                      shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      sea_ice_cover                                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      sea_ice_cover_max                            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      sea_ice_cover_min                            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      sea_surface_temperature                      shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      sea_surface_temperature_max                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      sea_surface_temperature_min                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      snow_depth                                   shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      snow_depth_max                               shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      snow_depth_min                               shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      specific_humidity                            shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      specific_humidity_max                        shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      specific_humidity_min                        shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      surface_pressure                             shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      surface_pressure_max                         shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      surface_pressure_min                         shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      temperature                                  shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      temperature_max                              shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      temperature_min                              shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      total_cloud_cover                            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_cloud_cover_max                        shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_cloud_cover_min                        shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_column_water                           shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_column_water_max                       shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_column_water_min                       shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_column_water_vapour                    shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_column_water_vapour_max                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_column_water_vapour_min                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_precipitation_24hr                     shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      u_component_of_wind                          shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      u_component_of_wind_max                      shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      u_component_of_wind_min                      shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      v_component_of_wind                          shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      v_component_of_wind_max                      shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      v_component_of_wind_min                      shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      vertical_velocity                            shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      vertical_velocity_max                        shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      vertical_velocity_min                        shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_1                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_1_max            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_1_min            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_2                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_2_max            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_2_min            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_3                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_3_max            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_3_min            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_4                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_4_max            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_4_min            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      Chunk-Objekte (200): min 0.000 MB · median 11.591 MB · max 17.917 MB
+
+   == datasets/era5-daily-climatology/1990-2017-daily_clim_daily_mean_61_dw_240x121_equiangular_with_poles_conservative.zarr/  Format v2, 107 Mitglieder
+      Mitglieder: ['10m_u_component_of_wind', '10m_u_component_of_wind_max', '10m_u_component_of_wind_min', '10m_v_component_of_wind', '10m_v_component_of_wind_max', '10m_v_component_of_wind_min', '2m_dewpoint_temperature', '2m_dewpoint_temperature_max', '2m_dewpoint_temperature_min', '2m_temperature', '2m_temperature_max', '2m_temperature_min', 'boundary_layer_height', 'boundary_layer_height_max', 'boundary_layer_height_min', 'dayofyear', 'geopotential', 'geopotential_max', 'geopotential_min', 'latitude', 'leaf_area_index_high_vegetation', 'leaf_area_index_high_vegetation_max', 'leaf_area_index_high_vegetation_min', 'leaf_area_index_low_vegetation', 'leaf_area_index_low_vegetation_max', 'leaf_area_index_low_vegetation_min', 'level', 'longitude', 'mean_sea_level_pressure', 'mean_sea_level_pressure_max', 'mean_sea_level_pressure_min', 'mean_surface_latent_heat_flux', 'mean_surface_latent_heat_flux_max', 'mean_surface_latent_heat_flux_min', 'mean_surface_net_long_wave_radiation_flux', 'mean_surface_net_long_wave_radiation_flux_max', 'mean_surface_net_long_wave_radiation_flux_min', 'mean_surface_net_short_wave_radiation_flux', 'mean_surface_net_short_wave_radiation_flux_max', 'mean_surface_net_short_wave_radiation_flux_min', 'mean_surface_sensible_heat_flux', 'mean_surface_sensible_heat_flux_max', 'mean_surface_sensible_heat_flux_min', 'mean_top_downward_short_wave_radiation_flux', 'mean_top_downward_short_wave_radiation_flux_max', 'mean_top_downward_short_wave_radiation_flux_min', 'mean_top_net_long_wave_radiation_flux', 'mean_top_net_long_wave_radiation_flux_max', 'mean_top_net_long_wave_radiation_flux_min', 'mean_top_net_short_wave_radiation_flux', 'mean_top_net_short_wave_radiation_flux_max', 'mean_top_net_short_wave_radiation_flux_min', 'mean_vertically_integrated_moisture_divergence', 'mean_vertically_integrated_moisture_divergence_max', 'mean_vertically_integrated_moisture_divergence_min', 'potential_vorticity', 'potential_vorticity_max', 'potential_vorticity_min', 'sea_ice_cover', 'sea_ice_cover_max', 'sea_ice_cover_min', 'sea_surface_temperature', 'sea_surface_temperature_max', 'sea_surface_temperature_min', 'snow_depth', 'snow_depth_max', 'snow_depth_min', 'specific_humidity', 'specific_humidity_max', 'specific_humidity_min']
+      10m_u_component_of_wind                      shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      10m_u_component_of_wind_max                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      10m_u_component_of_wind_min                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      10m_v_component_of_wind                      shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      10m_v_component_of_wind_max                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      10m_v_component_of_wind_min                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      2m_dewpoint_temperature                      shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      2m_dewpoint_temperature_max                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      2m_dewpoint_temperature_min                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      2m_temperature                               shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      2m_temperature_max                           shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      2m_temperature_min                           shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      boundary_layer_height                        shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      boundary_layer_height_max                    shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      boundary_layer_height_min                    shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      dayofyear                                    shape=[366] chunks=[366] dtype=<i8 
+      geopotential                                 shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      geopotential_max                             shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      geopotential_min                             shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      latitude                                     shape=[121] chunks=[121] dtype=<f8 
+      leaf_area_index_high_vegetation              shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      leaf_area_index_high_vegetation_max          shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      leaf_area_index_high_vegetation_min          shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      leaf_area_index_low_vegetation               shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      leaf_area_index_low_vegetation_max           shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      leaf_area_index_low_vegetation_min           shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      level                                        shape=[13] chunks=[13] dtype=<i8 
+      longitude                                    shape=[240] chunks=[240] dtype=<f8 
+      mean_sea_level_pressure                      shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_sea_level_pressure_max                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_sea_level_pressure_min                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_latent_heat_flux                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_latent_heat_flux_max            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_latent_heat_flux_min            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux    shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux_max shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux_min shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux   shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux_max shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux_min shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_sensible_heat_flux              shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_sensible_heat_flux_max          shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_sensible_heat_flux_min          shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux_max shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux_min shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux        shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux_max    shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux_min    shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux       shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux_max   shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux_min   shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence_max shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence_min shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      potential_vorticity                          shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      potential_vorticity_max                      shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      potential_vorticity_min                      shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      sea_ice_cover                                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      sea_ice_cover_max                            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      sea_ice_cover_min                            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      sea_surface_temperature                      shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      sea_surface_temperature_max                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      sea_surface_temperature_min                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      snow_depth                                   shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      snow_depth_max                               shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      snow_depth_min                               shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      specific_humidity                            shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      specific_humidity_max                        shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      specific_humidity_min                        shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      surface_pressure                             shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      surface_pressure_max                         shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      surface_pressure_min                         shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      temperature                                  shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      temperature_max                              shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      temperature_min                              shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      total_cloud_cover                            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_cloud_cover_max                        shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_cloud_cover_min                        shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_column_water                           shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_column_water_max                       shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_column_water_min                       shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_column_water_vapour                    shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_column_water_vapour_max                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_column_water_vapour_min                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_precipitation_24hr                     shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      u_component_of_wind                          shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      u_component_of_wind_max                      shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      u_component_of_wind_min                      shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      v_component_of_wind                          shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      v_component_of_wind_max                      shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      v_component_of_wind_min                      shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      vertical_velocity                            shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      vertical_velocity_max                        shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      vertical_velocity_min                        shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_1                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_1_max            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_1_min            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_2                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_2_max            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_2_min            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_3                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_3_max            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_3_min            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_4                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_4_max            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_4_min            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      Chunk-Objekte (200): min 0.000 MB · median 11.591 MB · max 17.933 MB
+
+   == datasets/era5-daily-climatology/1990-2017-weekly_clim_daily_mean_61_dw_240x121_equiangular_with_poles_conservative.zarr/  Format v2, 107 Mitglieder
+      Mitglieder: ['10m_u_component_of_wind', '10m_u_component_of_wind_max', '10m_u_component_of_wind_min', '10m_v_component_of_wind', '10m_v_component_of_wind_max', '10m_v_component_of_wind_min', '2m_dewpoint_temperature', '2m_dewpoint_temperature_max', '2m_dewpoint_temperature_min', '2m_temperature', '2m_temperature_max', '2m_temperature_min', 'boundary_layer_height', 'boundary_layer_height_max', 'boundary_layer_height_min', 'dayofyear', 'geopotential', 'geopotential_max', 'geopotential_min', 'latitude', 'leaf_area_index_high_vegetation', 'leaf_area_index_high_vegetation_max', 'leaf_area_index_high_vegetation_min', 'leaf_area_index_low_vegetation', 'leaf_area_index_low_vegetation_max', 'leaf_area_index_low_vegetation_min', 'level', 'longitude', 'mean_sea_level_pressure', 'mean_sea_level_pressure_max', 'mean_sea_level_pressure_min', 'mean_surface_latent_heat_flux', 'mean_surface_latent_heat_flux_max', 'mean_surface_latent_heat_flux_min', 'mean_surface_net_long_wave_radiation_flux', 'mean_surface_net_long_wave_radiation_flux_max', 'mean_surface_net_long_wave_radiation_flux_min', 'mean_surface_net_short_wave_radiation_flux', 'mean_surface_net_short_wave_radiation_flux_max', 'mean_surface_net_short_wave_radiation_flux_min', 'mean_surface_sensible_heat_flux', 'mean_surface_sensible_heat_flux_max', 'mean_surface_sensible_heat_flux_min', 'mean_top_downward_short_wave_radiation_flux', 'mean_top_downward_short_wave_radiation_flux_max', 'mean_top_downward_short_wave_radiation_flux_min', 'mean_top_net_long_wave_radiation_flux', 'mean_top_net_long_wave_radiation_flux_max', 'mean_top_net_long_wave_radiation_flux_min', 'mean_top_net_short_wave_radiation_flux', 'mean_top_net_short_wave_radiation_flux_max', 'mean_top_net_short_wave_radiation_flux_min', 'mean_vertically_integrated_moisture_divergence', 'mean_vertically_integrated_moisture_divergence_max', 'mean_vertically_integrated_moisture_divergence_min', 'potential_vorticity', 'potential_vorticity_max', 'potential_vorticity_min', 'sea_ice_cover', 'sea_ice_cover_max', 'sea_ice_cover_min', 'sea_surface_temperature', 'sea_surface_temperature_max', 'sea_surface_temperature_min', 'snow_depth', 'snow_depth_max', 'snow_depth_min', 'specific_humidity', 'specific_humidity_max', 'specific_humidity_min']
+      10m_u_component_of_wind                      shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      10m_u_component_of_wind_max                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      10m_u_component_of_wind_min                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      10m_v_component_of_wind                      shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      10m_v_component_of_wind_max                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      10m_v_component_of_wind_min                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      2m_dewpoint_temperature                      shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      2m_dewpoint_temperature_max                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      2m_dewpoint_temperature_min                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      2m_temperature                               shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      2m_temperature_max                           shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      2m_temperature_min                           shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      boundary_layer_height                        shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      boundary_layer_height_max                    shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      boundary_layer_height_min                    shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      dayofyear                                    shape=[366] chunks=[366] dtype=<i8 
+      geopotential                                 shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      geopotential_max                             shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      geopotential_min                             shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      latitude                                     shape=[121] chunks=[121] dtype=<f8 
+      leaf_area_index_high_vegetation              shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      leaf_area_index_high_vegetation_max          shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      leaf_area_index_high_vegetation_min          shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      leaf_area_index_low_vegetation               shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      leaf_area_index_low_vegetation_max           shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      leaf_area_index_low_vegetation_min           shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      level                                        shape=[13] chunks=[13] dtype=<i8 
+      longitude                                    shape=[240] chunks=[240] dtype=<f8 
+      mean_sea_level_pressure                      shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_sea_level_pressure_max                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_sea_level_pressure_min                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_latent_heat_flux                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_latent_heat_flux_max            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_latent_heat_flux_min            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux    shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux_max shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux_min shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux   shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux_max shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux_min shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_sensible_heat_flux              shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_sensible_heat_flux_max          shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_surface_sensible_heat_flux_min          shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux_max shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux_min shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux        shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux_max    shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux_min    shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux       shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux_max   shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux_min   shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence_max shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence_min shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      potential_vorticity                          shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      potential_vorticity_max                      shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      potential_vorticity_min                      shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      sea_ice_cover                                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      sea_ice_cover_max                            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      sea_ice_cover_min                            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      sea_surface_temperature                      shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      sea_surface_temperature_max                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      sea_surface_temperature_min                  shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      snow_depth                                   shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      snow_depth_max                               shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      snow_depth_min                               shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      specific_humidity                            shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      specific_humidity_max                        shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      specific_humidity_min                        shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      surface_pressure                             shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      surface_pressure_max                         shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      surface_pressure_min                         shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      temperature                                  shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      temperature_max                              shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      temperature_min                              shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      total_cloud_cover                            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_cloud_cover_max                        shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_cloud_cover_min                        shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_column_water                           shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_column_water_max                       shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_column_water_min                       shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_column_water_vapour                    shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_column_water_vapour_max                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_column_water_vapour_min                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      total_precipitation_24hr                     shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      u_component_of_wind                          shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      u_component_of_wind_max                      shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      u_component_of_wind_min                      shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      v_component_of_wind                          shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      v_component_of_wind_max                      shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      v_component_of_wind_min                      shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      vertical_velocity                            shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      vertical_velocity_max                        shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      vertical_velocity_min                        shape=[366, 13, 240, 121] chunks=[183, 1, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_1                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_1_max            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_1_min            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_2                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_2_max            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_2_min            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_3                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_3_max            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_3_min            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_4                shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_4_max            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_4_min            shape=[366, 240, 121] chunks=[183, 240, 121] dtype=<f4 
+      Chunk-Objekte (200): min 0.000 MB · median 11.590 MB · max 17.922 MB
+
+   == datasets/era5-daily-climatology/clim_daily_1959_to_2015_7_dw_240x121_equiangular_with_poles_conservative.zarr/  Format v2, 110 Mitglieder
+      Mitglieder: ['10m_u_component_of_wind', '10m_u_component_of_wind_quantile', '10m_u_component_of_wind_std', '10m_v_component_of_wind', '10m_v_component_of_wind_quantile', '10m_v_component_of_wind_std', '2m_dewpoint_temperature', '2m_dewpoint_temperature_quantile', '2m_dewpoint_temperature_std', '2m_temperature', '2m_temperature_quantile', '2m_temperature_std', 'boundary_layer_height', 'boundary_layer_height_quantile', 'boundary_layer_height_std', 'dayofyear', 'geopotential', 'geopotential_quantile', 'geopotential_std', 'latitude', 'leaf_area_index_high_vegetation', 'leaf_area_index_high_vegetation_quantile', 'leaf_area_index_high_vegetation_std', 'leaf_area_index_low_vegetation', 'leaf_area_index_low_vegetation_quantile', 'leaf_area_index_low_vegetation_std', 'level', 'longitude', 'mean_sea_level_pressure', 'mean_sea_level_pressure_quantile', 'mean_sea_level_pressure_std', 'mean_surface_latent_heat_flux', 'mean_surface_latent_heat_flux_quantile', 'mean_surface_latent_heat_flux_std', 'mean_surface_net_long_wave_radiation_flux', 'mean_surface_net_long_wave_radiation_flux_quantile', 'mean_surface_net_long_wave_radiation_flux_std', 'mean_surface_net_short_wave_radiation_flux', 'mean_surface_net_short_wave_radiation_flux_quantile', 'mean_surface_net_short_wave_radiation_flux_std', 'mean_surface_sensible_heat_flux', 'mean_surface_sensible_heat_flux_quantile', 'mean_surface_sensible_heat_flux_std', 'mean_top_downward_short_wave_radiation_flux', 'mean_top_downward_short_wave_radiation_flux_quantile', 'mean_top_downward_short_wave_radiation_flux_std', 'mean_top_net_long_wave_radiation_flux', 'mean_top_net_long_wave_radiation_flux_quantile', 'mean_top_net_long_wave_radiation_flux_std', 'mean_top_net_short_wave_radiation_flux', 'mean_top_net_short_wave_radiation_flux_quantile', 'mean_top_net_short_wave_radiation_flux_std', 'mean_vertically_integrated_moisture_divergence', 'mean_vertically_integrated_moisture_divergence_quantile', 'mean_vertically_integrated_moisture_divergence_std', 'potential_vorticity', 'potential_vorticity_quantile', 'potential_vorticity_std', 'quantile', 'sea_ice_cover', 'sea_ice_cover_quantile', 'sea_ice_cover_std', 'sea_surface_temperature', 'sea_surface_temperature_quantile', 'sea_surface_temperature_std', 'snow_depth', 'snow_depth_quantile', 'snow_depth_std', 'specific_humidity', 'specific_humidity_quantile']
+      10m_u_component_of_wind                      shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      10m_u_component_of_wind_quantile             shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      10m_u_component_of_wind_std                  shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      10m_v_component_of_wind                      shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      10m_v_component_of_wind_quantile             shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      10m_v_component_of_wind_std                  shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      2m_dewpoint_temperature                      shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      2m_dewpoint_temperature_quantile             shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      2m_dewpoint_temperature_std                  shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      2m_temperature                               shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      2m_temperature_quantile                      shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      2m_temperature_std                           shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      boundary_layer_height                        shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      boundary_layer_height_quantile               shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      boundary_layer_height_std                    shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      dayofyear                                    shape=[366] chunks=[366] dtype=<i8 
+      geopotential                                 shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      geopotential_quantile                        shape=[5, 366, 13, 240, 121] chunks=[5, 7, 1, 240, 121] dtype=<f4 
+      geopotential_std                             shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      latitude                                     shape=[121] chunks=[121] dtype=<f8 
+      leaf_area_index_high_vegetation              shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      leaf_area_index_high_vegetation_quantile     shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      leaf_area_index_high_vegetation_std          shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      leaf_area_index_low_vegetation               shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      leaf_area_index_low_vegetation_quantile      shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      leaf_area_index_low_vegetation_std           shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      level                                        shape=[13] chunks=[13] dtype=<i8 
+      longitude                                    shape=[240] chunks=[240] dtype=<f8 
+      mean_sea_level_pressure                      shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_sea_level_pressure_quantile             shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      mean_sea_level_pressure_std                  shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_latent_heat_flux                shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_latent_heat_flux_quantile       shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      mean_surface_latent_heat_flux_std            shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux    shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux_quantile shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux_std shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux   shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux_quantile shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux_std shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_sensible_heat_flux              shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_sensible_heat_flux_quantile     shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      mean_surface_sensible_heat_flux_std          shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux  shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux_quantile shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux_std shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux        shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux_quantile shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux_std    shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux       shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux_quantile shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux_std   shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence_quantile shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence_std shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      potential_vorticity                          shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      potential_vorticity_quantile                 shape=[5, 366, 13, 240, 121] chunks=[5, 7, 1, 240, 121] dtype=<f4 
+      potential_vorticity_std                      shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      quantile                                     shape=[5] chunks=[5] dtype=<f8 
+      sea_ice_cover                                shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      sea_ice_cover_quantile                       shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      sea_ice_cover_std                            shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      sea_surface_temperature                      shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      sea_surface_temperature_quantile             shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      sea_surface_temperature_std                  shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      snow_depth                                   shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      snow_depth_quantile                          shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      snow_depth_std                               shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      specific_humidity                            shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      specific_humidity_quantile                   shape=[5, 366, 13, 240, 121] chunks=[5, 7, 1, 240, 121] dtype=<f4 
+      specific_humidity_std                        shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      surface_pressure                             shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      surface_pressure_quantile                    shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      surface_pressure_std                         shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      temperature                                  shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      temperature_quantile                         shape=[5, 366, 13, 240, 121] chunks=[5, 7, 1, 240, 121] dtype=<f4 
+      temperature_std                              shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      total_cloud_cover                            shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      total_cloud_cover_quantile                   shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      total_cloud_cover_std                        shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      total_column_water                           shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      total_column_water_quantile                  shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      total_column_water_std                       shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      total_column_water_vapour                    shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      total_column_water_vapour_quantile           shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      total_column_water_vapour_std                shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      total_precipitation                          shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      total_precipitation_quantile                 shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      total_precipitation_std                      shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      u_component_of_wind                          shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      u_component_of_wind_quantile                 shape=[5, 366, 13, 240, 121] chunks=[5, 7, 1, 240, 121] dtype=<f4 
+      u_component_of_wind_std                      shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      v_component_of_wind                          shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      v_component_of_wind_quantile                 shape=[5, 366, 13, 240, 121] chunks=[5, 7, 1, 240, 121] dtype=<f4 
+      v_component_of_wind_std                      shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      vertical_velocity                            shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      vertical_velocity_quantile                   shape=[5, 366, 13, 240, 121] chunks=[5, 7, 1, 240, 121] dtype=<f4 
+      vertical_velocity_std                        shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_1                shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_1_quantile       shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_1_std            shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_2                shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_2_quantile       shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_2_std            shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_3                shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_3_quantile       shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_3_std            shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_4                shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_4_quantile       shape=[5, 366, 240, 121] chunks=[5, 7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_4_std            shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      Chunk-Objekte (200): min 0.000 MB · median 0.692 MB · max 3.449 MB
+
+   == datasets/era5-daily-climatology/daily_clim_daily_mean_1959_to_2015_7_dw-240x121_equiangular_with_poles_conservative.zarr/  Format v2, 74 Mitglieder
+      Mitglieder: ['10m_u_component_of_wind_mean', '10m_u_component_of_wind_std', '10m_v_component_of_wind_mean', '10m_v_component_of_wind_std', '2m_dewpoint_temperature_mean', '2m_dewpoint_temperature_std', '2m_temperature_mean', '2m_temperature_std', 'boundary_layer_height_mean', 'boundary_layer_height_std', 'dayofyear', 'geopotential_mean', 'geopotential_std', 'latitude', 'leaf_area_index_high_vegetation_mean', 'leaf_area_index_high_vegetation_std', 'leaf_area_index_low_vegetation_mean', 'leaf_area_index_low_vegetation_std', 'level', 'longitude', 'mean_sea_level_pressure_mean', 'mean_sea_level_pressure_std', 'mean_surface_latent_heat_flux_mean', 'mean_surface_latent_heat_flux_std', 'mean_surface_net_long_wave_radiation_flux_mean', 'mean_surface_net_long_wave_radiation_flux_std', 'mean_surface_net_short_wave_radiation_flux_mean', 'mean_surface_net_short_wave_radiation_flux_std', 'mean_surface_sensible_heat_flux_mean', 'mean_surface_sensible_heat_flux_std', 'mean_top_downward_short_wave_radiation_flux_mean', 'mean_top_downward_short_wave_radiation_flux_std', 'mean_top_net_long_wave_radiation_flux_mean', 'mean_top_net_long_wave_radiation_flux_std', 'mean_top_net_short_wave_radiation_flux_mean', 'mean_top_net_short_wave_radiation_flux_std', 'mean_vertically_integrated_moisture_divergence_mean', 'mean_vertically_integrated_moisture_divergence_std', 'potential_vorticity_mean', 'potential_vorticity_std', 'sea_ice_cover_mean', 'sea_ice_cover_std', 'sea_surface_temperature_mean', 'sea_surface_temperature_std', 'snow_depth_mean', 'snow_depth_std', 'specific_humidity_mean', 'specific_humidity_std', 'surface_pressure_mean', 'surface_pressure_std', 'temperature_mean', 'temperature_std', 'total_cloud_cover_mean', 'total_cloud_cover_std', 'total_column_water_mean', 'total_column_water_std', 'total_column_water_vapour_mean', 'total_column_water_vapour_std', 'total_precipitation_mean', 'total_precipitation_std', 'u_component_of_wind_mean', 'u_component_of_wind_std', 'v_component_of_wind_mean', 'v_component_of_wind_std', 'vertical_velocity_mean', 'vertical_velocity_std', 'volumetric_soil_water_layer_1_mean', 'volumetric_soil_water_layer_1_std', 'volumetric_soil_water_layer_2_mean', 'volumetric_soil_water_layer_2_std']
+      10m_u_component_of_wind_mean                 shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      10m_u_component_of_wind_std                  shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      10m_v_component_of_wind_mean                 shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      10m_v_component_of_wind_std                  shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      2m_dewpoint_temperature_mean                 shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      2m_dewpoint_temperature_std                  shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      2m_temperature_mean                          shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      2m_temperature_std                           shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      boundary_layer_height_mean                   shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      boundary_layer_height_std                    shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      dayofyear                                    shape=[366] chunks=[366] dtype=<i8 
+      geopotential_mean                            shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      geopotential_std                             shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      latitude                                     shape=[121] chunks=[121] dtype=<f8 
+      leaf_area_index_high_vegetation_mean         shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      leaf_area_index_high_vegetation_std          shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      leaf_area_index_low_vegetation_mean          shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      leaf_area_index_low_vegetation_std           shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      level                                        shape=[13] chunks=[13] dtype=<i8 
+      longitude                                    shape=[240] chunks=[240] dtype=<f8 
+      mean_sea_level_pressure_mean                 shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_sea_level_pressure_std                  shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_latent_heat_flux_mean           shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_latent_heat_flux_std            shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux_mean shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux_std shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux_mean shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux_std shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_sensible_heat_flux_mean         shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_sensible_heat_flux_std          shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux_mean shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux_std shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux_mean   shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux_std    shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux_mean  shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux_std   shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence_mean shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence_std shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      potential_vorticity_mean                     shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      potential_vorticity_std                      shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      sea_ice_cover_mean                           shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      sea_ice_cover_std                            shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      sea_surface_temperature_mean                 shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      sea_surface_temperature_std                  shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      snow_depth_mean                              shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      snow_depth_std                               shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      specific_humidity_mean                       shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      specific_humidity_std                        shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      surface_pressure_mean                        shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      surface_pressure_std                         shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      temperature_mean                             shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      temperature_std                              shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      total_cloud_cover_mean                       shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      total_cloud_cover_std                        shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      total_column_water_mean                      shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      total_column_water_std                       shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      total_column_water_vapour_mean               shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      total_column_water_vapour_std                shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      total_precipitation_mean                     shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      total_precipitation_std                      shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      u_component_of_wind_mean                     shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      u_component_of_wind_std                      shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      v_component_of_wind_mean                     shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      v_component_of_wind_std                      shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      vertical_velocity_mean                       shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      vertical_velocity_std                        shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_1_mean           shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_1_std            shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_2_mean           shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_2_std            shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_3_mean           shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_3_std            shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_4_mean           shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_4_std            shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      Chunk-Objekte (200): min 0.000 MB · median 0.689 MB · max 0.706 MB
+
+   == datasets/era5-daily-climatology/daily_clim_daily_mean_1959_to_2015_7_dw-full_37-1h-512x256_equiangular_conservative.zarr/  Format v2, 74 Mitglieder
+      Mitglieder: ['10m_u_component_of_wind_mean', '10m_u_component_of_wind_std', '10m_v_component_of_wind_mean', '10m_v_component_of_wind_std', '2m_dewpoint_temperature_mean', '2m_dewpoint_temperature_std', '2m_temperature_mean', '2m_temperature_std', 'boundary_layer_height_mean', 'boundary_layer_height_std', 'dayofyear', 'geopotential_mean', 'geopotential_std', 'latitude', 'leaf_area_index_high_vegetation_mean', 'leaf_area_index_high_vegetation_std', 'leaf_area_index_low_vegetation_mean', 'leaf_area_index_low_vegetation_std', 'level', 'longitude', 'mean_sea_level_pressure_mean', 'mean_sea_level_pressure_std', 'mean_surface_latent_heat_flux_mean', 'mean_surface_latent_heat_flux_std', 'mean_surface_net_long_wave_radiation_flux_mean', 'mean_surface_net_long_wave_radiation_flux_std', 'mean_surface_net_short_wave_radiation_flux_mean', 'mean_surface_net_short_wave_radiation_flux_std', 'mean_surface_sensible_heat_flux_mean', 'mean_surface_sensible_heat_flux_std', 'mean_top_downward_short_wave_radiation_flux_mean', 'mean_top_downward_short_wave_radiation_flux_std', 'mean_top_net_long_wave_radiation_flux_mean', 'mean_top_net_long_wave_radiation_flux_std', 'mean_top_net_short_wave_radiation_flux_mean', 'mean_top_net_short_wave_radiation_flux_std', 'mean_vertically_integrated_moisture_divergence_mean', 'mean_vertically_integrated_moisture_divergence_std', 'potential_vorticity_mean', 'potential_vorticity_std', 'sea_ice_cover_mean', 'sea_ice_cover_std', 'sea_surface_temperature_mean', 'sea_surface_temperature_std', 'snow_depth_mean', 'snow_depth_std', 'specific_humidity_mean', 'specific_humidity_std', 'surface_pressure_mean', 'surface_pressure_std', 'temperature_mean', 'temperature_std', 'total_cloud_cover_mean', 'total_cloud_cover_std', 'total_column_water_mean', 'total_column_water_std', 'total_column_water_vapour_mean', 'total_column_water_vapour_std', 'total_precipitation_mean', 'total_precipitation_std', 'u_component_of_wind_mean', 'u_component_of_wind_std', 'v_component_of_wind_mean', 'v_component_of_wind_std', 'vertical_velocity_mean', 'vertical_velocity_std', 'volumetric_soil_water_layer_1_mean', 'volumetric_soil_water_layer_1_std', 'volumetric_soil_water_layer_2_mean', 'volumetric_soil_water_layer_2_std']
+      10m_u_component_of_wind_mean                 shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      10m_u_component_of_wind_std                  shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      10m_v_component_of_wind_mean                 shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      10m_v_component_of_wind_std                  shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      2m_dewpoint_temperature_mean                 shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      2m_dewpoint_temperature_std                  shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      2m_temperature_mean                          shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      2m_temperature_std                           shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      boundary_layer_height_mean                   shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      boundary_layer_height_std                    shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      dayofyear                                    shape=[366] chunks=[366] dtype=<i8 
+      geopotential_mean                            shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      geopotential_std                             shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      latitude                                     shape=[256] chunks=[256] dtype=<f8 
+      leaf_area_index_high_vegetation_mean         shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      leaf_area_index_high_vegetation_std          shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      leaf_area_index_low_vegetation_mean          shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      leaf_area_index_low_vegetation_std           shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      level                                        shape=[37] chunks=[37] dtype=<i8 
+      longitude                                    shape=[512] chunks=[512] dtype=<f8 
+      mean_sea_level_pressure_mean                 shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_sea_level_pressure_std                  shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_surface_latent_heat_flux_mean           shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_surface_latent_heat_flux_std            shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux_mean shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux_std shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux_mean shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux_std shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_surface_sensible_heat_flux_mean         shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_surface_sensible_heat_flux_std          shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux_mean shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux_std shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux_mean   shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux_std    shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux_mean  shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux_std   shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence_mean shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence_std shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      potential_vorticity_mean                     shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      potential_vorticity_std                      shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      sea_ice_cover_mean                           shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      sea_ice_cover_std                            shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      sea_surface_temperature_mean                 shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      sea_surface_temperature_std                  shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      snow_depth_mean                              shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      snow_depth_std                               shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      specific_humidity_mean                       shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      specific_humidity_std                        shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      surface_pressure_mean                        shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      surface_pressure_std                         shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      temperature_mean                             shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      temperature_std                              shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      total_cloud_cover_mean                       shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      total_cloud_cover_std                        shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      total_column_water_mean                      shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      total_column_water_std                       shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      total_column_water_vapour_mean               shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      total_column_water_vapour_std                shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      total_precipitation_mean                     shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      total_precipitation_std                      shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      u_component_of_wind_mean                     shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      u_component_of_wind_std                      shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      v_component_of_wind_mean                     shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      v_component_of_wind_std                      shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      vertical_velocity_mean                       shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      vertical_velocity_std                        shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_1_mean           shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_1_std            shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_2_mean           shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_2_std            shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_3_mean           shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_3_std            shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_4_mean           shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_4_std            shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      Chunk-Objekte (200): min 0.000 MB · median 3.042 MB · max 3.106 MB
+
+   == datasets/era5-daily-climatology/daily_clim_daily_mean_1981_to_2010_7_dw-240x121_equiangular_with_poles_conservative.zarr/  Format v2, 74 Mitglieder
+      Mitglieder: ['10m_u_component_of_wind_mean', '10m_u_component_of_wind_std', '10m_v_component_of_wind_mean', '10m_v_component_of_wind_std', '2m_dewpoint_temperature_mean', '2m_dewpoint_temperature_std', '2m_temperature_mean', '2m_temperature_std', 'boundary_layer_height_mean', 'boundary_layer_height_std', 'dayofyear', 'geopotential_mean', 'geopotential_std', 'latitude', 'leaf_area_index_high_vegetation_mean', 'leaf_area_index_high_vegetation_std', 'leaf_area_index_low_vegetation_mean', 'leaf_area_index_low_vegetation_std', 'level', 'longitude', 'mean_sea_level_pressure_mean', 'mean_sea_level_pressure_std', 'mean_surface_latent_heat_flux_mean', 'mean_surface_latent_heat_flux_std', 'mean_surface_net_long_wave_radiation_flux_mean', 'mean_surface_net_long_wave_radiation_flux_std', 'mean_surface_net_short_wave_radiation_flux_mean', 'mean_surface_net_short_wave_radiation_flux_std', 'mean_surface_sensible_heat_flux_mean', 'mean_surface_sensible_heat_flux_std', 'mean_top_downward_short_wave_radiation_flux_mean', 'mean_top_downward_short_wave_radiation_flux_std', 'mean_top_net_long_wave_radiation_flux_mean', 'mean_top_net_long_wave_radiation_flux_std', 'mean_top_net_short_wave_radiation_flux_mean', 'mean_top_net_short_wave_radiation_flux_std', 'mean_vertically_integrated_moisture_divergence_mean', 'mean_vertically_integrated_moisture_divergence_std', 'potential_vorticity_mean', 'potential_vorticity_std', 'sea_ice_cover_mean', 'sea_ice_cover_std', 'sea_surface_temperature_mean', 'sea_surface_temperature_std', 'snow_depth_mean', 'snow_depth_std', 'specific_humidity_mean', 'specific_humidity_std', 'surface_pressure_mean', 'surface_pressure_std', 'temperature_mean', 'temperature_std', 'total_cloud_cover_mean', 'total_cloud_cover_std', 'total_column_water_mean', 'total_column_water_std', 'total_column_water_vapour_mean', 'total_column_water_vapour_std', 'total_precipitation_mean', 'total_precipitation_std', 'u_component_of_wind_mean', 'u_component_of_wind_std', 'v_component_of_wind_mean', 'v_component_of_wind_std', 'vertical_velocity_mean', 'vertical_velocity_std', 'volumetric_soil_water_layer_1_mean', 'volumetric_soil_water_layer_1_std', 'volumetric_soil_water_layer_2_mean', 'volumetric_soil_water_layer_2_std']
+      10m_u_component_of_wind_mean                 shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      10m_u_component_of_wind_std                  shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      10m_v_component_of_wind_mean                 shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      10m_v_component_of_wind_std                  shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      2m_dewpoint_temperature_mean                 shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      2m_dewpoint_temperature_std                  shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      2m_temperature_mean                          shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      2m_temperature_std                           shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      boundary_layer_height_mean                   shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      boundary_layer_height_std                    shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      dayofyear                                    shape=[366] chunks=[366] dtype=<i8 
+      geopotential_mean                            shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      geopotential_std                             shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      latitude                                     shape=[121] chunks=[121] dtype=<f8 
+      leaf_area_index_high_vegetation_mean         shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      leaf_area_index_high_vegetation_std          shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      leaf_area_index_low_vegetation_mean          shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      leaf_area_index_low_vegetation_std           shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      level                                        shape=[13] chunks=[13] dtype=<i8 
+      longitude                                    shape=[240] chunks=[240] dtype=<f8 
+      mean_sea_level_pressure_mean                 shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_sea_level_pressure_std                  shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_latent_heat_flux_mean           shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_latent_heat_flux_std            shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux_mean shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux_std shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux_mean shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux_std shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_sensible_heat_flux_mean         shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_surface_sensible_heat_flux_std          shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux_mean shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux_std shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux_mean   shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux_std    shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux_mean  shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux_std   shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence_mean shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence_std shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      potential_vorticity_mean                     shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      potential_vorticity_std                      shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      sea_ice_cover_mean                           shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      sea_ice_cover_std                            shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      sea_surface_temperature_mean                 shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      sea_surface_temperature_std                  shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      snow_depth_mean                              shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      snow_depth_std                               shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      specific_humidity_mean                       shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      specific_humidity_std                        shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      surface_pressure_mean                        shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      surface_pressure_std                         shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      temperature_mean                             shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      temperature_std                              shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      total_cloud_cover_mean                       shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      total_cloud_cover_std                        shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      total_column_water_mean                      shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      total_column_water_std                       shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      total_column_water_vapour_mean               shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      total_column_water_vapour_std                shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      total_precipitation_mean                     shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      total_precipitation_std                      shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      u_component_of_wind_mean                     shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      u_component_of_wind_std                      shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      v_component_of_wind_mean                     shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      v_component_of_wind_std                      shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      vertical_velocity_mean                       shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      vertical_velocity_std                        shape=[366, 13, 240, 121] chunks=[7, 1, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_1_mean           shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_1_std            shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_2_mean           shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_2_std            shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_3_mean           shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_3_std            shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_4_mean           shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      volumetric_soil_water_layer_4_std            shape=[366, 240, 121] chunks=[7, 240, 121] dtype=<f4 
+      Chunk-Objekte (200): min 0.000 MB · median 0.691 MB · max 0.707 MB
+
+   == datasets/era5-daily-climatology/daily_clim_daily_mean_1981_to_2010_7_dw-full_37-1h-512x256_equiangular_conservative.zarr/  Format v2, 74 Mitglieder
+      Mitglieder: ['10m_u_component_of_wind_mean', '10m_u_component_of_wind_std', '10m_v_component_of_wind_mean', '10m_v_component_of_wind_std', '2m_dewpoint_temperature_mean', '2m_dewpoint_temperature_std', '2m_temperature_mean', '2m_temperature_std', 'boundary_layer_height_mean', 'boundary_layer_height_std', 'dayofyear', 'geopotential_mean', 'geopotential_std', 'latitude', 'leaf_area_index_high_vegetation_mean', 'leaf_area_index_high_vegetation_std', 'leaf_area_index_low_vegetation_mean', 'leaf_area_index_low_vegetation_std', 'level', 'longitude', 'mean_sea_level_pressure_mean', 'mean_sea_level_pressure_std', 'mean_surface_latent_heat_flux_mean', 'mean_surface_latent_heat_flux_std', 'mean_surface_net_long_wave_radiation_flux_mean', 'mean_surface_net_long_wave_radiation_flux_std', 'mean_surface_net_short_wave_radiation_flux_mean', 'mean_surface_net_short_wave_radiation_flux_std', 'mean_surface_sensible_heat_flux_mean', 'mean_surface_sensible_heat_flux_std', 'mean_top_downward_short_wave_radiation_flux_mean', 'mean_top_downward_short_wave_radiation_flux_std', 'mean_top_net_long_wave_radiation_flux_mean', 'mean_top_net_long_wave_radiation_flux_std', 'mean_top_net_short_wave_radiation_flux_mean', 'mean_top_net_short_wave_radiation_flux_std', 'mean_vertically_integrated_moisture_divergence_mean', 'mean_vertically_integrated_moisture_divergence_std', 'potential_vorticity_mean', 'potential_vorticity_std', 'sea_ice_cover_mean', 'sea_ice_cover_std', 'sea_surface_temperature_mean', 'sea_surface_temperature_std', 'snow_depth_mean', 'snow_depth_std', 'specific_humidity_mean', 'specific_humidity_std', 'surface_pressure_mean', 'surface_pressure_std', 'temperature_mean', 'temperature_std', 'total_cloud_cover_mean', 'total_cloud_cover_std', 'total_column_water_mean', 'total_column_water_std', 'total_column_water_vapour_mean', 'total_column_water_vapour_std', 'total_precipitation_mean', 'total_precipitation_std', 'u_component_of_wind_mean', 'u_component_of_wind_std', 'v_component_of_wind_mean', 'v_component_of_wind_std', 'vertical_velocity_mean', 'vertical_velocity_std', 'volumetric_soil_water_layer_1_mean', 'volumetric_soil_water_layer_1_std', 'volumetric_soil_water_layer_2_mean', 'volumetric_soil_water_layer_2_std']
+      10m_u_component_of_wind_mean                 shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      10m_u_component_of_wind_std                  shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      10m_v_component_of_wind_mean                 shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      10m_v_component_of_wind_std                  shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      2m_dewpoint_temperature_mean                 shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      2m_dewpoint_temperature_std                  shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      2m_temperature_mean                          shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      2m_temperature_std                           shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      boundary_layer_height_mean                   shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      boundary_layer_height_std                    shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      dayofyear                                    shape=[366] chunks=[366] dtype=<i8 
+      geopotential_mean                            shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      geopotential_std                             shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      latitude                                     shape=[256] chunks=[256] dtype=<f8 
+      leaf_area_index_high_vegetation_mean         shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      leaf_area_index_high_vegetation_std          shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      leaf_area_index_low_vegetation_mean          shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      leaf_area_index_low_vegetation_std           shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      level                                        shape=[37] chunks=[37] dtype=<i8 
+      longitude                                    shape=[512] chunks=[512] dtype=<f8 
+      mean_sea_level_pressure_mean                 shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_sea_level_pressure_std                  shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_surface_latent_heat_flux_mean           shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_surface_latent_heat_flux_std            shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux_mean shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_surface_net_long_wave_radiation_flux_std shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux_mean shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_surface_net_short_wave_radiation_flux_std shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_surface_sensible_heat_flux_mean         shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_surface_sensible_heat_flux_std          shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux_mean shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_top_downward_short_wave_radiation_flux_std shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux_mean   shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_top_net_long_wave_radiation_flux_std    shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux_mean  shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_top_net_short_wave_radiation_flux_std   shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence_mean shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      mean_vertically_integrated_moisture_divergence_std shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      potential_vorticity_mean                     shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      potential_vorticity_std                      shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      sea_ice_cover_mean                           shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      sea_ice_cover_std                            shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      sea_surface_temperature_mean                 shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      sea_surface_temperature_std                  shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      snow_depth_mean                              shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      snow_depth_std                               shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      specific_humidity_mean                       shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      specific_humidity_std                        shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      surface_pressure_mean                        shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      surface_pressure_std                         shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      temperature_mean                             shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      temperature_std                              shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      total_cloud_cover_mean                       shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      total_cloud_cover_std                        shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      total_column_water_mean                      shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      total_column_water_std                       shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      total_column_water_vapour_mean               shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      total_column_water_vapour_std                shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      total_precipitation_mean                     shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      total_precipitation_std                      shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      u_component_of_wind_mean                     shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      u_component_of_wind_std                      shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      v_component_of_wind_mean                     shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      v_component_of_wind_std                      shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      vertical_velocity_mean                       shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      vertical_velocity_std                        shape=[366, 37, 512, 256] chunks=[7, 1, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_1_mean           shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_1_std            shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_2_mean           shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_2_std            shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_3_mean           shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_3_std            shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_4_mean           shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      volumetric_soil_water_layer_4_std            shape=[366, 512, 256] chunks=[7, 512, 256] dtype=<f4 
+      Chunk-Objekte (200): min 0.000 MB · median 3.044 MB · max 3.106 MB
+
+-- weatherbench2/datasets/era5_biweekly/  (1 Ordner, 0 Objekte) 
+   [dir] datasets/era5_biweekly/1959-2023_01_10-1h-240x121_equiangular_with_poles_conservative.zarr/
+
+-- weatherbench2/datasets/era5_weekly/  (3 Ordner, 0 Objekte) 
+   [dir] datasets/era5_weekly/1959-2023_01_10-1h-240x121_equiangular_with_poles_conservative.zarr/
+   [dir] datasets/era5_weekly/1959-2023_01_10-full_37-1h-0p25deg-chunk-1-s2s.zarr/
+   [dir] datasets/era5_weekly/1959-2023_01_10-full_37-1h-512x256_equiangular_conservative.zarr/
+
+==============================================================================
+Auflistung gs://gcp-public-data-arco-era5
+==============================================================================
+
+-- gcp-public-data-arco-era5/ar/  (19 Ordner, 0 Objekte) 
+   [dir] ar/1959-2022-1h-240x121_equiangular_with_poles_conservative.zarr/
+   [dir] ar/1959-2022-1h-360x181_equiangular_with_poles_conservative.zarr/
+   [dir] ar/1959-2022-6h-128x64_equiangular_conservative.zarr/
+   [dir] ar/1959-2022-6h-128x64_equiangular_with_poles_conservative.zarr/
+   [dir] ar/1959-2022-6h-1440x721.zarr/
+   [dir] ar/1959-2022-6h-240x121_equiangular_with_poles_conservative.zarr/
+   [dir] ar/1959-2022-6h-512x256_equiangular_conservative.zarr/
+   [dir] ar/1959-2022-6h-64x32_equiangular_conservative.zarr/
+   [dir] ar/1959-2022-6h-64x32_equiangular_with_poles_conservative.zarr/
+   [dir] ar/1959-2022-full_37-1h-0p25deg-chunk-1.zarr-v2/
+   [dir] ar/1959-2022-full_37-6h-0p25deg-chunk-1.zarr-v2/
+   [dir] ar/1959-2022-full_37-6h-0p25deg_derived.zarr/
+   [dir] ar/1959-2022-wb13-6h-0p25deg-chunk-1.zarr-v2/
+   [dir] ar/1959-2023_01_10-6h-64x32_equiangular_conservative.zarr/
+   [dir] ar/1959-2023_01_10-full_37-1h-0p25deg-chunk-1.zarr/
+   [dir] ar/1959-2023_01_10-full_37-1h-1440x721.zarr/
+   [dir] ar/full_37-1h-0p25deg-chunk-1.zarr-v3/
+   [dir] ar/model-level-1h-0p25deg.zarr-v1/
+   [dir] ar/model-level-1h-0p25deg.zarr-v2/
+
+Stundenspeicher-Chunks 2m_temperature: n=60 · min 0.000 MB · median 2.351 MB · max 2.357 MB
+
+Stundenspeicher-Chunks total_precipitation: n=60 · min 0.000 MB · median 1.802 MB · max 1.884 MB
+
+==============================================================================
+Lesetest gs://weatherbench2/datasets/era5_daily/1959-2023_01_10-1h-240x121_equiangular_with_poles_conservative.zarr/  Jahr 2024
+==============================================================================
+/home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/scripts/probe_daily.py:166: ZarrUserWarning: fs (<gcsfs.extended_gcsfs.ExtendedGcsFileSystem object at 0x7fc536ae6960>) was not created with `asynchronous=True`, this may lead to surprising behavior
+  obj = zarr.storage.FsspecStore(fs=fs, path=path, read_only=True)
+  geöffnet (fsspec-store) in 0.8s
+  103 Variablen: ['10m_u_component_of_wind', '10m_u_component_of_wind_max', '10m_u_component_of_wind_min', '10m_v_component_of_wind', '10m_v_component_of_wind_max', '10m_v_component_of_wind_min', '2m_dewpoint_temperature', '2m_dewpoint_temperature_max', '2m_dewpoint_temperature_min', '2m_temperature', '2m_temperature_max', '2m_temperature_min', 'boundary_layer_height', 'boundary_layer_height_max', 'boundary_layer_height_min', 'geopotential', 'geopotential_max', 'geopotential_min', 'leaf_area_index_high_vegetation', 'leaf_area_index_high_vegetation_max', 'leaf_area_index_high_vegetation_min', 'leaf_area_index_low_vegetation', 'leaf_area_index_low_vegetation_max', 'leaf_area_index_low_vegetation_min', 'mean_sea_level_pressure', 'mean_sea_level_pressure_max', 'mean_sea_level_pressure_min', 'mean_surface_latent_heat_flux', 'mean_surface_latent_heat_flux_max', 'mean_surface_latent_heat_flux_min', 'mean_surface_net_long_wave_radiation_flux', 'mean_surface_net_long_wave_radiation_flux_max', 'mean_surface_net_long_wave_radiation_flux_min', 'mean_surface_net_short_wave_radiation_flux', 'mean_surface_net_short_wave_radiation_flux_max', 'mean_surface_net_short_wave_radiation_flux_min', 'mean_surface_sensible_heat_flux', 'mean_surface_sensible_heat_flux_max', 'mean_surface_sensible_heat_flux_min', 'mean_top_downward_short_wave_radiation_flux', 'mean_top_downward_short_wave_radiation_flux_max', 'mean_top_downward_short_wave_radiation_flux_min', 'mean_top_net_long_wave_radiation_flux', 'mean_top_net_long_wave_radiation_flux_max', 'mean_top_net_long_wave_radiation_flux_min', 'mean_top_net_short_wave_radiation_flux', 'mean_top_net_short_wave_radiation_flux_max', 'mean_top_net_short_wave_radiation_flux_min', 'mean_vertically_integrated_moisture_divergence', 'mean_vertically_integrated_moisture_divergence_max', 'mean_vertically_integrated_moisture_divergence_min', 'potential_vorticity', 'potential_vorticity_max', 'potential_vorticity_min', 'sea_ice_cover', 'sea_ice_cover_max', 'sea_ice_cover_min', 'sea_surface_temperature', 'sea_surface_temperature_max', 'sea_surface_temperature_min', 'snow_depth', 'snow_depth_max', 'snow_depth_min', 'specific_humidity', 'specific_humidity_max', 'specific_humidity_min', 'surface_pressure', 'surface_pressure_max', 'surface_pressure_min', 'temperature']
+  Koordinaten: ['latitude', 'level', 'longitude', 'time'] · Größen: {'time': 23386, 'longitude': 240, 'latitude': 121, 'level': 13}
+  Zeit: 1959-01-01T00:00:00 .. 2023-01-10T00:00:00
+  gelesen: ['2m_dewpoint_temperature', '2m_dewpoint_temperature_max', '2m_dewpoint_temperature_min', '2m_temperature', '2m_temperature_max', '2m_temperature_min']
+  Ausschnitt: {'time': 0, 'longitude': 31, 'latitude': 26}
+  0 Schritte in 0.0s gelesen (2 ms/Schritt), RAM 0.0 MB
+  (Längengrad-Achse beginnt bei 0 – der Ausschnitt westlich von Null muss separat gelesen werden)
+  -> Hochrechnung: ein Jahr Europa ≈ 1s, zehn Jahre ≈ 0 min (ein Thread)
+     2m_dewpoint_temperature: nur NaN
+     2m_dewpoint_temperature_max: nur NaN
+     2m_dewpoint_temperature_min: nur NaN
+     2m_temperature: nur NaN
+     2m_temperature_max: nur NaN
+     2m_temperature_min: nur NaN
+
+==============================================================================
+Lesetest gs://weatherbench2/datasets/era5_daily/1959-2023_01_10-full_37-1h-0p25deg-chunk-1-s2s.zarr/  Jahr 2024
+==============================================================================
+/home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/scripts/probe_daily.py:166: ZarrUserWarning: fs (<gcsfs.extended_gcsfs.ExtendedGcsFileSystem object at 0x7fc536ae6960>) was not created with `asynchronous=True`, this may lead to surprising behavior
+  obj = zarr.storage.FsspecStore(fs=fs, path=path, read_only=True)
+  geöffnet (fsspec-store) in 0.9s
+  103 Variablen: ['10m_u_component_of_wind', '10m_u_component_of_wind_max', '10m_u_component_of_wind_min', '10m_v_component_of_wind', '10m_v_component_of_wind_max', '10m_v_component_of_wind_min', '2m_dewpoint_temperature', '2m_dewpoint_temperature_max', '2m_dewpoint_temperature_min', '2m_temperature', '2m_temperature_max', '2m_temperature_min', 'boundary_layer_height', 'boundary_layer_height_max', 'boundary_layer_height_min', 'geopotential', 'geopotential_max', 'geopotential_min', 'leaf_area_index_high_vegetation', 'leaf_area_index_high_vegetation_max', 'leaf_area_index_high_vegetation_min', 'leaf_area_index_low_vegetation', 'leaf_area_index_low_vegetation_max', 'leaf_area_index_low_vegetation_min', 'mean_sea_level_pressure', 'mean_sea_level_pressure_max', 'mean_sea_level_pressure_min', 'mean_surface_latent_heat_flux', 'mean_surface_latent_heat_flux_max', 'mean_surface_latent_heat_flux_min', 'mean_surface_net_long_wave_radiation_flux', 'mean_surface_net_long_wave_radiation_flux_max', 'mean_surface_net_long_wave_radiation_flux_min', 'mean_surface_net_short_wave_radiation_flux', 'mean_surface_net_short_wave_radiation_flux_max', 'mean_surface_net_short_wave_radiation_flux_min', 'mean_surface_sensible_heat_flux', 'mean_surface_sensible_heat_flux_max', 'mean_surface_sensible_heat_flux_min', 'mean_top_downward_short_wave_radiation_flux', 'mean_top_downward_short_wave_radiation_flux_max', 'mean_top_downward_short_wave_radiation_flux_min', 'mean_top_net_long_wave_radiation_flux', 'mean_top_net_long_wave_radiation_flux_max', 'mean_top_net_long_wave_radiation_flux_min', 'mean_top_net_short_wave_radiation_flux', 'mean_top_net_short_wave_radiation_flux_max', 'mean_top_net_short_wave_radiation_flux_min', 'mean_vertically_integrated_moisture_divergence', 'mean_vertically_integrated_moisture_divergence_max', 'mean_vertically_integrated_moisture_divergence_min', 'potential_vorticity', 'potential_vorticity_max', 'potential_vorticity_min', 'sea_ice_cover', 'sea_ice_cover_max', 'sea_ice_cover_min', 'sea_surface_temperature', 'sea_surface_temperature_max', 'sea_surface_temperature_min', 'snow_depth', 'snow_depth_max', 'snow_depth_min', 'specific_humidity', 'specific_humidity_max', 'specific_humidity_min', 'surface_pressure', 'surface_pressure_max', 'surface_pressure_min', 'temperature']
+  Koordinaten: ['latitude', 'level', 'longitude', 'time'] · Größen: {'time': 23386, 'latitude': 721, 'longitude': 1440, 'level': 37}
+  Zeit: 1959-01-01T00:00:00 .. 2023-01-10T00:00:00
+  gelesen: ['2m_dewpoint_temperature', '2m_dewpoint_temperature_max', '2m_dewpoint_temperature_min', '2m_temperature', '2m_temperature_max', '2m_temperature_min']
+  Ausschnitt: {'time': 0, 'latitude': 153, 'longitude': 181}
+  0 Schritte in 0.0s gelesen (2 ms/Schritt), RAM 0.0 MB
+  (Längengrad-Achse beginnt bei 0 – der Ausschnitt westlich von Null muss separat gelesen werden)
+  -> Hochrechnung: ein Jahr Europa ≈ 1s, zehn Jahre ≈ 0 min (ein Thread)
+     2m_dewpoint_temperature: nur NaN
+     2m_dewpoint_temperature_max: nur NaN
+     2m_dewpoint_temperature_min: nur NaN
+     2m_temperature: nur NaN
+     2m_temperature_max: nur NaN
+     2m_temperature_min: nur NaN
+
+==============================================================================
+Lesetest gs://weatherbench2/datasets/era5_daily/1959-2023_01_10-full_37-1h-512x256_equiangular_conservative.zarr/  Jahr 2024
+==============================================================================
+/home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/scripts/probe_daily.py:166: ZarrUserWarning: fs (<gcsfs.extended_gcsfs.ExtendedGcsFileSystem object at 0x7fc536ae6960>) was not created with `asynchronous=True`, this may lead to surprising behavior
+  obj = zarr.storage.FsspecStore(fs=fs, path=path, read_only=True)
+  geöffnet (fsspec-store) in 0.9s
+  103 Variablen: ['10m_u_component_of_wind', '10m_u_component_of_wind_max', '10m_u_component_of_wind_min', '10m_v_component_of_wind', '10m_v_component_of_wind_max', '10m_v_component_of_wind_min', '2m_dewpoint_temperature', '2m_dewpoint_temperature_max', '2m_dewpoint_temperature_min', '2m_temperature', '2m_temperature_max', '2m_temperature_min', 'boundary_layer_height', 'boundary_layer_height_max', 'boundary_layer_height_min', 'geopotential', 'geopotential_max', 'geopotential_min', 'leaf_area_index_high_vegetation', 'leaf_area_index_high_vegetation_max', 'leaf_area_index_high_vegetation_min', 'leaf_area_index_low_vegetation', 'leaf_area_index_low_vegetation_max', 'leaf_area_index_low_vegetation_min', 'mean_sea_level_pressure', 'mean_sea_level_pressure_max', 'mean_sea_level_pressure_min', 'mean_surface_latent_heat_flux', 'mean_surface_latent_heat_flux_max', 'mean_surface_latent_heat_flux_min', 'mean_surface_net_long_wave_radiation_flux', 'mean_surface_net_long_wave_radiation_flux_max', 'mean_surface_net_long_wave_radiation_flux_min', 'mean_surface_net_short_wave_radiation_flux', 'mean_surface_net_short_wave_radiation_flux_max', 'mean_surface_net_short_wave_radiation_flux_min', 'mean_surface_sensible_heat_flux', 'mean_surface_sensible_heat_flux_max', 'mean_surface_sensible_heat_flux_min', 'mean_top_downward_short_wave_radiation_flux', 'mean_top_downward_short_wave_radiation_flux_max', 'mean_top_downward_short_wave_radiation_flux_min', 'mean_top_net_long_wave_radiation_flux', 'mean_top_net_long_wave_radiation_flux_max', 'mean_top_net_long_wave_radiation_flux_min', 'mean_top_net_short_wave_radiation_flux', 'mean_top_net_short_wave_radiation_flux_max', 'mean_top_net_short_wave_radiation_flux_min', 'mean_vertically_integrated_moisture_divergence', 'mean_vertically_integrated_moisture_divergence_max', 'mean_vertically_integrated_moisture_divergence_min', 'potential_vorticity', 'potential_vorticity_max', 'potential_vorticity_min', 'sea_ice_cover', 'sea_ice_cover_max', 'sea_ice_cover_min', 'sea_surface_temperature', 'sea_surface_temperature_max', 'sea_surface_temperature_min', 'snow_depth', 'snow_depth_max', 'snow_depth_min', 'specific_humidity', 'specific_humidity_max', 'specific_humidity_min', 'surface_pressure', 'surface_pressure_max', 'surface_pressure_min', 'temperature']
+  Koordinaten: ['latitude', 'level', 'longitude', 'time'] · Größen: {'time': 23386, 'longitude': 512, 'latitude': 256, 'level': 37}
+  Zeit: 1959-01-01T00:00:00 .. 2023-01-10T00:00:00
+  gelesen: ['2m_dewpoint_temperature', '2m_dewpoint_temperature_max', '2m_dewpoint_temperature_min', '2m_temperature', '2m_temperature_max', '2m_temperature_min']
+  Ausschnitt: {'time': 0, 'longitude': 65, 'latitude': 54}
+  0 Schritte in 0.0s gelesen (2 ms/Schritt), RAM 0.0 MB
+  (Längengrad-Achse beginnt bei 0 – der Ausschnitt westlich von Null muss separat gelesen werden)
+  -> Hochrechnung: ein Jahr Europa ≈ 1s, zehn Jahre ≈ 0 min (ein Thread)
+     2m_dewpoint_temperature: nur NaN
+     2m_dewpoint_temperature_max: nur NaN
+     2m_dewpoint_temperature_min: nur NaN
+     2m_temperature: nur NaN
+     2m_temperature_max: nur NaN
+     2m_temperature_min: nur NaN
+
+==============================================================================
+Lesetest gs://weatherbench2/datasets/era5-daily-climatology/1990-2017-biweekly_clim_daily_mean_61_dw_240x121_equiangular_with_poles_conservative.zarr/  Jahr 2024
+==============================================================================
+/home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/scripts/probe_daily.py:166: ZarrUserWarning: fs (<gcsfs.extended_gcsfs.ExtendedGcsFileSystem object at 0x7fc536ae6960>) was not created with `asynchronous=True`, this may lead to surprising behavior
+  obj = zarr.storage.FsspecStore(fs=fs, path=path, read_only=True)
+  geöffnet (fsspec-store) in 0.7s
+  103 Variablen: ['10m_u_component_of_wind', '10m_u_component_of_wind_max', '10m_u_component_of_wind_min', '10m_v_component_of_wind', '10m_v_component_of_wind_max', '10m_v_component_of_wind_min', '2m_dewpoint_temperature', '2m_dewpoint_temperature_max', '2m_dewpoint_temperature_min', '2m_temperature', '2m_temperature_max', '2m_temperature_min', 'boundary_layer_height', 'boundary_layer_height_max', 'boundary_layer_height_min', 'geopotential', 'geopotential_max', 'geopotential_min', 'leaf_area_index_high_vegetation', 'leaf_area_index_high_vegetation_max', 'leaf_area_index_high_vegetation_min', 'leaf_area_index_low_vegetation', 'leaf_area_index_low_vegetation_max', 'leaf_area_index_low_vegetation_min', 'mean_sea_level_pressure', 'mean_sea_level_pressure_max', 'mean_sea_level_pressure_min', 'mean_surface_latent_heat_flux', 'mean_surface_latent_heat_flux_max', 'mean_surface_latent_heat_flux_min', 'mean_surface_net_long_wave_radiation_flux', 'mean_surface_net_long_wave_radiation_flux_max', 'mean_surface_net_long_wave_radiation_flux_min', 'mean_surface_net_short_wave_radiation_flux', 'mean_surface_net_short_wave_radiation_flux_max', 'mean_surface_net_short_wave_radiation_flux_min', 'mean_surface_sensible_heat_flux', 'mean_surface_sensible_heat_flux_max', 'mean_surface_sensible_heat_flux_min', 'mean_top_downward_short_wave_radiation_flux', 'mean_top_downward_short_wave_radiation_flux_max', 'mean_top_downward_short_wave_radiation_flux_min', 'mean_top_net_long_wave_radiation_flux', 'mean_top_net_long_wave_radiation_flux_max', 'mean_top_net_long_wave_radiation_flux_min', 'mean_top_net_short_wave_radiation_flux', 'mean_top_net_short_wave_radiation_flux_max', 'mean_top_net_short_wave_radiation_flux_min', 'mean_vertically_integrated_moisture_divergence', 'mean_vertically_integrated_moisture_divergence_max', 'mean_vertically_integrated_moisture_divergence_min', 'potential_vorticity', 'potential_vorticity_max', 'potential_vorticity_min', 'sea_ice_cover', 'sea_ice_cover_max', 'sea_ice_cover_min', 'sea_surface_temperature', 'sea_surface_temperature_max', 'sea_surface_temperature_min', 'snow_depth', 'snow_depth_max', 'snow_depth_min', 'specific_humidity', 'specific_humidity_max', 'specific_humidity_min', 'surface_pressure', 'surface_pressure_max', 'surface_pressure_min', 'temperature']
+  Koordinaten: ['dayofyear', 'latitude', 'level', 'longitude'] · Größen: {'dayofyear': 366, 'longitude': 240, 'latitude': 121, 'level': 13}
+  !! keine Zeit-/Geokoordinaten
+
+ENDE
+Task exception was never retrieved
+future: <Task finished name='Task-144' coro=<ClientSession.close() done, defined at /opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/aiohttp/client.py:1586> exception=RuntimeError("Task <Task pending name='Task-144' coro=<ClientSession.close() running at /opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/aiohttp/client.py:1593>> got Future <Task pending name='Task-145' coro=<_wait_for_close() running at /opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/aiohttp/connector.py:124> wait_for=<_GatheringFuture pending cb=[Task.task_wakeup()]>> attached to a different loop")>
+Traceback (most recent call last):
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/aiohttp/client.py", line 1593, in close
+    await self._connector.close()
+  File "/opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/aiohttp/connector.py", line 1083, in close
+    await super().close(abort_ssl=abort_ssl or self._ssl_shutdown_timeout == 0)
+RuntimeError: Task <Task pending name='Task-144' coro=<ClientSession.close() running at /opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/aiohttp/client.py:1593>> got Future <Task pending name='Task-145' coro=<_wait_for_close() running at /opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/aiohttp/connector.py:124> wait_for=<_GatheringFuture pending cb=[Task.task_wakeup()]>> attached to a different loop
+Task was destroyed but it is pending!
+task: <Task pending name='Task-145' coro=<_wait_for_close() done, defined at /opt/hostedtoolcache/Python/3.12.15/x64/lib/python3.12/site-packages/aiohttp/connector.py:122> wait_for=<_GatheringFuture pending cb=[Task.task_wakeup()]>>
