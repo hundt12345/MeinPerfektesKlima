@@ -12,7 +12,10 @@ die nächste zu große Anfrage bekommt **HTTP 429**. Das Kontingent zählt also 
 
 Deshalb:
   * feste, einstellbare Rate (``point_days_per_min``) mit Token-Bucket-Scheduling,
-  * 429-Antworten führen zu Abkühlen + Absenken der Rate (adaptiv),
+    wobei eine einzelne Anfrage nie länger als ``max_wait_per_request`` wartet und
+    sich die Rate nach erfolgreichen Anfragen wieder erholt,
+  * 429-Antworten kühlen ab **und halbieren die Anfrage** (Zeitraum bzw. Punktzahl),
+    weil die Drosselung an der Antwortgröße hängt – nicht an der Aufrufzahl,
   * jeder Block wird als Kontrollpunkt (``data/checkpoints/``) gesichert, sodass ein
     abgebrochener Lauf jederzeit fortgesetzt werden kann (``--resume`` ist Standard),
   * Kontrollpunkte werden **über ihre Datumsachse** zusammengesetzt – die Blockgröße
@@ -39,6 +42,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import re
 import sys
 import threading
@@ -85,6 +89,7 @@ DEFAULT_CFG = {
     "batch_points": 10,          # Punkte je API-Aufruf (klein = weniger Risiko bei 429)
     "chunk_years": 5,            # Jahre je API-Aufruf
     "point_days_per_min": 64000, # Anfragen-Takt (geschätzt ≈ 4.500 „Gewicht“/min)
+    "max_wait_per_request": 75.0,  # eine einzelne Anfrage wartet nie länger als das
     "threads": 3,
     "max_minutes": 285,
     "test_mode": False,
@@ -96,18 +101,39 @@ def log(msg: str) -> None:
 
 
 # ------------------------------------------------------------------ Netzwerk
-class Pace:
-    """Verteilt die Anfragen so, dass die Punkt-Tage pro Minute eingehalten werden."""
+class Throttled(RuntimeError):
+    """Die API hat wiederholt gedrosselt (HTTP 429/5xx) – Anfrage verkleinern."""
 
-    def __init__(self, point_days_per_min: float):
+
+class Pace:
+    """Verteilt die Anfragen so, dass die Punkt-Tage pro Minute eingehalten werden.
+
+    Zwei Lehren aus dem ersten Lauf (der nach 6 h abgebrochen wurde, weil jede
+    Drosselung die Rate dauerhaft um 40 % senkte – am Ende wartete das Skript
+    eine halbe Stunde *pro Anfrage*):
+
+    1. ``max_wait_per_request`` begrenzt die Wartezeit einer einzelnen Anfrage.
+       Die Rate sinkt also nie so weit, dass der Lauf zum Stillstand kommt.
+    2. Nach mehreren erfolgreichen Anfragen erholt sich die Rate wieder
+       (``succeed``) – eine vorübergehende Drosselung ist kein Dauerzustand.
+    """
+
+    def __init__(self, point_days_per_min: float, max_wait_per_request: float = 75.0):
         self.lock = threading.Lock()
+        self.initial = float(point_days_per_min)
         self.per_min = float(point_days_per_min)
+        self.max_wait = float(max_wait_per_request)
         self.next_at = time.monotonic()
         self.requests = 0
         self.cool_downs = 0
+        self._good = 0
+        self._recoveries = 0
 
     def acquire(self, cost: float) -> None:
         with self.lock:
+            floor = max(600.0, cost / self.max_wait * 60.0)
+            if self.per_min < floor:
+                self.per_min = floor
             now = time.monotonic()
             start = max(now, self.next_at)
             self.next_at = start + cost / self.per_min * 60.0
@@ -116,33 +142,54 @@ class Pace:
         if wait > 0:
             time.sleep(wait)
 
-    def penalize(self, reason: str) -> None:
+    def succeed(self) -> None:
+        """Erfolgreiche Anfrage: Rate darf sich schrittweise erholen."""
         with self.lock:
-            self.per_min = max(600.0, self.per_min * 0.6)
-            self.next_at = max(self.next_at, time.monotonic() + 45.0)
+            if self.per_min >= self.initial:
+                return
+            self._good += 1
+            if self._good >= 12:
+                self._good = 0
+                self.per_min = min(self.initial, self.per_min * 1.3)
+                self._recoveries += 1
+                if self._recoveries % 4 == 0:
+                    log(f"  Rate erholt auf {self.per_min:.0f} Punkt-Tage/min "
+                        f"(Ziel {self.initial:.0f})")
+
+    def penalize(self, reason: str, wait: float = 0.0) -> None:
+        pause = min(120.0, max(20.0, wait))
+        with self.lock:
+            self.per_min = max(600.0, self.per_min * 0.8)
+            self.next_at = max(self.next_at, time.monotonic() + pause)
             self.cool_downs += 1
-            log(f"  ! {reason}: Rate auf {self.per_min:.0f} Punkt-Tage/min gesenkt, 45 s Pause")
+            self._good = 0
+            log(f"  ! {reason}: {pause:.0f} s Pause, Rate auf {self.per_min:.0f} "
+                f"Punkt-Tage/min (Drosselungen: {self.cool_downs})")
 
 
-def http_json(url: str, pace: Pace, cost: float, tries: int = 5, timeout: int = 600):
-    """Anfrage mit Taktung; bei 429 wird gewartet und die Rate gesenkt."""
+def http_json(url: str, pace: Pace, cost: float, tries: int = 4, timeout: int = 600):
+    """Anfrage mit Taktung; bei 429/5xx wird gewartet, die Rate gesenkt und
+    am Ende ``Throttled`` geworfen, damit der Aufrufer die Anfrage verkleinern kann."""
     last: Exception | None = None
+    throttled = False
     for attempt in range(tries):
         pace.acquire(cost)
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "meinperfektesklima-databuild"})
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 raw = resp.read()
-            return json.loads(raw.decode("utf-8"))
+            data = json.loads(raw.decode("utf-8"))
+            pace.succeed()
+            return data
         except urllib.error.HTTPError as exc:
             last = exc
             if exc.code in (429, 503, 502, 500):
+                throttled = True
                 retry_after = exc.headers.get("Retry-After") if exc.headers else None
                 wait = float(retry_after) if (retry_after or "").strip().isdigit() else 0.0
-                pace.penalize(f"HTTP {exc.code}")
-                if wait > 0:
-                    log(f"    warte laut Retry-After {wait:.0f} s")
-                    time.sleep(wait)
+                if exc.code == 429 and wait <= 0:
+                    wait = 30.0 * 2 ** attempt          # 30/60/120 s
+                pace.penalize(f"HTTP {exc.code}", wait)
                 continue
             raise
         except Exception as exc:  # noqa: BLE001
@@ -150,6 +197,8 @@ def http_json(url: str, pace: Pace, cost: float, tries: int = 5, timeout: int = 
             wait = min(60.0, 3.0 * 2 ** attempt)
             log(f"  ! Fehler ({type(exc).__name__}: {exc}); neuer Versuch in {wait:.0f} s")
             time.sleep(wait)
+    if throttled:
+        raise Throttled(f"Anfrage wurde {tries}× gedrosselt: {last}")
     raise RuntimeError(f"Anfrage endgültig fehlgeschlagen: {last}")
 
 
@@ -211,6 +260,20 @@ def as_float32(vals: list) -> tuple[np.ndarray, int]:
         return out, len(vals) - len(good)
 
 
+def _merge_days(left: dict, right: dict) -> dict:
+    """Zwei Blöcke gleicher Punkte entlang der Tage aneinanderhängen."""
+    out = {k: np.concatenate([left[k], right[k]], axis=1) for k in VARIABLES}
+    out["_time"] = np.concatenate([left["_time"], right["_time"]])
+    return out
+
+
+def _merge_points(left: dict, right: dict) -> dict:
+    """Zwei Blöcke gleicher Zeitachse entlang der Punkte aneinanderhängen."""
+    out = {k: np.vstack([left[k], right[k]]) for k in VARIABLES}
+    out["_time"] = left["_time"]
+    return out
+
+
 def fetch_batch(lat: np.ndarray, lon: np.ndarray, start: str, end: str, model: str,
                 pace: Pace) -> dict[str, np.ndarray]:
     query = {
@@ -221,8 +284,26 @@ def fetch_batch(lat: np.ndarray, lon: np.ndarray, start: str, end: str, model: s
         "timezone": "UTC", "models": model,
     }
     url = f"{API}?{urllib.parse.urlencode(query)}"
-    cost = float(lat.size * (np.datetime64(end) - np.datetime64(start)).astype(int) + lat.size)
-    data = http_json(url, pace, cost)
+    n_days = int((np.datetime64(end) - np.datetime64(start)).astype(int)) + 1
+    cost = float(lat.size * n_days)
+    try:
+        data = http_json(url, pace, cost)
+    except Throttled:
+        # Gedrosselt: die Anfrage verkleinern, statt die Rate immer weiter zu senken.
+        # (Die Drosselung hängt an der Antwortgröße, also an Punkt-Tagen pro Aufruf.)
+        if n_days > 60:
+            mid = np.datetime64(start) + n_days // 2
+            log(f"  ! gedrosselt -> Zeitraum {start}..{end} bei {mid} geteilt")
+            left = fetch_batch(lat, lon, start, str(mid - np.timedelta64(1, "D")), model, pace)
+            right = fetch_batch(lat, lon, str(mid), end, model, pace)
+            return _merge_days(left, right)
+        if lat.size > 1:
+            half = max(1, lat.size // 2)
+            log(f"  ! gedrosselt -> {lat.size} Punkte bei {half} geteilt")
+            left = fetch_batch(lat[:half], lon[:half], start, end, model, pace)
+            right = fetch_batch(lat[half:], lon[half:], start, end, model, pace)
+            return _merge_points(left, right)
+        raise
     if isinstance(data, dict):
         data = [data]
     if len(data) != lat.size:
@@ -345,7 +426,7 @@ def fill_gaps(cfg: dict, arrays: dict, lat: np.ndarray, lon: np.ndarray,
 
 
 # ------------------------------------------------------------------ Lauf
-def run(cfg: dict, limit: int | None = None) -> int:
+def run(cfg: dict, limit: int | None = None, force: bool = False) -> int:
     """Führt den Abruf aus; Rückgabewert = Zahl der in diesem Lauf geholten Blöcke."""
     lat, lon = build_grid(cfg)
     n = lat.size
@@ -359,6 +440,21 @@ def run(cfg: dict, limit: int | None = None) -> int:
     slug = config_slug(cfg)
     ckpt = CHECKPOINT_DIR / slug
     ckpt.mkdir(parents=True, exist_ok=True)
+    tmp_dir = ckpt / ".tmp"
+    tmp_dir.mkdir(exist_ok=True)
+
+    if not force and not limit and not cfg.get("test_mode") and not any(ckpt.glob("b*-p*.npz")):
+        # Nichts zu tun, wenn schon ein vollständiger, echter Datensatz daliegt –
+        # sonst baut jeder Lauf das Raster komplett neu auf.
+        meta_file = OUT_DIR / "climate_meta.json"
+        if meta_file.exists() and (OUT_DIR / "climate_grid.npz").exists():
+            meta = json.loads(meta_file.read_text())
+            fraction = float((meta.get("coverage") or {}).get("fraction") or 0.0)
+            if meta.get("model") not in (None, "", "synthetic") and fraction >= 0.999:
+                log(f"Raster bereits vollständig (Quelle {meta.get('model')}, "
+                    f"Abdeckung {fraction * 100:.1f} %) – Abruf übersprungen; "
+                    f"--force erzwingt den Neuaufbau")
+                return 0
 
     jobs = []
     for i in range(0, n, batch):
@@ -378,7 +474,7 @@ def run(cfg: dict, limit: int | None = None) -> int:
     log(f"Kontrollpunkte: {done} von {len(jobs)} Blöcken vorhanden, {len(todo)} offen "
         f"(Verzeichnis {ckpt})")
 
-    pace = Pace(cfg["point_days_per_min"])
+    pace = Pace(cfg["point_days_per_min"], float(cfg.get("max_wait_per_request", 75.0)))
     threads = max(1, int(cfg["threads"]))
     deadline = time.monotonic() + float(cfg["max_minutes"]) * 60.0
     started = time.time()
@@ -388,7 +484,12 @@ def run(cfg: dict, limit: int | None = None) -> int:
         i, j, pi, cs, ce = job
         res = fetch_batch(lat[i:j], lon[i:j], cs, ce, cfg["model"], pace)
         store = {k: quantize(k, res[k]) for k in VARIABLES}
-        np.savez_compressed(path_of(i, pi, j), time=res["_time"].astype("int64"), **store)
+        target = path_of(i, pi, j)
+        # atomar schreiben: ein halb geschriebener Kontrollpunkt darf nie
+        # eingelesen oder committet werden
+        tmp = tmp_dir / target.name
+        np.savez_compressed(tmp, time=res["_time"].astype("int64"), **store)
+        os.replace(tmp, target)
         return j - i
 
     if todo:
@@ -525,6 +626,8 @@ def main() -> None:
     ap.add_argument("--end", default=None)
     ap.add_argument("--max-minutes", type=float, default=None)
     ap.add_argument("--rate", type=float, default=None, help="Punkt-Tage pro Minute")
+    ap.add_argument("--force", action="store_true",
+                    help="auch dann neu abrufen, wenn schon ein vollständiger Datensatz daliegt")
     ap.add_argument("--reset", action="store_true", help="Kontrollpunkte verwerfen und neu starten")
     args = ap.parse_args()
 
@@ -555,7 +658,7 @@ def main() -> None:
         ("step", "start_date", "end_date", "batch_points", "chunk_years",
          "point_days_per_min", "max_minutes", "test_mode")}, ensure_ascii=False))
     t0 = time.time()
-    fetched = run(cfg, limit=args.limit)
+    fetched = run(cfg, limit=args.limit, force=args.force)
     log(f"fertig in {time.time()-t0:.0f}s, {fetched} Blöcke in diesem Lauf")
     if fetched == 0 and not (ROOT / "app" / "data" / "climate_grid.npz").exists():
         log("Es wurden keine Daten geladen – Raster fehlt weiterhin")
