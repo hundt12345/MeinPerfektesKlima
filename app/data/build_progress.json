@@ -3,23 +3,23 @@
   "status": "running",
   "phase": "Abruf",
   "percent": 30.0,
-  "message": "Jahr 2018 gelesen (3 von 10 Jahren)",
+  "message": "2m_dewpoint_temperature 2019-11-02 … 2019-11-06",
   "blocks_done": 3,
   "blocks_total": 10,
   "rate": "721 s/Jahr",
   "eta_minutes": 83,
   "source": "ERA5-Reanalyse (Copernicus Climate Change Service / ECMWF), offene analysis-ready Kopie von Google Research",
   "started_at": "2026-10-12T12:49:40Z",
-  "updated_at": "2026-10-12T13:25:28Z",
+  "updated_at": "2026-10-12T13:27:59Z",
   "run_url": "https://github.com/hundt12345/MeinPerfektesKlima/actions/runs/38251440135",
   "log_tail": [
-    "  return np.arange(np.datetime64(start), np.datetime64(end) + 1, dtype=\"datetime64[D]\")",
     "[12:49:46] Kontrollpunkte: 0 von 10 Jahren vorhanden, 10 offen (/home/runner/work/MeinPerfektesKlima/MeinPerfektesKlima/data/checkpoints/zarr-777a342576)",
     "[12:49:46]   Jahr 2016: 366 Tage (2016-01-01 … 2016-12-31)",
     "[13:01:49]   Jahr 2016 fertig in 723s (1975 ms/Tag), 1/10 Jahre, noch ca. 108 min",
     "[13:01:51]   Jahr 2017: 365 Tage (2017-01-01 … 2017-12-31)",
     "[13:13:26]   Jahr 2017 fertig in 695s (1904 ms/Tag), 2/10 Jahre, noch ca. 95 min",
     "[13:13:27]   Jahr 2018: 365 Tage (2018-01-01 … 2018-12-31)",
-    "[13:25:28]   Jahr 2018 fertig in 721s (1977 ms/Tag), 3/10 Jahre, noch ca. 83 min"
+    "[13:25:28]   Jahr 2018 fertig in 721s (1977 ms/Tag), 3/10 Jahre, noch ca. 83 min",
+    "[13:25:29]   Jahr 2019: 365 Tage (2019-01-01 … 2019-12-31)"
   ]
 }
