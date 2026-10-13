@@ -159,6 +159,30 @@ app/build_progress.py     liest den Fortschritt (Datei/GitHub) und bewertet ihn 
 render.yaml          Render-Blueprint (Web-Service, Free-Plan)
 ```
 
+### Oberfläche und Gestaltung
+
+Die Oberfläche ist bewusst dunkel („Nachtkarte“), damit die Datenfläche leuchtet.
+Alles läuft ohne Fremdanbieter zur Laufzeit:
+
+* **Schrift:** Inter (SIL OFL 1.1) liegt als zwei WOFF2-Dateien unter
+  `app/static/vendor/inter/` im Repo (~133 KB zusammen) und wird selbst ausgeliefert –
+  kein Google-Fonts-Aufruf, kein Layoutsprung durch nachladende Schriften, gleiches
+  Bild auf allen Geräten. Die Daten stehen in `unicode-range`-Bereiche getrennt
+  (Latein + Latein-Erweitert, also inkl. `ä ö ü ß` und `ł ç ş`).
+* **Farbflächen, Verläufe, Symbole** sind reines CSS (inkl. Logo und Suchlupe) –
+  keine Bilddateien, keine zusätzlichen Anfragen.
+* **Farbskala der Karte:** `COLOR_STOPS` in `app/climate.py` ist die eine Quelle für
+  Karte, Legende (`/api/meta`) und Städtepunkte; die Stützstellen sind so gewählt,
+  dass die Stufen auf dunklem Grund klar getrennt wirken.
+* **Kleine Details:** weiches Ein- und Ausblenden des Kartenbilds, gleitender
+  Modusregler (`:has()`, mit Rückfall ohne `:has()`), Anteilsbalken hinter der
+  Top-Orte-Liste, Skelett-Zeilen beim Laden der Detailkarte,
+  `prefers-reduced-motion` schaltet alle Animationen ab.
+
+Für den Free-Plan auf Render ändert das nichts: Es kommen nur zwei statische
+Dateien dazu, der Speicherbedarf des Dienstes bleibt bei ~250–300 MB, und zur
+Laufzeit wird kein externer Host kontaktiert.
+
 ### Rendering-Performance
 
 Das Karten-PNG wird serverseitig in Web-Mercator erzeugt. Der teure Teil (die
@@ -294,6 +318,14 @@ ausreichend CPU-Stunden noch persistenten Speicher. Eckdaten:
 * Solange **keine** geprüften Daten im Repo liegen, antwortet die App mit 503 und zeigt
   den Baufortschritt – ein leerer Free-Service wirkt also nicht „kaputt“, sondern
   erklärt, was gerade passiert.
+* **Bandbreite:** Der Free-/Hobby-Plan enthält 5 GB Übertragung pro Monat
+  (Stand 2026; früher 100 GB), danach kostet jedes weitere GB. Textantworten
+  (JSON/GeoJSON/JS/CSS) werden deshalb per GZip-Middleware komprimiert – die
+  Ländergrenzen schrumpfen von ~330 KB auf ~106 KB, die Städteliste von 1,6 MB
+  auf 264 KB. Das Kartenbild (PNG, ~300–450 KB) ist der größte Einzelposten;
+  es wird pro Einstellung serverseitig 10 Minuten lang zwischengespeichert
+  (`Cache-Control: max-age=600`), sodass der Browser beim Zurückblättern nichts
+  erneut laden muss.
 * **Einziger echter Nachteil:** Free-Instanzen schlafen nach Inaktivität ein. Der erste
   Aufruf nach einer Pause dauert ~10–50 s (Cold Start), danach ist alles schnell.
   Für Dauerbetrieb oder mehrere gleichzeitige Nutzer: in `render.yaml`
