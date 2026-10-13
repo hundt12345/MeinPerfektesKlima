@@ -55,6 +55,22 @@ DATA_START_LAT = None  # wird aus der Meta-Datei gelesen
 MONTH_NAMES = ["Januar", "Februar", "März", "April", "Mai", "Juni",
                "Juli", "August", "September", "Oktober", "November", "Dezember"]
 
+# Alle Tageskennzahlen, die in der vollständigen Städteübersicht erscheinen.
+# Grenzwerte sind absichtlich explizit (inkl. > bzw. ≥), damit die Werte
+# zwischen Detailkarte, API und Tabelle dieselbe Bedeutung haben.
+CITY_DAY_INDICATORS = (
+    ("hot_days", "Hitzetage", "Tageshöchsttemperatur > 30 °C"),
+    ("very_hot_days", "Sehr heiße Tage", "Tageshöchsttemperatur ≥ 35 °C"),
+    ("summer_days", "Sommertage", "Tageshöchsttemperatur ≥ 25 °C"),
+    ("winter_days", "Wintertage", "Tagestiefsttemperatur < 0 °C"),
+    ("ice_days", "Eistage", "Tageshöchsttemperatur < 0 °C"),
+    ("tropical_nights", "Tropennächte", "Tagestiefsttemperatur ≥ 20 °C"),
+    ("sultry_days", "Schwüle Tage", "mittlerer Taupunkt > 15 °C"),
+    ("wet_days", "Regentage", "Tagesniederschlag ≥ 1 mm"),
+    ("heavy_rain_days", "Starkregentage", "Tagesniederschlag ≥ 10 mm"),
+    ("sunny_days", "Sonnentage", "Sonnenschein > 4 Stunden/Tag"),
+)
+
 # Farbskala: wenige Tage (blau) -> viele Tage (rot)
 COLOR_STOPS = np.array([
     [0.00, 16, 38, 92],
@@ -270,6 +286,8 @@ class ClimateData:
         self.repaired = self._repair_sentinels()
         self.season_delta = self._season_sign()
         self._counts_cache: dict = {}
+        self._annual_summary_cache: dict[str, np.ndarray] | None = None
+        self._city_climate_cache: list[dict] | None = None
         self._alpha_cache: "OrderedDict[tuple, np.ndarray]" = OrderedDict()
         self._idw_cache: "OrderedDict[tuple, tuple]" = OrderedDict()
         self._month_day_count = np.bincount(self.day_month, minlength=12).astype(np.float64)
@@ -687,27 +705,109 @@ class ClimateData:
         div = self.years if total else self._month_day_count
         return [round(float(v), 2) for v in (acc / np.maximum(div, 1e-9))]
 
+    def _annual_summary(self) -> dict[str, np.ndarray]:
+        """Vektorisierte Jahresmittel und Tageszahlen für alle Rasterpunkte.
+
+        Werte bleiben in der quantisierten Rohdarstellung, bis eine Kennzahl
+        berechnet wird. Dadurch genügt ein kleiner gecachter Ergebnisvektor je
+        Messgröße statt zusätzlicher Float-Kopien des ganzen Rasters.
+        """
+        if self._annual_summary_cache is not None:
+            return self._annual_summary_cache
+
+        tmax = self.raw["tmax"]
+        tmin = self.raw["tmin"]
+        tdew = self.raw["tdew"]
+        sun = self.raw["sun"]
+        prec = self.raw["prec"]
+
+        def days(mask: np.ndarray) -> np.ndarray:
+            return np.count_nonzero(mask, axis=1).astype(np.float64) / self.years
+
+        self._annual_summary_cache = {
+            # Temperatur-/Taupunkt-Rohwerte haben 0,5-°C-Schritte.
+            "tmax": tmax.mean(axis=1) / 2.0,
+            "tmin": tmin.mean(axis=1) / 2.0,
+            "tdew": tdew.mean(axis=1) / 2.0,
+            # Ein Rohwert Sonne entspricht 15 Minuten; Regen ist in 0,5-mm-Schritten.
+            "sun": sun.mean(axis=1) / 4.0,
+            "prec": prec.sum(axis=1, dtype=np.int64).astype(np.float64) / (2.0 * self.years),
+            # 0,5 °C und 0,5 mm Quantisierung; Sonne ist in Viertelstunden codiert.
+            "frost_days": days(tmin <= 0),
+            "winter_days": days(tmin < 0),
+            "ice_days": days(tmax < 0),
+            "summer_days": days(tmax >= 50),
+            "hot_days": days(tmax > 60),
+            "very_hot_days": days(tmax >= 70),
+            "tropical_nights": days(tmin >= 40),
+            "sultry_days": days(tdew > 30),
+            "wet_days": days(prec >= 2),
+            "heavy_rain_days": days(prec >= 20),
+            "sunny_days": days(sun > 16),
+        }
+        return self._annual_summary_cache
+
+    def annual_climatology(self, idx: int) -> dict:
+        """Jahresmittel und mittlere jährliche Ereignistage eines Rasterpunkts."""
+        summary = self._annual_summary()
+        return {
+            "year": {
+                "tmax": round(float(summary["tmax"][idx]), 1),
+                "tmin": round(float(summary["tmin"][idx]), 1),
+                "tdew": round(float(summary["tdew"][idx]), 1),
+                "sun": round(float(summary["sun"][idx]), 2),
+                "prec": round(float(summary["prec"][idx]), 0),
+            },
+            **{key: round(float(summary[key][idx]), 1)
+               for key, _label, _threshold in CITY_DAY_INDICATORS},
+            # Rückwärtskompatibel für die bisherige Ortsdetailkarte.
+            "frost_days": round(float(summary["frost_days"][idx]), 1),
+        }
+
     def climatology(self, idx: int) -> dict:
         """Monats- und Jahresklima eines Rasterpunkts (°C, h/Tag, mm)."""
         vals = {name: self.raw[name][idx].astype(np.float64) * UNIT_FACTORS[name] for name in VARS}
-        out: dict = {
+        return {
             "months": {name: self._monthly(vals[name], total=(name == "prec")) for name in VARS},
-            "year": {
-                "tmax": round(float(vals["tmax"].mean()), 1),
-                "tmin": round(float(vals["tmin"].mean()), 1),
-                "tdew": round(float(vals["tdew"].mean()), 1),
-                "sun": round(float(vals["sun"].mean()), 2),
-                "prec": round(float(vals["prec"].sum() / self.years), 0),
-            },
+            **self.annual_climatology(idx),
         }
-        for label, mask in (
-            ("frost_days", vals["tmin"] <= 0.0),
-            ("summer_days", vals["tmax"] >= 25.0),
-            ("hot_days", vals["tmax"] >= 30.0),
-            ("wet_days", vals["prec"] >= 1.0),
-        ):
-            out[label] = round(float(mask.sum() / self.years), 1)
-        return out
+
+    def city_climate_rows(self) -> list[dict]:
+        """Jahresklima aller Städte, am jeweils nächsten ERA5-Gitterpunkt."""
+        if self._city_climate_cache is not None:
+            return self._city_climate_cache
+        rows: list[dict] = []
+        if not self.cities:
+            self._city_climate_cache = rows
+            return rows
+
+        summary = self._annual_summary()
+        for i, city in enumerate(self.cities):
+            point = int(self.city_point_idx[i])
+            climate = {
+                "year": {
+                    "tmax": round(float(summary["tmax"][point]), 1),
+                    "tmin": round(float(summary["tmin"][point]), 1),
+                    "tdew": round(float(summary["tdew"][point]), 1),
+                    "sun": round(float(summary["sun"][point]), 2),
+                    "prec": round(float(summary["prec"][point]), 0),
+                },
+                **{key: round(float(summary[key][point]), 1)
+                   for key, _label, _threshold in CITY_DAY_INDICATORS},
+            }
+            rows.append({
+                "name": city["name"],
+                "country": city.get("name_de", city.get("country", "")),
+                "country_en": city.get("country", ""),
+                "aliases": list(city.get("aliases") or []),
+                "lat": float(city["lat"]),
+                "lon": float(city["lon"]),
+                "pop": int(city.get("pop", 0)),
+                "grid_distance_km": round(float(self.city_point_km[i]), 1),
+                "climate": climate,
+            })
+        self._city_climate_cache = rows
+        return rows
 
     def point_report(self, lat: float, lon: float, p: Params, month=None) -> dict:
         """Alles, was die Detailkarte zu einem Ort zeigt.
@@ -1017,6 +1117,111 @@ class ClimateData:
             "window_range": {"min_months": int(min_len), "max_months": int(max_len)},
             "max_km": max_km,
             "candidates": out,
+        }
+
+    def two_city_combination(self, p: Params, summer_months=None, limit: int = 8,
+                             min_distance_km: float = 50.0) -> dict:
+        """Beste feste Sommer-/Winteraufteilung auf zwei verschiedene Städte.
+
+        Anders als :meth:`season_split_report` gilt in beiden Zeitfenstern
+        *dasselbe* Wohlfühlprofil. Die Sommermonate werden am Sommerort gezählt,
+        alle übrigen Monate am Winterort. Jede Stadt erhält ihre Monatswerte vom
+        nächstgelegenen ERA5-Punkt; alle Tageszahlen sind Mittelwerte pro Jahr.
+        """
+        ms = norm_months(summer_months) or DEFAULT_SUMMER_MONTHS
+        rest = tuple(m for m in range(12) if m not in ms)
+        limit = max(1, min(40, int(limit)))
+        min_distance_km = max(0.0, float(min_distance_km))
+        if not self.cities or not self.city_point_idx.size:
+            return {"candidates": [], "best": None,
+                    "summer_months": list(ms), "winter_months": list(rest),
+                    "summer_label": months_label(ms), "winter_label": months_label(rest),
+                    "params": p.query(), "min_distance_km": min_distance_km}
+
+        # (Monat, Stadt); ein und dasselbe Traumwetterprofil wird für beide Orte
+        # verwendet. Die komplementären Monatsfenster teilen das Jahr vollständig.
+        monthly = self.monthly_counts(p)[:, self.city_point_idx]
+        summer_days = monthly[list(ms)].sum(axis=0)
+        winter_days = monthly[list(rest)].sum(axis=0)
+        city_lats = np.asarray([c["lat"] for c in self.cities], dtype=np.float64)
+        city_lons = np.asarray([c["lon"] for c in self.cities], dtype=np.float64)
+        city_pops = np.asarray([int(c.get("pop", 0)) for c in self.cities], dtype=np.int64)
+
+        def distinct_order(scores: np.ndarray) -> np.ndarray:
+            """Exakte/nahe Koordinatenduplikate entfernen, Städte sonst behalten."""
+            selected: list[int] = []
+            seen_locations: set[tuple[float, float]] = set()
+            for raw_idx in np.argsort(-scores):
+                idx = int(raw_idx)
+                location = (round(float(city_lats[idx]), 4), round(float(city_lons[idx]), 4))
+                if location in seen_locations:
+                    continue
+                selected.append(idx)
+                seen_locations.add(location)
+            return np.asarray(selected, dtype=np.int64)
+
+        summer_order = distinct_order(summer_days)
+        winter_order = distinct_order(winter_days)
+        winter_lat_rad = np.radians(city_lats[winter_order])
+        winter_lon_rad = np.radians(city_lons[winter_order])
+        winter_cos_lat = np.cos(winter_lat_rad)
+        # Für die globalen Top-k genügen je Sommerort seine k besten gültigen
+        # Winterorte: ein noch schwächerer Winterort kann nicht in die Top-k rutschen.
+        alternatives_per_summer = limit
+        candidates: list[dict] = []
+
+        for summer_idx in summer_order:
+            summer_idx = int(summer_idx)
+            lat1 = math.radians(float(city_lats[summer_idx]))
+            lon1 = math.radians(float(city_lons[summer_idx]))
+            dlat = winter_lat_rad - lat1
+            dlon = (winter_lon_rad - lon1 + math.pi) % (2.0 * math.pi) - math.pi
+            a = (np.sin(dlat / 2.0) ** 2
+                 + math.cos(lat1) * winter_cos_lat * np.sin(dlon / 2.0) ** 2)
+            distances = 2.0 * 6371.0 * np.arcsin(np.sqrt(np.clip(a, 0.0, 1.0)))
+            # winter_order ist bereits nach den Wintertagen sortiert: die ersten
+            # gültigen Einträge liefern die besten Winterorte für diesen Sommerort.
+            eligible = np.flatnonzero(distances >= min_distance_km)
+            for position in eligible[:alternatives_per_summer]:
+                winter_idx = int(winter_order[int(position)])
+                summer_city = self.cities[summer_idx]
+                winter_city = self.cities[winter_idx]
+                summer_value = float(summer_days[summer_idx])
+                winter_value = float(winter_days[winter_idx])
+                candidates.append({
+                    "summer_city": {
+                        "name": summer_city["name"],
+                        "country": summer_city.get("name_de", ""),
+                        "lat": float(city_lats[summer_idx]),
+                        "lon": float(city_lons[summer_idx]),
+                        "pop": int(city_pops[summer_idx]),
+                        "days": round(summer_value, 1),
+                    },
+                    "winter_city": {
+                        "name": winter_city["name"],
+                        "country": winter_city.get("name_de", ""),
+                        "lat": float(city_lats[winter_idx]),
+                        "lon": float(city_lons[winter_idx]),
+                        "pop": int(city_pops[winter_idx]),
+                        "days": round(winter_value, 1),
+                    },
+                    "summer_days": round(summer_value, 1),
+                    "winter_days": round(winter_value, 1),
+                    "total_days": round(summer_value + winter_value, 1),
+                    "distance_km": round(float(distances[int(position)]), 1),
+                })
+
+        candidates.sort(key=lambda row: (-row["total_days"], row["distance_km"],
+                                         row["summer_city"]["name"], row["winter_city"]["name"]))
+        return {
+            "summer_months": list(ms),
+            "winter_months": list(rest),
+            "summer_label": months_label(ms),
+            "winter_label": months_label(rest),
+            "params": p.query(),
+            "min_distance_km": min_distance_km,
+            "candidates": candidates[:limit],
+            "best": candidates[0] if candidates else None,
         }
 
     def ranking(self, p: Params, month=None, limit: int = 12) -> list[dict]:

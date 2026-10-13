@@ -61,46 +61,10 @@
       </div>
     </section>
 
-    <!-- Nur im Winterquartier-Modus sichtbar: Aufteilung des Jahres + Optimierung -->
-    <section class="card" id="wq-setup" data-wq-only hidden>
-      <h2>Winterquartier</h2>
-      <p class="hint">
-        Zwei Profile, ein Jahr: Das Wohlfühlwetter unten beschreibt deinen <strong>Sommer</strong>,
-        darunter stellst du das Wetter fürs <strong>Winterquartier</strong> ein. Hier legst du fest,
-        welche Monate Sommer sind – alle übrigen sind Winterquartier.
-      </p>
-      <div class="row">
-        <label for="wq-sfrom">Sommer von</label>
-        <select id="wq-sfrom"></select>
-      </div>
-      <div class="row" style="margin-top:.35rem">
-        <label for="wq-sto">Sommer bis</label>
-        <select id="wq-sto"></select>
-      </div>
-      <p class="hint" id="wq-window"></p>
-      <div class="segmented tri views" role="tablist" aria-label="Kartenansicht">
-        <button id="wq-view-combo" role="tab" aria-selected="true">Kombination</button>
-        <button id="wq-view-summer" role="tab" aria-selected="false">Sommer</button>
-        <button id="wq-view-winter" role="tab" aria-selected="false">Winter</button>
-      </div>
-      <div class="row buttons">
-        <button class="ghost" id="btn-wq-optimize">Optimale Kombination finden</button>
-      </div>
-      <p class="hint" id="wq-result" hidden></p>
-      <div class="presets" id="wq-alternatives"></div>
-    </section>
-
     <section class="card">
       <h2 id="feel-title">Dein Wohlfühlwetter</h2>
       <div id="controls"></div>
-      <p class="hint">Ein Tag zählt, wenn <strong>alle</strong> Kriterien gleichzeitig erfüllt sind.</p>
-    </section>
-
-    <section class="card" data-wq-only hidden>
-      <h2>Wetter im Winterquartier</h2>
-      <div id="winter-controls"></div>
-      <div class="presets" id="winter-presets"></div>
-      <p class="hint">Damit werden die Monate außerhalb des Sommerfensters gezählt.</p>
+      <p class="hint" id="feel-hint">Ein Tag zählt, wenn <strong>alle</strong> Kriterien gleichzeitig erfüllt sind.</p>
     </section>
 
     <section class="card">
@@ -108,21 +72,33 @@
       <div class="presets" id="presets"></div>
     </section>
 
-    <!-- Nur im Winterquartier-Modus: Zwei-Orte-Kombination -->
-    <section class="card" id="pair-card" data-wq-only hidden>
-      <h2>Gegenstück finden</h2>
+    <!-- Einfacher Ablauf: ein Traumwetter-Profil, ein festes Sommerfenster, zwei Städte. -->
+    <section class="card wq-setup" id="wq-setup" data-wq-only hidden>
+      <h2>Zwei Orte für dein Traumwetter</h2>
       <p class="hint">
-        Ort auf der Karte wählen – hier erscheinen die besten Quartiere für die andere Jahreshälfte.
+        Dasselbe Traumwetter gilt an beiden Orten. Wähle die Sommermonate: In dieser Zeit zählt der Sommerort,
+        in allen übrigen Monaten der Winterort. Die Orte liegen mindestens 50 km auseinander.
       </p>
-      <div class="segmented" role="tablist" aria-label="Was ist der gewählte Ort?">
-        <button id="pair-role-summer" role="tab" aria-selected="true">Sommer hier</button>
-        <button id="pair-role-winter" role="tab" aria-selected="false">Winter hier</button>
+      <div class="season-selectors">
+        <div class="row">
+          <label for="wq-sfrom">Sommer von</label>
+          <select id="wq-sfrom"></select>
+        </div>
+        <div class="row">
+          <label for="wq-sto">Sommer bis</label>
+          <select id="wq-sto"></select>
+        </div>
       </div>
-      <div class="row" style="margin-top:.5rem">
-        <label for="pair-max-km">Entfernung höchstens</label>
-        <select id="pair-max-km"></select>
-      </div>
-      <ol class="ranking" id="pair-list"><li class="muted">noch kein Ort gewählt</li></ol>
+      <p class="season-summary" id="wq-window"></p>
+      <button class="ghost wq-search-button" id="btn-wq-search" type="button">
+        Beste Zwei-Orte-Kombination finden
+      </button>
+      <p class="combination-summary" id="wq-result" role="status" aria-live="polite" hidden></p>
+      <ol class="ranking combination-list" id="wq-alternatives" hidden></ol>
+      <p class="hint wq-map-hint">
+        Die Karte zeigt ergänzend die Wohlfühltage an einem einzelnen Ort. Die Ergebnisliste zeigt die
+        optimierte Kombination aus Sommer- und Winterort.
+      </p>
     </section>
 
     <section class="card">
@@ -169,6 +145,65 @@
   </section>
 </main>
 
+<!-- Vollständige Kennzahlen bleiben eingeklappt, damit die Karte und das Layout
+     beim normalen Erkunden unverändert bleiben. Die Liste wird erst beim Öffnen geladen. -->
+<section class="full-data-section" id="city-data-section" hidden>
+  <details class="card city-data-card" id="city-data">
+    <summary>
+      <span class="city-data-heading">
+        <strong>Alle Städte – vollständige Klimadaten</strong>
+        <span id="city-data-summary">Jahresmittel und Wettertage für jede erfasste Stadt</span>
+      </span>
+      <span class="city-data-chevron" aria-hidden="true">⌄</span>
+    </summary>
+    <div class="city-data-body">
+      <p class="city-data-intro">
+        Klimamittel für den gesamten Bezugszeitraum. Ereignistage sind als durchschnittliche Tage pro Jahr angegeben;
+        Temperaturmittel, Sonnenschein und Niederschlag sind zusätzlich enthalten. Jede Stadt wird dem nächstgelegenen
+        ERA5-Rasterpunkt zugeordnet – die Rasterauflösung und der Abstand stehen in den Daten.
+      </p>
+      <div class="city-data-tools" id="city-data-tools" hidden>
+        <label class="city-data-search" for="city-climate-search">
+          <span>Stadt filtern</span>
+          <input type="search" id="city-climate-search" placeholder="Name oder Land …" autocomplete="off">
+        </label>
+        <label class="city-data-page-size" for="city-page-size">
+          <span>Zeilen</span>
+          <select id="city-page-size">
+            <option value="50">50</option>
+            <option value="100" selected>100</option>
+            <option value="250">250</option>
+          </select>
+        </label>
+        <button class="ghost" id="city-csv-download" type="button">CSV herunterladen</button>
+        <span class="city-data-count" id="city-data-count" aria-live="polite"></span>
+      </div>
+      <p class="city-data-status" id="city-data-status" role="status" aria-live="polite">
+        Die vollständige Liste wird beim Öffnen geladen.
+      </p>
+      <button class="ghost" id="city-data-retry" type="button" hidden>Erneut versuchen</button>
+      <div class="city-table-wrap" id="city-table-wrap" hidden>
+        <div class="city-table-scroll" role="region" aria-label="Klimadaten aller Städte" tabindex="0">
+          <table id="city-climate-table">
+            <caption class="sr-only">Jahresmittel und Wettertage der Städte im ERA5-Datensatz</caption>
+            <thead><tr id="city-table-head"></tr></thead>
+            <tbody id="city-table-body"></tbody>
+          </table>
+        </div>
+        <nav class="city-data-pagination" id="city-data-pagination" aria-label="Tabellenseiten" hidden>
+          <button class="ghost" id="city-page-prev" type="button">Zurück</button>
+          <span id="city-page-info" aria-live="polite"></span>
+          <button class="ghost" id="city-page-next" type="button">Weiter</button>
+        </nav>
+      </div>
+      <p class="hint city-data-footnote">
+        Die Tagesgrenzwerte stehen direkt in den Spaltenköpfen. Tippe oder klicke auf einen Städtenamen, um den Ort
+        auf der Karte auszuwählen. Die Tabelle lässt sich seitlich scrollen, durchsuchen und nach jeder Spalte sortieren.
+      </p>
+    </div>
+  </details>
+</section>
+
 <section class="about">
   <div class="about-grid">
     <div>
@@ -184,18 +219,16 @@
       <p>
         <strong>Drei Modi:</strong> „Ganzes Jahr“ beantwortet die Frage, wo dein Wohlfühlwetter übers Jahr
         gerechnet am häufigsten vorkommt. „Urlaubsmonat“ zählt nur die Tage eines Monats – ideal, um zu
-        prüfen, ob das Wunschziel im geplanten Reisemonat wirklich passt. „Winterquartier“ stellt zwei
-        Wetterprofile gegenüber: ein Sommer-Profil für das Sommerfenster und ein Winter-Profil für alle
-        übrigen Monate.
+        prüfen, ob das Wunschziel im geplanten Reisemonat wirklich passt. Im Modus „Winterquartier“ gilt
+        dasselbe Traumwetter-Profil an beiden Orten: Du legst ein festes Sommerfenster fest; der Sommerort
+        zählt in diesen Monaten, der Winterort in allen übrigen.
       </p>
       <p>
-        <strong>Winterquartier:</strong> Die Karte zeigt dann, wie viele Tage im Jahr an einem Ort
-        <em>entweder</em> das Sommer- <em>oder</em> das Winterquartier-Wetter herrscht – die Kennzahl für
-        „Welcher Ort trägt mich das ganze Jahr?“. „Optimale Kombination finden“ sucht zusätzlich die beste
-        Aufteilung des Jahres (welche Monate gehören zum Sommer?) und den Ort mit der höchsten Jahressumme.
-        Für die Zwei-Orte-Variante wählst du einen Ort und die Liste <em>Gegenstück finden</em> zeigt die
-        besten Quartiere für die andere Jahreshälfte – inklusive Entfernung und der für das Paar besten
-        Monatsaufteilung.
+        <strong>Winterquartier:</strong> „Beste Zwei-Orte-Kombination finden“ durchsucht alle erfassten Städte
+        und maximiert die Summe der Wohlfühltage an Sommer- und Winterort. Das ausgewählte Zeitfenster wird
+        dabei nicht verschoben; zwischen den Städten liegen mindestens 50 km. Beispiel: Málaga für Mai–Juli,
+        Moskau für August–April. Die Karte zeigt ergänzend, wie viele Wohlfühltage das Profil an einem
+        einzelnen Ort über das ganze Jahr ergibt.
       </p>
     </div>
     <div>

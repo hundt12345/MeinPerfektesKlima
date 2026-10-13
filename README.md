@@ -10,8 +10,8 @@ Drei Modi:
 1. **Ganzes Jahr** – „Wo ist es übers Jahr gerechnet am häufigsten genau so, wie ich es mag?“
 2. **Urlaubsmonat** – „Ich will im Juli Urlaub machen: Wo gibt es dann die meisten Tage mit
    meinem Wunschwetter?“ (Die Monatsauswahl erscheint nur in diesem Modus.)
-3. **Winterquartier** – „Welcher Ort trägt mich das ganze Jahr?“ bzw. „Ich habe mein Sommerquartier –
-   wo ist das passende Winterquartier?“ (siehe [unten](#der-winterquartier-modus))
+3. **Winterquartier** – „Welche zwei Orte passen gemeinsam zu meinem Traumwetter?“ Du legst ein
+   Sommerfenster fest; gesucht werden global der beste Sommer- und Winterort (siehe [unten](#der-winterquartier-modus)).
 
 Dazu:
 
@@ -20,6 +20,9 @@ Dazu:
   Klimaprofil des Ortes (Ø min/max, Taupunkt, Sonnenstunden, Niederschlag, Sommer-/Frosttage).
 * **Ortssuche** über der Karte (Name tippen, z. B. „Sev…“), Top-Orte-Liste für die aktuelle
   Einstellung, teilbare Links (alle Parameter stecken im URL-Hash).
+* **Vollständige Städtedaten**: die eingeklappte Tabelle unter der Karte listet alle Städte mit
+  Klimamitteln, Hitze-/Sommer-/Winter-/Eistagen, Schwüle, Regen, Sonne und weiteren Kennzahlen.
+  Sie lässt sich durchsuchen und sortieren; der CSV-Export folgt dem aktuellen Suchfilter.
 * **Grundkarte ohne Fremd-Kacheln**: Länderflächen und Grenzen werden aus Natural Earth selbst
   gezeichnet – dadurch gibt es kein Kachel-Watermark und keinen Attributionsbalken im Kartenbild
   (die Quellenangaben stehen im Fußbereich der Seite).
@@ -49,40 +52,34 @@ Tageszählungen dieser fünf Monate.
 
 ## Der Winterquartier-Modus
 
-Die Urlaubsfrage „zwei Wochen im Juli“ ist eine andere als die Frage nach einem
-**Winterquartier**. Dafür gibt es den dritten Modus: Er stellt zwei Wetterprofile
-gegenüber – ein **Sommer**-Profil (die normalen Regler) und ein **Winterquartier**-Profil
-(eigene Regler, z. B. 14–26 °C, Taupunkt ≤ 17 °C, 4 h Sonne) – und verteilt das Jahr
-in ein **Sommerfenster** und die übrigen Monate. Gezählt wird jeder Tag nur einmal,
-die Fenster überschneiden sich nicht. Die Karte kennt drei Ansichten:
+Im Winterquartier-Modus stellst du **ein einziges Traumwetter-Profil** ein und
+wählst ein festes, zusammenhängendes Sommerfenster. Die App durchsucht global
+die erfassten Städte nach der besten Kombination aus zwei unterschiedlichen
+Orten: Am Sommerort zählen die gewählten Monate, am Winterort alle übrigen
+Monate. Für beide Zeiträume gelten dieselben Temperatur-, Taupunkt-, Sonnen-
+und Niederschlagsfilter; die Wohlfühltage werden addiert. Die Orte müssen
+mindestens 50 km auseinanderliegen.
 
-| Ansicht | Was sie zeigt |
-|---|---|
-| **Kombination** | Sommer-Tage + Winterquartier-Tage – die Kennzahl für „ein Ort fürs ganze Jahr“ |
-| **Sommer** | nur die Wohlfühl-Tage im Sommerfenster |
-| **Winter** | nur die Wohlfühl-Tage in den Wintermonaten |
+Das Sommerfenster wird bei der Suche **nicht automatisch verändert**. So bleibt
+die eigene Planung erhalten: Zum Beispiel kann Málaga für Mai–Juli und Moskau
+für August–April ausgewertet werden. Ein Sommerfenster darf 1 bis 11 Monate
+lang sein, damit mindestens ein Monat dem Winterort zugeordnet werden kann.
 
-Zwei Fragen lassen sich damit beantworten:
+Die Karte und die Top-Orte-Liste zeigen ergänzend die Zahl der Wohlfühltage,
+die dasselbe Profil an einem einzelnen Ort im ganzen Jahr erreicht. Sie ersetzen
+nicht die Zwei-Orte-Summe. Die Ergebnisliste enthält die beste Kombination und
+weitere Alternativen einschließlich Monatsaufteilung, Punktzahlen und Distanz.
 
-1. **Ein Ort, optimal aufgeteilt** – „Optimale Kombination finden“ probiert alle
-   zusammenhängenden Aufteilungen des Jahres durch (Sommerfenster mit 3–9 Monaten,
-   über den Jahreswechsel erlaubt) und meldet Aufteilung **und** Ort mit der höchsten
-   Jahressumme, dazu die besten Städte und Alternativ-Aufteilungen zum Anklicken.
-   Rechenweg: Für jeden Monat liegt die Tageszahl beider Profile vor; die Summe eines
-   Fensters ist damit eine Präfixsumme über zwölf Monatsvektoren – deshalb kostet die
-   Optimierung ~0,1 s statt einer Zählung je Aufteilung.
-2. **Zwei Orte („Gegenstück finden“)** – du wählst auf der Karte dein Quartier und
-   stellst ein, ob es dein **Sommer**- oder **Winter**quartier ist. Die Liste zeigt
-   dann die besten Gegenstücke für die andere Jahreshälfte: eigene Tageszahl, Tageszahl
-   dort, **Summe beider Quartiere**, Entfernung (optional auf einen Radius begrenzt)
-   und die für das Paar beste Monatsaufteilung. So wird aus „Winter in Lissabon“
-   schnell „Sommer in Cagliari, Winter in Almería → 253 Wohlfühl-Tage im Jahr“.
+Die neue Suche steht unter `GET /api/winterquarters/combination` und erhält das
+Profil über `tmax_min`, `tmax_max`, `tmin_min`, `tmin_max`, `tdew_max`, `sun_min`
+und `prec_max`; `sfrom` und `sto` setzen die festen Sommermonate. Die älteren
+Endpunkte `/api/winterquarters/optimize` und `/api/winterquarters/pair` bleiben
+für bestehende API-Clients verfügbar, werden aber von der neuen Oberfläche
+nicht mehr verwendet.
 
-Grenzen: Ein „Winterquartier“ wird hier genauso streng gemessen wie ein Urlaubsort –
-gezählt werden Tage, an denen *alle* Kriterien des jeweiligen Profils gleichzeitig
-erfüllt sind (inklusive Sonnenschein und Taupunkt). ERA5-Mittel über zehn Jahre
-glätten einzelne Extremjahre; die Aufteilung ist eine Optimierung der Tageszahlen,
-keine Empfehlung zu Miete, Visum oder Anreise.
+Grenzen: ERA5-Mittel über zehn Jahre glätten einzelne Extremjahre; die
+Auswertung ist eine Optimierung der Tageszahlen, keine Empfehlung zu Miete,
+Visum oder Anreise.
 
 ## Datenqualität: das Qualitätstor
 
@@ -318,27 +315,36 @@ Hinweise:
 | `GET /api/point?lat=&lon=` | Auswertung eines Ortes: Wohlfühl-Tage, Monatsprofil, Klimaprofil, nächster Ort, Einordnung |
 | `GET /api/ranking` | beste Städte für die aktuellen Parameter |
 | `GET /api/cities/map` | größte Orte mit Tageszahl (für anklickbare Marker) |
+| `GET /api/cities/climate` | vollständige Städteliste mit Jahresmitteln, Tageskennzahlen und Grenzwerten |
 | `GET /api/cities/search?q=` | Ortssuche (schlankes JSON) |
-| `GET /api/winterquarters/optimize` | beste Aufteilung Sommer-/Winterquartier (+ Ort, Städte, Alternativen) |
-| `GET /api/winterquarters/pair` | Gegenstück-Suche zu einem festen Quartier (`lat, lon, role=summer|winter`) |
+| `GET /api/winterquarters/combination` | globale Zwei-Orte-Suche: ein Profil, festes Sommerfenster, beste Paare |
+| `GET /api/winterquarters/optimize` | Legacy-Endpunkt: automatische Saisonaufteilung mit zwei Profilen |
+| `GET /api/winterquarters/pair` | Legacy-Endpunkt: Gegenstück-Suche zu einem festen Ort (`lat, lon, role=summer|winter`) |
 | `GET /api/cities`, `GET /api/countries` | statische Geo-Daten |
 
-Alle Karten-/Orts-Endpunkte verstehen dieselben Parameter:
-`tmax_min, tmax_max, tmin_min, tmin_max, tdew_max, sun_min, prec_max, width, fixed` sowie
+Die Karten- und Ortsendpunkte verstehen die gemeinsamen Wetterfilter
+`tmax_min, tmax_max, tmin_min, tmin_max, tdew_max, sun_min, prec_max`; Kartenabfragen
+können zusätzlich `width` und `fixed` annehmen. Der neue Zwei-Orte-Endpunkt nutzt
+dieselben Wetterparameter plus:
+
+| Parameter | Bedeutung |
+|---|---|
+| `sfrom`, `sto` | festes, zusammenhängendes Sommerfenster (Monat 1–12); der Winterort übernimmt die übrigen Monate |
+| `limit` | maximale Zahl der zurückgegebenen Kombinationen |
+
+Für bestehende Clients bleiben die historischen Kartenfilter und getrennten
+Profilparameter weiterhin verfügbar:
 
 | Parameter | Bedeutung |
 |---|---|
 | `month` | Zeitraum im Normalmodus: `all`, eine Nummer (`7`), ein Bereich inkl. Jahreswechsel (`5-9`, `10-3`) oder eine Liste (`1,2,12`) |
-| `view` | `plain` (Vorgabe) oder `wq` = Winterquartier-Modus |
-| `wview` | im Winterquartier-Modus die Kartenansicht: `combo`, `summer`, `winter` |
-| `sfrom`, `sto` | Sommerfenster als Monat 1–12 (Winter = die übrigen Monate, 1–11 Monate) |
-| `wtmax_min … wprec_max` | Wetterprofil des Winterquartiers (gleiche Namen mit `w`-Präfix) |
-| `min_months`, `max_months` | erlaubte Saisonlänge für die Optimierung (Vorgabe 3–9) |
-| `role`, `max_km` | Rolle des gewählten Ortes und Radiusgrenze bei `/api/winterquarters/pair` |
+| `view`, `wview` | Legacy: `plain`/`wq` und die Kartenansicht `combo`, `summer` oder `winter` |
+| `wtmax_min … wprec_max` | Legacy-Profil des Winterquartiers (gleiche Namen mit `w`-Präfix) |
+| `min_months`, `max_months` | Legacy: erlaubte Saisonlänge des Optimierers (`/api/winterquarters/optimize`) |
+| `role`, `max_km` | Legacy: Rolle und optionale Distanzgrenze bei `/api/winterquarters/pair` |
 
-Im Winterquartier-Modus beschreiben die normalen Parameter (`tmax_min` …) das
-**Sommer**-Profil. `/api/point` liefert dann zusätzlich den Block `wq` (Sommer-,
-Winter- und Kombinations-Tage, Monatsprofile, Einordnung).
+Die aktuelle Oberfläche verwendet diese Legacy-Parameter nicht: Im Winterquartier-
+Modus gilt ein gemeinsames Traumwetter-Profil für beide Städte und Zeiträume.
 
 ## Tests
 
@@ -358,15 +364,16 @@ unvollständige Tage als Lücken) – ganz ohne Internet.
 `tests/test_data_gate.py` prüft das harte Tor: synthetische Daten ⇒ 503 +
 Baufortschritt, `KLIMA_ALLOW_UNVERIFIED=1` ⇒ Karte mit Kennzeichnung.
 
-`tests/test_climate.py` und `tests/test_api.py` deckt den Winterquartier-Modus ab:
-Zählung über Monatsfenster (inkl. Jahreswechsel), Addition der beiden Profile,
-Optimierung der Aufteilung (nachgerechnet gegen `comfort_counts`), Gegenstück-Suche
-(Sortierung, Entfernungsfilter, beide Rollen) und die neuen Endpunkte.
+`tests/test_climate.py` und `tests/test_api.py` decken Monatsfenster und die
+Winterquartier-Berechnungen ab: Die Zwei-Orte-Suche wird gegen dasselbe Profil,
+das unveränderte Monatsfenster, die getrennten Monatszählungen, die Summe und den
+Mindestabstand geprüft. Die Legacy-Endpunkte werden weiterhin auf Kompatibilität
+getestet.
 
 Der UI-Smoketest prüft u. a., dass **keine** Kacheln von Drittanbietern geladen werden
 (kein Watermark), dass Länderflächen selbst gezeichnet werden und dass Klicks auf Karte,
 Städtemarker und Top-Orte die Detailkarte mit Klimaprofil öffnen. Außerdem prüft er die
-Sichtbarkeitsregeln der Modi (Monatsauswahl nur im Urlaubsmonat, Winterquartier-Karten
-und die Gegenstück-Liste nur im Winterquartier-Modus – inklusive der CSS-Regel
+Sichtbarkeitsregeln der Modi (Monatsauswahl nur im Urlaubsmonat, Zwei-Orte-Suche nur
+im Winterquartier-Modus – inklusive der CSS-Regel
 `[hidden] { display: none !important; }`, ohne die `display:flex` die Monatsauswahl
-sichtbar ließe) und den ganzen Ablauf des Winterquartier-Modus bis zur Optimierung.
+sichtbar ließe) sowie den festen Saisonzeitraum, die globale Suche und deren Ergebnisse.

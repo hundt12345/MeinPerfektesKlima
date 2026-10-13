@@ -9,13 +9,16 @@
   GET /api/point        Auswertung für einen Ort (Monatsaufschlüsselung)
   GET /api/ranking      Beste Orte (Städte) für die aktuellen Parameter
   GET /api/cities       Städteliste für die Suche
-  GET /api/winterquarters/optimize   beste Aufteilung Sommer/Winterquartier
-  GET /api/winterquarters/pair       Gegenstück-Suche zu einem festen Quartier
+  GET /api/cities/climate  vollständige Städteliste mit Jahres-Klimakenngrößen
+  GET /api/winterquarters/combination  beste Zwei-Orte-Kombination mit einem Traumwetterprofil
+  GET /api/winterquarters/optimize     Legacy: Ein-Ort-Optimierung mit zwei Profilen
+  GET /api/winterquarters/pair         Legacy: Gegenstück zu einem festen Quartier
 
-Die Filterparameter stecken in :func:`parse_filter`: Die bisherigen
-Wetterparameter beschreiben im Winterquartier-Modus (`view=wq`) das
-*Sommer*-Profil, ``wtmax_min`` … ``wprec_max`` das Winterquartier-Profil und
-``sfrom``/``sto`` das Sommerfenster (Monate 1–12, Winter = Rest).
+Die Karten- und Ortsendpunkte teilen sich :func:`parse_filter`. Dessen
+``view=wq``-Filter mit getrenntem Sommer-/Winterprofil bleibt für ältere
+API-Clients erhalten. Die aktuelle Oberfläche nutzt für die neue
+Zwei-Orte-Suche ``/api/winterquarters/combination`` mit einem gemeinsamen
+Wetterprofil und einem festen ``sfrom``/``sto``-Fenster.
 """
 from __future__ import annotations
 
@@ -31,8 +34,9 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .build_progress import DEFAULT_REPO, build_status
-from .climate import (DEFAULT_SUMMER_MONTHS, FIELD_WIDTH, MONTH_NAMES, WINTER_DEFAULTS,
-                      ClimateData, Filter, Params, cyclic_months, months_label, norm_months)
+from .climate import (CITY_DAY_INDICATORS, DEFAULT_SUMMER_MONTHS, FIELD_WIDTH, MONTH_NAMES,
+                      WINTER_DEFAULTS, ClimateData, Filter, Params, cyclic_months,
+                      months_label, norm_months)
 
 BASE = Path(__file__).resolve().parent
 # Eigener Datenordner für Entwicklung/Tests (KLIMA_DATA_DIR=/tmp/devgrid)
@@ -93,8 +97,10 @@ WINTER_PRESETS = [
                 "tdew_max": 14, "sun_min": 4, "prec_max": 1}},
 ]
 
-# Grenzen der Quartier-Saison für die Optimierung (siehe /api/winterquarters/optimize)
+# Grenzen für historische/kompatible Endpunkte. Die neue Zwei-Orte-Suche hält
+# das vom Nutzer gesetzte Sommerfenster unverändert.
 WQ_MIN_MONTHS, WQ_MAX_MONTHS = 3, 9
+WQ_MIN_CITY_DISTANCE_KM = 50.0
 
 from .climate import COLOR_STOPS as _COLOR_STOPS
 
@@ -351,12 +357,11 @@ def parse_filter(
     p: Params = Depends(parse_params),
     winter: Params = Depends(parse_winter_params),
 ) -> Filter:
-    """Alle Karten-/Orts-Endpunkte benutzen denselben Filterbegriff.
+    """Gemeinsamer Filter für Karte, Raster, Ranking und Ortsauswertung.
 
-    Im Normalmodus steuert ``month`` den Zeitraum. Mit ``view=wq`` wird daraus
-    der Winterquartier-Modus: ``p`` beschreibt den Sommer, ``winter`` das
-    Winterquartier, ``sfrom``/``sto`` das Sommerfenster; ``wview`` wählt, welche
-    Zahl die Karte zeigt (``combo`` = beide zusammen).
+    Im Normalmodus steuert ``month`` den Zeitraum. ``view=wq`` ist ein
+    rückwärtskompatibler Altmodus mit getrennten Wetterprofilen; die aktuelle
+    Zwei-Orte-Suche hat bewusst einen eigenen Endpoint und verwendet nur ein Profil.
     """
     kind = (view or "plain").strip().lower()
     if kind in ("wq", "winterquartier", "quartier"):
@@ -557,6 +562,26 @@ def api_cities_map(f: Filter = Depends(parse_filter), limit: int = 400):
             "cities": cd.cities_for_map_counts(f.counts(cd), max(20, min(1200, limit)))}
 
 
+@app.get("/api/winterquarters/combination")
+def api_winterquarters_combination(
+    p: Params = Depends(parse_params),
+    sfrom: int = Query(5, ge=1, le=12),
+    sto: int = Query(9, ge=1, le=12),
+    limit: int = Query(8, ge=1, le=40),
+):
+    """Findet die beste Sommer-/Winter-Kombination aus zwei Städten.
+
+    In beiden Zeitfenstern gilt dasselbe Traumwetterprofil. Das fest gewählte
+    Sommerfenster wird nicht während der Optimierung verschoben; der Winterort
+    deckt alle restlichen Monate ab.
+    """
+    months = summer_window(sfrom, sto)
+    return ready_dataset().two_city_combination(
+        p, months, limit=max(1, min(40, limit)),
+        min_distance_km=WQ_MIN_CITY_DISTANCE_KM,
+    )
+
+
 @app.get("/api/winterquarters/optimize")
 def api_winterquarters_optimize(f: Filter = Depends(parse_filter),
                                 min_months: int = Query(WQ_MIN_MONTHS, ge=1, le=11),
@@ -636,6 +661,35 @@ def api_cities():
         raise HTTPException(503, "Städteliste fehlt")
     return Response(content=path.read_text(), media_type="application/json",
                     headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/api/cities/climate")
+def api_cities_climate():
+    """Jahres-Klimakenngrößen für alle Städte (unabhängig vom Kartenfilter).
+
+    Die Stadtkoordinaten werden dem jeweils nächsten ERA5-Rasterpunkt
+    zugeordnet. Tageszahlen sind Mittelwerte pro Jahr über den gesamten
+    Datensatzzeitraum; Grenzwerte stehen explizit in ``indicators``.
+    """
+    cd = ready_dataset()
+    return JSONResponse(
+        content={
+            "period": {
+                "start_date": cd.meta.get("start_date"),
+                "end_date": cd.meta.get("end_date"),
+                "years": round(cd.years, 2),
+            },
+            "grid_step_deg": cd.meta.get("grid_step_deg"),
+            "city_count": len(cd.cities),
+            "city_method": "nearest_grid_point",
+            "indicators": {
+                key: {"label": label, "threshold": threshold, "unit": "Tage/Jahr"}
+                for key, label, threshold in CITY_DAY_INDICATORS
+            },
+            "cities": cd.city_climate_rows(),
+        },
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
 
 
 @app.get("/api/cities/search")

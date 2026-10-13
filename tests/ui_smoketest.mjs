@@ -107,6 +107,8 @@ ok(!doc.querySelector("#legend").hidden, "Legende sichtbar");
 ok(doc.querySelectorAll("#legend-ticks span").length === 6, `Legenden-Ticks (${doc.querySelectorAll("#legend-ticks span").length})`);
 const rank = [...doc.querySelectorAll("#ranking li button")].map((b) => b.textContent.trim());
 ok(rank.length > 0, `Top-Orte-Liste (${rank.length}): ${rank.slice(0, 3).join(" | ")}`);
+ok(!doc.querySelector("#city-data-section").hidden, "Vollständige Städtedaten im Datenmodus verfügbar");
+ok(!doc.querySelector("#city-data").open, "Große Städtetabelle standardmäßig eingeklappt");
 ok(handlers.click && handlers.click.length > 0, "Kartenklick-Handler registriert");
 
 console.log("\nGrundkarte ohne Drittanbieter:");
@@ -160,72 +162,61 @@ await new Promise((r) => setTimeout(r, 3500));
 ok(!doc.querySelector("#month-picker").hidden, "Monatsauswahl sichtbar");
 ok((doc.querySelector("#legend-title").textContent || "").includes("Tage im "), "Legende auf Monatsmodus: " + doc.querySelector("#legend-title").textContent);
 
-console.log("\nInteraktion – Winterquartier-Modus:");
+console.log("\nInteraktion – vereinfachte Zwei-Orte-Suche:");
 doc.querySelector("#mode-wq").click();
 const d5 = Date.now() + 25_000;
-while (Date.now() < d5 && !(doc.querySelector("#legend-title").textContent || "").includes("Sommer + Winter")) {
+while (Date.now() < d5 && !(doc.querySelector("#legend-title").textContent || "").includes("Wohlfühltage/Jahr an einem Ort")) {
   await new Promise((r) => setTimeout(r, 250));
 }
-ok(doc.querySelector("#month-picker").hidden, "Monatsauswahl im Winterquartier-Modus wieder ausgeblendet");
-ok(doc.querySelectorAll("#winter-controls .ctrl").length === 5,
-  `5 Regler fürs Winterquartier-Wetter (${doc.querySelectorAll("#winter-controls .ctrl").length})`);
-ok(!doc.querySelector("#wq-setup").hidden && !doc.querySelector("#pair-card").hidden,
-  "Aufteilung und Gegenstück-Suche sichtbar");
-ok((doc.querySelector("#feel-title").textContent || "").includes("Sommer"),
-  "Überschrift: " + doc.querySelector("#feel-title").textContent);
-ok((doc.querySelector("#wq-window").textContent || "").includes("Winterquartier:"),
-  "Aufteilung im Klartext: " + doc.querySelector("#wq-window").textContent);
-ok((doc.querySelector("#legend-title").textContent || "").includes("Sommer + Winter"),
-  "Legende auf Kombination: " + doc.querySelector("#legend-title").textContent);
-ok(doc.querySelector("#wq-view-winter").getAttribute("aria-selected") === "false",
-  "Kartenansicht startet auf „Kombination“");
+ok(doc.querySelector("#month-picker").hidden, "Monatsauswahl im Winterquartier-Modus ausgeblendet");
+ok(doc.querySelectorAll("#controls .ctrl").length === 5, "ein gemeinsames Traumwetter-Profil mit fünf Reglern");
+ok(doc.querySelector("#winter-controls") === null && doc.querySelector("#pair-card") === null,
+  "keine separaten Winterregler oder manuelle Ankerortsuche");
+ok(!doc.querySelector("#wq-setup").hidden, "Sommerfenster und Zwei-Orte-Suche sichtbar");
+ok(doc.querySelector("#feel-title").textContent === "Dein Traumwetterprofil",
+  "Überschrift für das gemeinsame Profil");
+ok((doc.querySelector("#wq-window").textContent || "").includes("Winterort:"),
+  "Sommer- und Restmonate werden klar zugeordnet: " + doc.querySelector("#wq-window").textContent);
+ok((doc.querySelector("#legend-title").textContent || "").includes("Wohlfühltage/Jahr an einem Ort"),
+  "Karte zeigt ergänzend die Jahreszahl für einen Einzelort");
 
-// Ansicht wechseln: nur Winterquartier-Tage
-doc.querySelector("#wq-view-winter").click();
-const d6 = Date.now() + 25_000;
-while (Date.now() < d6 && !(doc.querySelector("#legend-title").textContent || "").includes("Winterquartier (")) {
-  await new Promise((r) => setTimeout(r, 250));
-}
-ok((doc.querySelector("#legend-title").textContent || "").includes("Winterquartier ("),
-  "Legende auf Winteransicht: " + doc.querySelector("#legend-title").textContent);
+// Feste Auswahl Mai–Juli; übrige Monate bleiben beim Winterort.
+const sto = doc.querySelector("#wq-sto");
+sto.value = "7";
+sto.dispatchEvent(new window.Event("change", { bubbles: true }));
+await new Promise((r) => setTimeout(r, 1800));
+const seasonText = doc.querySelector("#wq-window").textContent || "";
+ok(seasonText.includes("Mai – Juli") && seasonText.includes("August – April"),
+  "festes Zeitfenster wird nicht optimiert/verschoben: " + seasonText);
 
-// Sommerfenster verschieben
-const sfrom = doc.querySelector("#wq-sfrom");
-sfrom.value = "4";
-sfrom.dispatchEvent(new window.Event("change", { bubbles: true }));
-await new Promise((r) => setTimeout(r, 3000));
-ok((doc.querySelector("#wq-window").textContent || "").includes("April"),
-  "Sommerfenster verschoben: " + doc.querySelector("#wq-window").textContent);
-
-// Optimierung
-doc.querySelector("#btn-wq-optimize").click();
+doc.querySelector("#btn-wq-search").click();
 const d7 = Date.now() + 30_000;
-while (Date.now() < d7 && !/Beste Kombination/.test(doc.querySelector("#wq-result").textContent || "")) {
+while (Date.now() < d7 && !/Wohlfühltage\/Jahr|keine passende Zwei-Orte-Kombination|Suche fehlgeschlagen/.test(
+  doc.querySelector("#wq-result").textContent || "")) {
   await new Promise((r) => setTimeout(r, 250));
 }
-const opt = (doc.querySelector("#wq-result").textContent || "").replace(/\s+/g, " ");
-ok(/Beste Kombination/.test(opt) && /Tage\/Jahr/.test(opt), "Optimierung liefert Aufteilung: " + opt.slice(0, 140));
-ok(doc.querySelectorAll("#wq-alternatives .preset").length > 0,
-  `Alternativen als Knöpfe (${doc.querySelectorAll("#wq-alternatives .preset").length})`);
+const combination = (doc.querySelector("#wq-result").textContent || "").replace(/\s+/g, " ");
+ok(/Wohlfühltage\/Jahr/.test(combination), "globale Suche liefert die Jahressumme zweier Orte: " + combination.slice(0, 160));
+ok(doc.querySelectorAll("#wq-alternatives .combo-item").length > 0,
+  `alternative Stadtpaare werden angezeigt (${doc.querySelectorAll("#wq-alternatives .combo-item").length})`);
+ok((doc.querySelector("#wq-window").textContent || "").includes("Mai – Juli"),
+  "Suchergebnis ändert das gewählte Sommerfenster nicht");
+ok(!doc.querySelector("#wq-result").hidden, "Suchergebnis wird sichtbar");
 
-// Ortsauswertung + Gegenstück
-doc.querySelector("#wq-view-combo").click();
-await new Promise((r) => setTimeout(r, 2500));
+// Änderungen an Profil oder Monaten machen alte Resultate ungültig.
+doc.querySelectorAll("#presets .preset")[0].click();
+await new Promise((r) => setTimeout(r, 1200));
+ok(doc.querySelector("#wq-result").hidden, "alte Kombination wird nach Profiländerung ausgeblendet");
+
+// Ein ausgewählter Ort zeigt weiterhin seine Einzelort-Auswertung.
 handlers.click[0]({ latlng: { lat: 43.3, lng: 5.4 }, containerPoint: { x: 10, y: 10 } });
 const d8 = Date.now() + 30_000;
-const wqReady = () => /Quartier-Kombination/.test(doc.querySelector("#detail").textContent || "")
-  && doc.querySelectorAll("#pair-list li button").length > 0;
-while (Date.now() < d8 && !wqReady()) await new Promise((r) => setTimeout(r, 250));
+while (Date.now() < d8 && !/Jahreswerte an einem Ort/.test(doc.querySelector("#detail").textContent || "")) {
+  await new Promise((r) => setTimeout(r, 250));
+}
 const wqText = doc.querySelector("#detail").textContent.replace(/\s+/g, " ");
-ok(/Quartier-Kombination/.test(wqText), "Detailbox zeigt die Quartier-Kombination: " + wqText.slice(0, 120));
-ok(doc.querySelectorAll("#detail .qbars .qcol").length === 12, "12 Monatsbalken mit Sommer-/Winterprofil");
-const pairRows = [...doc.querySelectorAll("#pair-list li button")].map(b => b.textContent.trim());
-ok(pairRows.length > 0, `Gegenstück-Vorschläge (${pairRows.length}): ${pairRows.slice(0, 2).join(" | ")}`);
-
-doc.querySelector("#pair-role-winter").click();
-await new Promise((r) => setTimeout(r, 3500));
-ok(doc.querySelector("#pair-role-winter").getAttribute("aria-selected") === "true",
-  "Rollenwechsel Sommer/Winter in der Gegenstück-Suche");
+ok(/Jahreswerte an einem Ort/.test(wqText), "Detailbox zeigt das gemeinsame Profil an einem Ort");
+ok(doc.querySelectorAll("#detail .bars .bar").length === 12, "Monatsübersicht bleibt in der Detailbox erhalten");
 
 console.log("\nZurück in den Jahresmodus:");
 doc.querySelector("#mode-year").click();
@@ -233,6 +224,30 @@ await new Promise((r) => setTimeout(r, 3000));
 ok(doc.querySelector("#month-picker").hidden, "Monatsauswahl wieder versteckt");
 ok([...doc.querySelectorAll("[data-wq-only]")].every(n => n.hidden), "Winterquartier-Karten wieder versteckt");
 ok(doc.querySelector("#feel-title").textContent === "Dein Wohlfühlwetter", "Überschrift zurückgesetzt");
+
+console.log("\nAusklappbare vollständige Städtedaten:");
+doc.querySelector("#city-data summary").click();
+const d9 = Date.now() + 30_000;
+while (Date.now() < d9 && doc.querySelectorAll("#city-table-body tr").length === 0) {
+  await new Promise((r) => setTimeout(r, 200));
+}
+ok(doc.querySelector("#city-data").open, "Tabelle lässt sich ausklappen");
+ok(doc.querySelectorAll("#city-table-body tr").length === 100,
+  `erste Tabellenseite paginiert (${doc.querySelectorAll("#city-table-body tr").length} Zeilen)`);
+ok(doc.querySelector("#city-data-count").textContent.includes("Städte"),
+  "Anzahl der vollständigen Städteliste angezeigt");
+ok(!!doc.querySelector('th button[data-sort-key="sunny_days"]'), "Sonnentage als sortierbare Spalte");
+doc.querySelector("#city-page-next").click();
+ok(doc.querySelector("#city-page-info").textContent.includes("101"), "Weiter blättert zur nächsten Tabellenseite");
+const cityFilter = doc.querySelector("#city-climate-search");
+cityFilter.value = "madrid";
+cityFilter.dispatchEvent(new window.Event("input", { bubbles: true }));
+ok(doc.querySelectorAll("#city-table-body tr").length > 0
+  && [...doc.querySelectorAll("#city-table-body tr")].some(r => /Madrid/i.test(r.textContent)),
+  "Städtetabelle filtert nach Namen");
+doc.querySelector('button[data-sort-key="hot_days"]').click();
+ok(doc.querySelector('button[data-sort-key="hot_days"]').closest("th").getAttribute("aria-sort") === "descending",
+  "Tageskennzahlen lassen sich sortieren");
 
 console.log(failures.length ? `\n${failures.length} Fehler` : "\nAlle Prüfungen bestanden");
 process.exit(failures.length ? 1 : 0);
