@@ -64,6 +64,16 @@
     </section>
 
     <section class="card">
+      <h2>Klimazeitraum</h2>
+      <div class="row period-picker">
+        <label for="period-select">Datenbasis</label>
+        <select id="period-select" aria-describedby="period-help"></select>
+      </div>
+      <p class="hint" id="period-help"></p>
+      <p class="hint" id="period-projection-note">2030/2050 sind deaktiviert: ERA5 enthält historische Daten, keine Zukunftsprojektionen. Dafür braucht es ein geprüftes Klimamodell-Ensemble mit festgelegtem Szenario.</p>
+    </section>
+
+    <section class="card">
       <h2 id="feel-title">Dein Wohlfühlwetter</h2>
       <div id="controls"></div>
       <p class="hint" id="feel-hint">Ein Tag zählt, wenn <strong>alle</strong> Kriterien gleichzeitig erfüllt sind.</p>
@@ -143,7 +153,7 @@
     <div class="card detail" id="detail" hidden></div>
     <div class="progress" id="progress" hidden></div>
     <div class="toast" id="toast" hidden></div>
-    <p class="mapnote" id="mapnote">Klick auf die Karte oder eine Stadt zeigt die Auswertung.</p>
+    <p class="mapnote" id="mapnote">Zoome für Straßen und Orte · Klimaraster: 0,75° (ca. 50–80 km). Klick zeigt die Auswertung.</p>
   </section>
 </main>
 
@@ -154,13 +164,13 @@
     <summary>
       <span class="city-data-heading">
         <strong>Alle Städte – vollständige Klimadaten</strong>
-        <span id="city-data-summary">Jahresmittel und Wettertage für jede erfasste Stadt</span>
+        <span id="city-data-summary">Jahresmittel und Wettertage für jede erfasste Stadt im gewählten Zeitraum</span>
       </span>
       <span class="city-data-chevron" aria-hidden="true">⌄</span>
     </summary>
     <div class="city-data-body">
       <p class="city-data-intro">
-        Klimamittel für den gesamten Bezugszeitraum. Ereignistage sind als durchschnittliche Tage pro Jahr angegeben;
+        Klimamittel für den oben gewählten Bezugszeitraum. Ereignistage sind als durchschnittliche Tage pro Jahr angegeben;
         Temperaturmittel, Sonnenschein und Niederschlag sind zusätzlich enthalten. Jede Stadt wird dem nächstgelegenen
         ERA5-Rasterpunkt zugeordnet – die Rasterauflösung und der Abstand stehen in den Daten.
       </p>
@@ -212,11 +222,11 @@
       <h3>So funktioniert die Karte</h3>
       <p>
         Für rund 2.250 Rasterpunkte über Europa liegen <strong>tägliche</strong> ERA5-Daten der Jahre
-        <span id="about-period">2016–2025</span> vor. Für jeden Punkt und jeden Tag wird geprüft, ob
-        Höchsttemperatur, Tiefsttemperatur, Taupunkt und Sonnenscheindauer in deinem Wunschbereich liegen.
-        Die Karte zeigt anschließend die mittlere Zahl solcher Tage pro Jahr beziehungsweise im gewählten Monat.
-        Zwischen den Rasterpunkten wird interpoliert – Küsten und Gebirge zeichnen sich dadurch weich, aber
-        räumlich sinnvoll ab.
+        <span id="about-period">2016–2025</span> vor. Über „Klimazeitraum“ wählst du den gesamten Datensatz
+        oder seine jüngsten fünf Jahre. Für jeden Punkt und Tag wird geprüft, ob Höchsttemperatur,
+        Tiefsttemperatur, Taupunkt und Sonnenscheindauer in deinem Wunschbereich liegen. Die Karte zeigt
+        die mittlere Zahl solcher Tage pro Jahr beziehungsweise im gewählten Monat. Zwischen den Rasterpunkten
+        wird interpoliert – die Anzeige wird glatt, die tatsächliche Klimadaten-Auflösung bleibt aber 0,75°.
       </p>
       <p>
         <strong>Drei Modi:</strong> „Ganzes Jahr“ beantwortet die Frage, wo dein Wohlfühlwetter übers Jahr
@@ -240,8 +250,9 @@
         Reanalyse-Modell (ca. 0,25°) und damit kein Stationsmesswert – in Gebirgen und an Küsten sind
         Abweichungen von mehreren Grad möglich. Die Auflösung dieses Datensatzes beträgt
         <span id="about-grid">0,75°</span>, die Werte sind auf 0,5 °C (Temperatur), 0,25 h (Sonne) und
-        0,5 mm (Regen) gerundet. Ein „Jahr“ entspricht dem Mittel über <span id="about-years">10</span> Jahre,
-        einzelne Extreme werden also geglättet.
+        0,5 mm (Regen) gerundet. Ein „Jahr“ entspricht hier dem Mittel über <span id="about-years">10</span>
+        Jahre des gewählten Zeitraums. Der gesamte ERA5-Datensatz umfasst nur zehn Jahre und ist daher keine
+        offizielle 30-jährige Klimanormalperiode; einzelne Extreme werden geglättet.
       </p>
       <p id="about-quality"></p>
     </div>
@@ -251,9 +262,10 @@
       Klimadaten: enthält modifizierte Copernicus-Climate-Change-Service-Informationen (ERA5 / ECMWF),
       gelesen aus der offenen <a href="https://github.com/google-research/arco-era5" rel="noopener">ARCO-ERA5-Kopie</a> ·
       Ländergrenzen: Natural Earth (gemeinfrei) · Orte: <a href="https://www.geonames.org/" rel="noopener">GeoNames</a> (CC-BY 4.0) ·
+      Grundkarte: <a href="https://www.openstreetmap.org/copyright" rel="noopener">© OpenStreetMap-Mitwirkende</a>
+      (Kacheln direkt vom OSM-Kartendienst) ·
       Kartenbibliothek: <a href="https://leafletjs.com/" rel="noopener">Leaflet</a> (BSD-2) ·
-      Schrift: <a href="https://rsms.me/inter/" rel="noopener">Inter</a> (SIL OFL 1.1, lokal ausgeliefert) ·
-      Grundkarte selbst gerendert, keine Kartenkacheln von Drittanbietern.
+      Schrift: <a href="https://rsms.me/inter/" rel="noopener">Inter</a> (SIL OFL 1.1, lokal ausgeliefert).
     </span>
   </footer>
 </section>

@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from app.climate import (DEFAULT_SUMMER_MONTHS, SCALES, WINTER_DEFAULTS, ClimateData, Filter,
-                         Params, months_label, norm_months)
+                         Params, _recent_five_calendar_years, months_label, norm_months)
 
 DATA_DIR = Path(os.environ["KLIMA_DATA_DIR"])   # von tests/conftest.py gesetzt
 pytestmark = pytest.mark.skipif(
@@ -81,6 +81,46 @@ def test_month_mode(cd: ClimateData) -> None:
     # Monatsmittel dürfen die Monatslänge nicht überschreiten
     for m in range(12):
         assert months[m].max() <= cd.month_limit(m) + 1e-6
+
+
+def test_recent5_requires_five_complete_calendar_years() -> None:
+    complete = np.arange(np.datetime64("2021-01-01"), np.datetime64("2026-01-01"),
+                         dtype="datetime64[D]")
+    period, available = _recent_five_calendar_years(complete)
+    assert available is True
+    assert complete[period.start] == np.datetime64("2021-01-01")
+    assert complete[period.stop - 1] == np.datetime64("2025-12-31")
+
+    # Ein laufendes sechstes Jahr wird ignoriert, wenn die fünf Jahre davor vollständig sind.
+    with_partial_year = np.arange(np.datetime64("2021-01-01"), np.datetime64("2026-07-01"),
+                                  dtype="datetime64[D]")
+    period, available = _recent_five_calendar_years(with_partial_year)
+    assert available is True
+    assert with_partial_year[period.stop - 1] == np.datetime64("2025-12-31")
+
+    # Vier vollständige Jahre plus ein fast vollständiges Jahr sind nicht genug.
+    incomplete = np.arange(np.datetime64("2021-01-01"), np.datetime64("2025-12-01"),
+                           dtype="datetime64[D]")
+    period, available = _recent_five_calendar_years(incomplete)
+    assert available is False
+    assert incomplete[period.start] == np.datetime64("2021-01-01")
+
+
+def test_recent5_uses_only_last_five_calendar_years(cd: ClimateData) -> None:
+    p = Params(tmax_min=21, tmax_max=29, tmin_min=8, tmin_max=20,
+               tdew_max=17, sun_min=4, prec_max=99)
+    recent = cd._period_slice("recent5")
+    years = cd.years_in_period("recent5")
+    expected = cd.days_mask(p)[:, recent].sum(axis=1) / years
+    actual = cd.counts(p, period="recent5")
+    assert np.allclose(actual, expected)
+    assert np.all(actual <= 365.25 + 1e-6)
+    monthly = cd.monthly_counts(p, period="recent5")
+    assert np.allclose(monthly.sum(axis=0), actual, atol=0.15)
+
+    report = cd.point_report(48.85, 2.35, p, period="recent5")
+    assert report["period"]["start_date"] == "2021-01-01"
+    assert report["days_per_year"] == pytest.approx(sum(report["days_per_month"]), abs=0.2)
 
 
 def test_point_report(cd: ClimateData) -> None:

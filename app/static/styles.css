@@ -276,6 +276,10 @@ main {
 
 .month-picker { display: flex; align-items: center; gap: .55rem; margin-top: .75rem; }
 .month-picker label { color: var(--muted); font-size: .8rem; }
+.period-picker { display: grid; gap: .45rem; }
+.period-picker label { color: var(--text-2); }
+.period-picker select { width: 100%; }
+#period-help { margin-bottom: 0; }
 .card .row label { font-size: .88rem; font-weight: 600; }
 #wq-result { color: var(--text); }
 #wq-result strong { color: var(--accent-hi); }
@@ -466,8 +470,22 @@ input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px 
 .muted { color: var(--muted); font-size: .84rem; }
 
 /* ------------------------------------------------------------ 5. Karte ---- */
-/* Grundkarte: eigene Flächen, keine Drittanbieter-Kacheln -> kein Watermark */
+/* OSM-Grundkarte: Quellenhinweis bleibt in der Karte sichtbar. */
 .leaflet-container { background: transparent; }
+.leaflet-control-attribution {
+  color: #d7e2ef !important; background: rgba(7, 13, 24, .78) !important;
+  border: 1px solid rgba(151, 180, 216, .2); border-radius: 7px 0 0 0;
+  padding: 2px 6px !important; font-size: .65rem !important;
+}
+.leaflet-control-attribution a { color: #9fe1ec !important; }
+.leaflet-control-layers {
+  color: var(--text-2) !important; background: rgba(9, 16, 28, .9) !important;
+  border: 1px solid var(--line) !important; border-radius: 10px !important;
+  box-shadow: var(--shadow) !important; backdrop-filter: var(--glass);
+}
+.leaflet-control-layers label { color: var(--text-2) !important; font-size: .8rem; }
+.leaflet-control-layers-separator { border-top-color: var(--line) !important; }
+.leaflet-control-layers-toggle { filter: invert(.9) hue-rotate(170deg); }
 
 .leaflet-control-zoom {
   border: 1px solid var(--line) !important; border-radius: 12px !important;

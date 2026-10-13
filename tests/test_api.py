@@ -120,6 +120,37 @@ def test_meta_kennzeichnet_datenbasis(client: TestClient) -> None:
     assert data["dataset"]["bbox"]["lat_min"] == 34.0
 
 
+def test_meta_perioden_und_zukunftsprojektionen(client: TestClient) -> None:
+    data = client.get("/api/meta").json()
+    periods = {item["id"]: item for item in data["periods"]}
+    assert data["default_period"] == "all"
+    assert periods["all"]["available"] is True
+    assert periods["recent5"]["available"] is True
+    assert periods["recent5"]["start_date"] == "2021-01-01"
+    assert periods["recent5"]["end_date"] == "2025-12-31"
+    assert periods["2030"]["available"] is False
+    assert periods["2050"]["available"] is False
+    assert "Klimamodell" in periods["2050"]["description"]
+
+
+def test_recent5_is_used_for_all_climate_endpoints(client: TestClient) -> None:
+    map_data = client.get("/api/map", params={"period": "recent5", "width": 500}).json()
+    assert map_data["period"] == "recent5"
+    assert map_data["period_info"]["start_date"] == "2021-01-01"
+    assert len(map_data["values"]) == map_data["n_points"]
+
+    point = client.get("/api/point", params={"lat": 48.85, "lon": 2.35,
+                                             "period": "recent5"}).json()
+    assert point["period"]["id"] == "recent5"
+    assert point["period"]["years"] == pytest.approx(5.0, abs=0.02)
+
+    cities = client.get("/api/cities/climate", params={"period": "recent5"}).json()
+    assert cities["period"]["id"] == "recent5"
+    assert cities["period"]["start_date"] == "2021-01-01"
+
+    assert client.get("/api/map", params={"period": "2050"}).status_code == 400
+
+
 def test_ranking_and_static(client: TestClient) -> None:
     r = client.get("/api/ranking", params={"limit": 5, "month": "all"})
     assert r.status_code == 200

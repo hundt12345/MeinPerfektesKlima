@@ -23,9 +23,10 @@ Dazu:
 * **Vollständige Städtedaten**: die eingeklappte Tabelle unter der Karte listet alle Städte mit
   Klimamitteln, Hitze-/Sommer-/Winter-/Eistagen, Schwüle, Regen, Sonne und weiteren Kennzahlen.
   Sie lässt sich durchsuchen und sortieren; der CSV-Export folgt dem aktuellen Suchfilter.
-* **Grundkarte ohne Fremd-Kacheln**: Länderflächen und Grenzen werden aus Natural Earth selbst
-  gezeichnet – dadurch gibt es kein Kachel-Watermark und keinen Attributionsbalken im Kartenbild
-  (die Quellenangaben stehen im Fußbereich der Seite).
+* **Detaillierte OSM-Grundkarte**: Straßen, Orte und weitere Kartendetails werden dynamisch aus
+  OpenStreetMap-Kacheln geladen; eine Ebenensteuerung schaltet die Klimafläche ein/aus. Die OSM-
+  Attribution bleibt sichtbar. Beim Reinzoomen werden die Straßen detaillierter, die Klimadaten
+  bleiben aber auf ihrem 0,75°-Raster (grob 50–80 km) – Zoom erzeugt keine neuen Messwerte.
 
 ## Wie funktioniert die Auswertung?
 
@@ -49,6 +50,29 @@ Der Monatsfilter kennt außerdem **Zeiträume**: `month=5-9` (Mai – September)
 Jahreszeiten auf die Karte legen – die Zahlen sind weiterhin exakte Zählungen,
 denn die Monatszählungen sind additiv: „Tage im Mai – September“ = Summe der
 Tageszählungen dieser fünf Monate.
+
+## Klimazeitraum und Zukunftsprojektionen
+
+Über **Klimazeitraum** kann die Auswertung zwischen zwei Ausschnitten derselben
+ERA5-Tagesdaten wechseln:
+
+* **Gesamter Zeitraum (2016–2025):** Mittel über zehn Jahre.
+* **Letzte 5 Jahre (2021–2025):** jüngerer Vergleichszeitraum, der die jüngsten
+  Jahre stärker berücksichtigt und deshalb stärker schwanken kann.
+
+Der Zeitraum gilt einheitlich für Karte, Legende, Punktdetails, Ranking,
+Städtemarker, Winterquartier-Suche und die vollständige Städtetabelle/CSV.
+Beide Varianten verwenden bereits gespeicherte Daten; es wird keine externe
+Klimaschnittstelle pro Klick aufgerufen. Der gesamte Datensatz umfasst nur zehn
+Jahre und ist **keine offizielle 30-jährige Klimanormalperiode**.
+
+**2030 und 2050 sind sichtbar, aber noch deaktiviert.** ERA5 ist eine historische
+Reanalyse und enthält keine Zukunft. Dafür braucht es ein ausgewiesenes Ensemble
+von Klimamodellen, ein Emissionsszenario (z. B. SSP2-4.5) sowie eine klar
+beschriebene Bezugsperiode und Bias-Korrektur. Bis ein solcher Datensatz
+verlässlich aufbereitet ist, zeigt die App dort bewusst keine geschätzten oder
+erfundenen Zahlen. Zukunftswerte sollten Modell- und Szenariounsicherheit
+sichtbar machen und sind nicht mit beobachteten ERA5-Jahren gleichzusetzen.
 
 ## Der Winterquartier-Modus
 
@@ -120,21 +144,22 @@ Nachbarpunkten ergänzt und als `coverage` in den Metadaten ausgewiesen.
 |---|---|---|
 | Temperatur, Taupunkt, Sonnenschein, Niederschlag | **ERA5**-Reanalyse (Copernicus/ECMWF), offene Kopie [ARCO ERA5](https://github.com/google-research/arco-era5) auf Google Cloud (`gs://gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3`) | stündlich gelesen → täglich abgeleitet, 2016–2025, Raster 0,75° über 34°–72° N / 25° W–45° O (~2.250 Landpunkte) |
 | Landmaske fürs Ausblenden der Meeresflächen | [global-land-mask](https://pypi.org/project/global-land-mask/) (Natural Earth/OSM-basiert) | 0,05° |
-| Ländergrenzen (Grundkarte) | [world-atlas](https://www.npmjs.com/package/world-atlas) (Natural Earth 1:10m) | Vektor, selbst gerendert |
+| Ländergrenzen (zusätzliche Vektorebene) | [world-atlas](https://www.npmjs.com/package/world-atlas) (Natural Earth 1:10m) | Vektor, selbst gerendert; Kartendetails kommen aus OSM |
 | Städteliste für Suche/Marker/Top-Orte | [GeoNames cities15000](https://www.geonames.org/) | 4.099 Orte ≥ 25.000 Einwohner in Europa |
 
 Lizenzen/Attribution: ERA5-Daten enthalten modifizierte Copernicus-Klimadaten
 (2026); bereitgestellt von ECMWF, gespiegelt als offene, analysis-ready Kopie durch
 Google Research (Copernicus-Lizenz, keine API-Nutzungsbedingungen, kein Tageskontingent,
-kein Schlüssel nötig). Natural Earth ist gemeinfrei, GeoNames CC-BY-4.0, Leaflet BSD-2.
-Der frühere Weg über die Open-Meteo-API entfällt – siehe
+kein Schlüssel nötig). Kartendaten: © [OpenStreetMap-Mitwirkende](https://www.openstreetmap.org/copyright)
+(ODbL; dynamische Standard-Kacheln mit Attribution in der Karte). Natural Earth ist gemeinfrei,
+GeoNames CC-BY-4.0, Leaflet BSD-2. Der frühere Weg über die Open-Meteo-API entfällt – siehe
 [„Warum nicht die Open-Meteo-API?“](#warum-nicht-die-open-meteo-api).
 
 **Grenzen der Aussage:** ERA5 ist ein Reanalyse-Modell (≈0,25°), kein Stationsmesswert.
 In Gebirgen und an Küsten sind Abweichungen von mehreren Grad möglich; der Datensatz
 ist zusätzlich auf 0,75° ausgedünnt und Werte sind auf 0,5 °C, 0,25 h bzw. 0,5 mm
-gerundet. „Ein Jahr“ ist das Mittel über 10 Jahre, extreme Einzeljahre werden also
-geglättet.
+gerundet. Je nach Auswahl ist „ein Jahr“ ein Mittel über den gesamten zehnjährigen
+Datensatz oder nur 2021–2025; einzelne Extremjahre werden im längeren Mittel stärker geglättet.
 
 ## Architektur
 
@@ -162,7 +187,8 @@ render.yaml          Render-Blueprint (Web-Service, Free-Plan)
 ### Oberfläche und Gestaltung
 
 Die Oberfläche ist bewusst dunkel („Nachtkarte“), damit die Datenfläche leuchtet.
-Alles läuft ohne Fremdanbieter zur Laufzeit:
+Die App-Logik und statischen Assets kommen vom eigenen Dienst; für die Grundkarte
+werden OSM-Kacheln direkt im Browser nachgeladen:
 
 * **Schrift:** Inter (SIL OFL 1.1) liegt als zwei WOFF2-Dateien unter
   `app/static/vendor/inter/` im Repo (~133 KB zusammen) und wird selbst ausgeliefert –
@@ -171,6 +197,9 @@ Alles läuft ohne Fremdanbieter zur Laufzeit:
   (Latein + Latein-Erweitert, also inkl. `ä ö ü ß` und `ł ç ş`).
 * **Farbflächen, Verläufe, Symbole** sind reines CSS (inkl. Logo und Suchlupe) –
   keine Bilddateien, keine zusätzlichen Anfragen.
+* **Kartendetails:** OpenStreetMap liefert Straßen und Ortsnamen bis in hohe Zoomstufen;
+  die Ebenensteuerung kann die Klimafläche ausblenden. Die Leaflet-Attribution nennt die
+  OSM-Mitwirkenden. Das durchscheinende Klimaraster zeigt weiterhin nur die Datenauflösung 0,75°.
 * **Farbskala der Karte:** `COLOR_STOPS` in `app/climate.py` ist die eine Quelle für
   Karte, Legende (`/api/meta`) und Städtepunkte; die Stützstellen sind so gewählt,
   dass die Stufen auf dunklem Grund klar getrennt wirken.
@@ -179,9 +208,12 @@ Alles läuft ohne Fremdanbieter zur Laufzeit:
   Top-Orte-Liste, Skelett-Zeilen beim Laden der Detailkarte,
   `prefers-reduced-motion` schaltet alle Animationen ab.
 
-Für den Free-Plan auf Render ändert das nichts: Es kommen nur zwei statische
-Dateien dazu, der Speicherbedarf des Dienstes bleibt bei ~250–300 MB, und zur
-Laufzeit wird kein externer Host kontaktiert.
+Für den Free-Plan auf Render bleibt der Serverbedarf praktisch unverändert:
+Die OSM-Kacheln ruft der Browser direkt beim OpenStreetMap-Kartendienst ab, sie
+laufen nicht über Render und belegen dort weder App-Bandbreite noch Speicher.
+Die Klimazeitraum-Auswahl nutzt das bereits deployte ERA5-Raster und benötigt
+keine neue Daten-API. Die üblichen OSM-Tile-Nutzungsregeln gelten trotzdem;
+bei starkem Verkehr kann später ein dedizierter Tile-Anbieter erforderlich sein.
 
 ### Rendering-Performance
 
@@ -341,7 +373,7 @@ Hinweise:
 
 | Endpunkt | Zweck |
 |---|---|
-| `GET /api/meta` | Datensatz-Infos, Standardwerte, Presets, Rasterpunkte, Qualitätsstatus |
+| `GET /api/meta` | Datensatz-Infos, Standardwerte, Presets, verfügbare Zeiträume/Projektionen, Rasterpunkte, Qualitätsstatus |
 | `GET /api/map` | Statistik (min./max. Tage, Legendenwerte) + Rasterwerte |
 | `GET /api/map.png` | Kartenbild (Web-Mercator-PNG, transparent über See) |
 | `GET /api/point?lat=&lon=` | Auswertung eines Ortes: Wohlfühl-Tage, Monatsprofil, Klimaprofil, nächster Ort, Einordnung |
@@ -355,9 +387,9 @@ Hinweise:
 | `GET /api/cities`, `GET /api/countries` | statische Geo-Daten |
 
 Die Karten- und Ortsendpunkte verstehen die gemeinsamen Wetterfilter
-`tmax_min, tmax_max, tmin_min, tmin_max, tdew_max, sun_min, prec_max`; Kartenabfragen
-können zusätzlich `width` und `fixed` annehmen. Der neue Zwei-Orte-Endpunkt nutzt
-dieselben Wetterparameter plus:
+`tmax_min, tmax_max, tmin_min, tmin_max, tdew_max, sun_min, prec_max`; `period=all|recent5`
+wählt den gesamten ERA5-Zeitraum oder die jüngsten fünf Jahre. Kartenabfragen können zusätzlich
+`width` und `fixed` annehmen. Der neue Zwei-Orte-Endpunkt nutzt dieselben Wetterparameter plus:
 
 | Parameter | Bedeutung |
 |---|---|
@@ -402,10 +434,11 @@ das unveränderte Monatsfenster, die getrennten Monatszählungen, die Summe und 
 Mindestabstand geprüft. Die Legacy-Endpunkte werden weiterhin auf Kompatibilität
 getestet.
 
-Der UI-Smoketest prüft u. a., dass **keine** Kacheln von Drittanbietern geladen werden
-(kein Watermark), dass Länderflächen selbst gezeichnet werden und dass Klicks auf Karte,
-Städtemarker und Top-Orte die Detailkarte mit Klimaprofil öffnen. Außerdem prüft er die
-Sichtbarkeitsregeln der Modi (Monatsauswahl nur im Urlaubsmonat, Zwei-Orte-Suche nur
-im Winterquartier-Modus – inklusive der CSS-Regel
+Der UI-Smoketest prüft u. a., dass OSM-Kacheln mit Attribution und Layer-Steuerung
+verwendet werden und dass Klicks auf Karte, Städtemarker und Top-Orte die Detailkarte
+mit Klimaprofil öffnen. Außerdem prüft er die Zeitraumauswahl (Fünfjahresansicht;
+2030/2050 ohne Projektionen deaktiviert) und die Sichtbarkeitsregeln der Modi
+(Monatsauswahl nur im Urlaubsmonat, Zwei-Orte-Suche nur im Winterquartier-Modus –
+inklusive der CSS-Regel
 `[hidden] { display: none !important; }`, ohne die `display:flex` die Monatsauswahl
 sichtbar ließe) sowie den festen Saisonzeitraum, die globale Suche und deren Ergebnisse.

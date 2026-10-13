@@ -1,14 +1,15 @@
 /* Mein perfektes Klima – Europa
    Karte + Bedienung (Vanilla JS, Leaflet).
 
-   Die Grundkarte wird selbst gezeichnet (Länderflächen aus Natural Earth) – es
-   werden bewusst **keine** Kacheln von Drittanbietern geladen: kein Watermark,
-   keine Attribution im Kartenbild, keine externe Abhängigkeit zur Laufzeit.
+   OpenStreetMap liefert dynamische Kartendetails als Browser-Kacheln; das
+   Klimaraster und die GeoNames-Marker kommen weiterhin aus der eigenen API.
+   Die sichtbare Leaflet-Attribution erfüllt die OSM-Namensnennung.
 */
 "use strict";
 
 const state = {
   mode: "year",              // "year" | "month" | "wq" (Winterquartier)
+  period: "all",             // "all" (gesamter Datensatz) | "recent5" (jüngste fünf Jahre)
   month: 7,                  // 1..12
   params: { tmax_min: 18, tmax_max: 30, tmin_min: 5, tmin_max: 20, tdew_max: 18, sun_min: 3, prec_max: 99 },
   wq: {                      // feste Aufteilung für die Zwei-Orte-Suche
@@ -22,8 +23,10 @@ const state = {
 let META = null;             // /api/meta
 let WQ_BOUNDS = {};          // META.winterquarters (Sommerfenster, Saisonlänge)
 let GRID = null;             // letzte /api/map-Antwort
-let map = null, overlay = null, landLayer = null, borderLayer = null;
+let map = null, overlay = null, borderLayer = null;
+let osmLayer = null, layerControl = null;
 let cityLayer = null, cityData = [], markerIndex = new Map();
+const CLIMATE_OVERLAY_OPACITY = 0.78;
 let hoverTip = null, marker = null;
 let seq = 0, hoverQueued = false, refreshTimer = null;
 
@@ -33,6 +36,8 @@ const monthLetters = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"
 
 let CITY_CLIMATE_DATA = null;
 let CITY_CLIMATE_LOADING = false;
+let CITY_CLIMATE_LOADING_PERIOD = null;
+let CITY_CLIMATE_REQUEST_SEQ = 0;
 let cityPage = 0;
 let cityPageSize = 100;
 let citySort = { key: "name", direction: 1 };
@@ -89,6 +94,59 @@ function fmtTemp(v, digits = 1) {
 function activeMonth() { return state.mode === "month" ? state.month : null; }
 function isWinterquarters() { return state.mode === "wq"; }
 
+function periodInfo(id = state.period) {
+  return ((META && META.periods) || []).find(period => period.id === id) || null;
+}
+
+function currentPeriodLabel() {
+  const info = periodInfo();
+  return info ? info.label : "Gesamter Zeitraum";
+}
+
+function updatePeriodHelp() {
+  const info = periodInfo();
+  const help = $("#period-help");
+  if (help) help.textContent = info ? info.description : "Klimadaten-Zeitraum auswählen.";
+  const years = $("#about-years");
+  if (years && info && info.years != null) years.textContent = num(info.years, 1);
+}
+
+function setupPeriodSelector() {
+  const select = $("#period-select");
+  if (!select) return;
+  select.replaceChildren();
+  for (const period of META.periods || []) {
+    const option = el("option", {
+      value: period.id, text: period.label,
+      title: period.description || "",
+      disabled: period.available ? null : "disabled",
+    });
+    select.append(option);
+  }
+  const available = (META.periods || []).filter(period => period.available).map(period => period.id);
+  if (!available.includes(state.period)) state.period = META.default_period || "all";
+  select.value = state.period;
+  updatePeriodHelp();
+}
+
+function selectPeriod(period) {
+  const option = periodInfo(period);
+  if (!option || !option.available || period === state.period) return;
+  state.period = period;
+  const select = $("#period-select");
+  if (select) select.value = period;
+  updatePeriodHelp();
+  invalidateCombination();
+  updateHash();
+  refresh(true);
+  const details = $("#city-data");
+  if (details && details.open) {
+    CITY_CLIMATE_DATA = null;
+    $("#city-table-body").replaceChildren();
+    loadCityClimate(true);
+  }
+}
+
 /** Einheit der Kartenwerte – am liebsten die des Servers (Legende/Hover). */
 function monthUnit() {
   if (isWinterquarters()) return "Wohlfühltage/Jahr an einem Ort";
@@ -100,6 +158,7 @@ function monthUnit() {
 function wqQuery(q = new URLSearchParams()) {
   for (const [k, v] of Object.entries(state.params)) q.set(k, v);
   q.set("month", "all");
+  q.set("period", state.period);
   return q;
 }
 
@@ -108,6 +167,7 @@ function filterQuery(q = new URLSearchParams()) {
   if (isWinterquarters()) return wqQuery(q);
   for (const [k, v] of Object.entries(state.params)) q.set(k, v);
   q.set("month", activeMonth() || "all");
+  q.set("period", state.period);
   return q;
 }
 
@@ -215,27 +275,34 @@ function tempColor(t) {
 function initMap() {
   const bbox = (META.dataset && META.dataset.bbox) || { lat_min: 34, lat_max: 72, lon_min: -25, lon_max: 45 };
   map = L.map("map", {
-    zoomControl: true, minZoom: 3, maxZoom: 8, worldCopyJump: false,
-    attributionControl: false,                 // kein Attributions-/Watermark-Balken im Kartenbild
+    zoomControl: true, minZoom: 3, maxZoom: 19, worldCopyJump: false,
+    attributionControl: true,
     maxBounds: L.latLngBounds([[bbox.lat_min - 6, bbox.lon_min - 8], [bbox.lat_max + 4, bbox.lon_max + 8]]),
     maxBoundsViscosity: 0.7,
   }).setView([52.5, 11], 4);
 
-  // Ebenen-Reihenfolge: Landfläche < Datentoverlay < Grenzen < Städtemarker
-  const landPane = map.createPane("land"); landPane.style.zIndex = 350;
+  // OSM-Kacheln werden direkt vom Browser geladen; Render liefert weiterhin
+  // nur App/API und Klimaraster. Maximalzoom gibt der Grundkarte Straßendetails.
+  osmLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap-Mitwirkende</a>',
+    updateWhenIdle: true,
+    keepBuffer: 2,
+  }).addTo(map);
+  layerControl = L.control.layers({ "OpenStreetMap": osmLayer }, {}, {
+    collapsed: true, position: "topleft",
+  }).addTo(map);
+
+  // Ebenen-Reihenfolge: OSM-Kacheln < Klimafläche < Ländergrenzen < Städtemarker.
+  // Keine opake Eigenfläche mehr über den OSM-Kacheln: so bleiben Straßen und
+  // Ortsnamen durch das leicht transparente Klimaraster sichtbar.
   const borderPane = map.createPane("borders"); borderPane.style.zIndex = 450;
   map.createPane("cities").style.zIndex = 550;
 
   fetch("/api/countries").then(r => r.json()).then(geo => {
-    // Land liegt als ruhige, dunkle Fläche unter dem Datenbild; die Grenzen
-    // sind nur eine feine helle Linie darüber.
-    landLayer = L.geoJSON(geo, {
-      pane: "land", interactive: false,
-      style: { stroke: false, fillColor: "#132238", fillOpacity: 1 },
-    }).addTo(map);
     borderLayer = L.geoJSON(geo, {
       pane: "borders", interactive: false,
-      style: { color: "#a7c0da", weight: 0.75, opacity: 0.5, fill: false },
+      style: { color: "#23374e", weight: 0.8, opacity: 0.7, fill: false },
     }).addTo(map);
   }).catch(() => {});
 
@@ -264,8 +331,10 @@ function updateOverlay() {
   const url = "/api/map.png?" + queryString();
   if (!overlay) {
     overlay = L.imageOverlay(url, bounds(), {
-      opacity: 1, interactive: false, className: "klima-overlay", pane: "overlayPane",
+      opacity: CLIMATE_OVERLAY_OPACITY, interactive: false,
+      className: "klima-overlay", pane: "overlayPane",
     }).addTo(map);
+    if (layerControl) layerControl.addOverlay(overlay, "Klimadaten");
   } else {
     overlay.setUrl(url);
     overlay.setBounds(bounds());
@@ -282,8 +351,10 @@ function fadeOverlayIn() {
   const img = overlay.getElement();
   if (!img || !img.style) return;
   img.style.opacity = "0";
+  const opacity = overlay.options && Number.isFinite(Number(overlay.options.opacity))
+    ? Number(overlay.options.opacity) : 1;
   let shown = false;
-  const show = () => { if (shown) return; shown = true; img.style.opacity = "1"; };
+  const show = () => { if (shown) return; shown = true; img.style.opacity = String(opacity); };
   img.addEventListener("load", show, { once: true });
   if (img.complete) requestAnimationFrame(show);
   setTimeout(show, 1500);
@@ -315,8 +386,9 @@ function paintCities() {
   const vmax = Math.max(1, (GRID && GRID.vmax) || 1);
   const limit = cityZoomLimit();
   const zoom = map.getZoom();
-  const unit = isWinterquarters() ? "Wohlfühltage/Jahr an einem Ort"
+  const unitBase = isWinterquarters() ? "Wohlfühltage/Jahr an einem Ort"
     : (state.mode === "month" ? `Tage im ${monthNames[state.month - 1]}` : "Tage/Jahr");
+  const unit = `${unitBase} · ${currentPeriodLabel()}`;
   let added = 0;
   for (const c of cityData) {
     if (c.pop < limit || added >= 420) continue;
@@ -387,7 +459,8 @@ function onHover(e) {
     const label = city && city.km < 60
       ? `${city.name}${city.country ? " · " + city.country : ""}`
       : `${e.latlng.lat.toFixed(2)}° N ${e.latlng.lng.toFixed(2)}° E · Datenpunkt ${Math.round(distKm)} km`;
-    hoverTip.innerHTML = `<strong>${fmtDays(days)}</strong> ${monthUnit()}<br><span style="opacity:.75">${label}</span>`;
+    hoverTip.innerHTML = `<strong>${fmtDays(days)}</strong> ${monthUnit()}<br>`
+      + `<span style="opacity:.75">${currentPeriodLabel()} · ${label}</span>`;
     hoverTip.style.display = "block";
     hoverTip.style.left = (e.containerPoint.x + 14) + "px";
     hoverTip.style.top = (e.containerPoint.y - 6) + "px";
@@ -524,6 +597,7 @@ function renderDetail(opts = {}) {
         class: "title",
       }), closeBtn()),
     el("div", { class: "big", text: `${fmtDays(headline)} ${headlineLabel}` }),
+    el("div", { class: "sub period-basis", text: currentPeriodLabel() }),
     el("div", { class: "sub", text: isWqAfter
       ? `Jahreswerte an einem Ort mit dem gemeinsamen Profil · besser als ${num(rep.percentile, 0)} % aller Rasterpunkte`
       : `mit deiner Einstellung · besser als ${num(rep.percentile, 0)} % aller Rasterpunkte` }),
@@ -821,7 +895,7 @@ function renderLegend(info) {
   $("#legend-bar").style.background = `linear-gradient(90deg, ${stops})`;
   $("#legend-ticks").innerHTML = info.legend_ticks.map(t => `<span>${fmtDays(t)}</span>`).join("");
   $("#legend-title").textContent =
-    `${monthUnit()} (Skala bis ${fmtDays(info.vmax)}${info.fixed_scale ? ", fix" : ", auto"})`;
+    `${monthUnit()} · ${currentPeriodLabel()} (Skala bis ${fmtDays(info.vmax)}${info.fixed_scale ? ", fix" : ", auto"})`;
 }
 
 /* ------------------------------------------------------- Alle Städte / Tabelle */
@@ -953,31 +1027,40 @@ function renderCityTable() {
   renderCityTableHead();
 }
 
-async function loadCityClimate() {
-  if (CITY_CLIMATE_DATA || CITY_CLIMATE_LOADING) return;
+async function loadCityClimate(force = false) {
+  const periodId = state.period;
+  if (!force && CITY_CLIMATE_DATA && CITY_CLIMATE_DATA.period?.id === periodId) return;
+  if (CITY_CLIMATE_LOADING && CITY_CLIMATE_LOADING_PERIOD === periodId) return;
+  const request = ++CITY_CLIMATE_REQUEST_SEQ;
   CITY_CLIMATE_LOADING = true;
+  CITY_CLIMATE_LOADING_PERIOD = periodId;
   const status = $("#city-data-status");
   const retry = $("#city-data-retry");
   status.hidden = false;
-  status.textContent = "Klimadaten für alle Städte werden geladen …";
+  status.textContent = `Klimadaten für alle Städte (${currentPeriodLabel()}) werden geladen …`;
   retry.hidden = true;
   try {
-    CITY_CLIMATE_DATA = await getJSON("/api/cities/climate");
-    const period = CITY_CLIMATE_DATA.period || {};
-    const start = (period.start_date || "").slice(0, 4);
-    const end = (period.end_date || "").slice(0, 4);
+    const data = await getJSON(`/api/cities/climate?period=${encodeURIComponent(periodId)}`);
+    if (request !== CITY_CLIMATE_REQUEST_SEQ || state.period !== periodId) return;
+    CITY_CLIMATE_DATA = data;
+    const period = data.period || {};
+    const dates = period.label || `${(period.start_date || "").slice(0, 4)}–${(period.end_date || "").slice(0, 4)}`;
     const years = period.years ? ` · ${num(period.years, 1)} Jahre` : "";
-    $("#city-data-summary").textContent = `${num(CITY_CLIMATE_DATA.city_count || 0)} Städte · ${start}–${end}${years}`;
+    $("#city-data-summary").textContent = `${num(data.city_count || 0)} Städte · ${dates}${years}`;
     $("#city-data-tools").hidden = false;
     $("#city-table-wrap").hidden = false;
     status.hidden = true;
     renderCityTable();
   } catch (err) {
+    if (request !== CITY_CLIMATE_REQUEST_SEQ) return;
     status.hidden = false;
     status.textContent = `Städtedaten konnten nicht geladen werden: ${err.message || err}`;
     retry.hidden = false;
   } finally {
-    CITY_CLIMATE_LOADING = false;
+    if (request === CITY_CLIMATE_REQUEST_SEQ) {
+      CITY_CLIMATE_LOADING = false;
+      CITY_CLIMATE_LOADING_PERIOD = null;
+    }
   }
 }
 
@@ -994,7 +1077,7 @@ function downloadCityClimateCsv() {
   ];
   const csv = "\uFEFF" + lines.map(line => line.map(escape).join(";")).join("\r\n");
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-  const link = el("a", { href: url, download: "klimadaten-staedte.csv" });
+  const link = el("a", { href: url, download: `klimadaten-staedte-${state.period}.csv` });
   document.body.append(link);
   link.click();
   link.remove();
@@ -1045,6 +1128,7 @@ function initCityClimateTable() {
 function updateHash() {
   const p = new URLSearchParams();
   p.set("mode", state.mode);
+  p.set("period", state.period);
   p.set("month", state.month);
   for (const [k, v] of Object.entries(state.params)) p.set(k, v);
   p.set("sfrom", state.wq.sfrom);
@@ -1057,6 +1141,8 @@ function readHash() {
   if (!location.hash.length) return;
   const p = new URLSearchParams(location.hash.slice(1));
   if (["year", "month", "wq"].includes(p.get("mode"))) state.mode = p.get("mode");
+  const hashPeriod = periodInfo(p.get("period"));
+  if (hashPeriod && hashPeriod.available) state.period = hashPeriod.id;
   if (p.get("month")) state.month = Number(p.get("month")) || 7;
   for (const k of Object.keys(state.params)) if (p.has(k)) state.params[k] = Number(p.get(k));
   const sfrom = Number(p.get("sfrom")), sto = Number(p.get("sto"));
@@ -1309,6 +1395,7 @@ async function boot() {
   state.params = { ...META.defaults, ...state.params };
   WQ_BOUNDS = META.winterquarters || {};
   showDataStatus();
+  setupPeriodSelector();
   $("#city-data-section").hidden = false;
 
   const sel = $("#month-select");
@@ -1330,6 +1417,7 @@ async function boot() {
   $("#mode-year").addEventListener("click", () => setMode("year"));
   $("#mode-month").addEventListener("click", () => setMode("month"));
   $("#mode-wq").addEventListener("click", () => setMode("wq"));
+  $("#period-select").addEventListener("change", (event) => selectPeriod(event.target.value));
   sel.addEventListener("change", () => { state.month = Number(sel.value); refresh(true); });
   $("#wq-sfrom").addEventListener("change", setSummerWindow);
   $("#wq-sto").addEventListener("change", setSummerWindow);
@@ -1339,6 +1427,9 @@ async function boot() {
   $("#show-cities").addEventListener("change", (e) => { state.showCities = e.target.checked; paintCities(); });
   $("#btn-reset").addEventListener("click", () => {
     state.params = { ...META.defaults };
+    state.period = META.default_period || "all";
+    $("#period-select").value = state.period;
+    updatePeriodHelp();
     const summer = WQ_BOUNDS.summer_months || [5, 6, 7, 8, 9];
     state.wq.sfrom = summer[0];
     state.wq.sto = summer[summer.length - 1];
@@ -1347,6 +1438,11 @@ async function boot() {
     syncWqInputs();
     document.querySelectorAll("#presets .preset").forEach(b => b.classList.remove("active"));
     refresh(true);
+    if ($("#city-data").open) {
+      CITY_CLIMATE_DATA = null;
+      $("#city-table-body").replaceChildren();
+      loadCityClimate(true);
+    }
   });
   $("#btn-link").addEventListener("click", async () => {
     try { await navigator.clipboard.writeText(location.href); toast("Link kopiert"); }
@@ -1446,6 +1542,7 @@ async function searchCombination() {
   try {
     const query = new URLSearchParams();
     for (const [key, value] of Object.entries(state.params)) query.set(key, value);
+    query.set("period", state.period);
     query.set("sfrom", state.wq.sfrom);
     query.set("sto", state.wq.sto);
     query.set("limit", 8);
