@@ -15,14 +15,15 @@ const failures = [];
 const ok = (cond, msg) => { console.log(`${cond ? "  ✓" : "  ✗"} ${msg}`); if (!cond) failures.push(msg); };
 
 /* Leaflet-Stub: merkt sich Aufrufe und Ereignis-Handler */
-const calls = { tileLayer: 0, markers: 0, circles: 0, geoJSON: 0, overlay: 0, attribution: 0 };
+const calls = { tileLayer: 0, markers: 0, circles: 0, geoJSON: 0, overlay: 0, layers: 0, mapOptions: null,
+  tileUrl: "", tileAttribution: "" };
 const handlers = {};
 const markerClicks = [];
 
 function chain(extra = {}) {
   const layer = {
     addTo: () => layer, setUrl: () => layer, setBounds: () => layer, remove: () => layer,
-    clearLayers: () => layer, addLayer: (l) => layer, setStyle: () => layer,
+    clearLayers: () => layer, addLayer: (l) => layer, addOverlay: () => layer, setStyle: () => layer,
     on: (evt, fn) => { (layer._h ||= {})[evt] = fn; return layer; },
     bindTooltip: () => layer, setLatLng: () => layer, ...extra,
   };
@@ -49,8 +50,13 @@ function makeLeafletStub() {
     fitBounds: () => mapObject,
   };
   return {
-    map: () => mapObject,
-    tileLayer: () => { calls.tileLayer++; return chain(); },
+    map: (_id, options) => { calls.mapOptions = options; return mapObject; },
+    tileLayer: (url, options = {}) => {
+      calls.tileLayer++;
+      calls.tileUrl = url;
+      calls.tileAttribution = options.attribution || "";
+      return chain();
+    },
     layerGroup: () => chain(),
     geoJSON: () => { calls.geoJSON++; return chain(); },
     imageOverlay: () => { calls.overlay++; return chain(); },
@@ -58,7 +64,10 @@ function makeLeafletStub() {
     marker: () => { calls.markers++; return chain(); },
     divIcon: (o) => ({ _icon: o }),
     latLngBounds: (b) => ({ _bounds: b, pad: () => ({ _bounds: b }) }),
-    control: { attribution: () => { calls.attribution++; return { addTo: () => ({}) }; } },
+    control: {
+      layers: () => { calls.layers++; return chain(); },
+      attribution: () => chain(),
+    },
     DomEvent: { stop: () => {} },
   };
 }
@@ -103,6 +112,10 @@ ok(/\[hidden\]\s*\{\s*display:\s*none\s*!important/.test(css),
   "styles.css erzwingt display:none für [hidden] (Monatsauswahl bleibt sonst sichtbar)");
 ok(doc.querySelectorAll("#presets .preset").length >= 4, `Voreinstellungen vorhanden (${doc.querySelectorAll("#presets .preset").length})`);
 ok((doc.querySelector("#dataset-badge").textContent || "").length > 5, "Datensatz-Info im Kopfbereich: " + doc.querySelector("#dataset-badge").textContent);
+ok(doc.querySelector('#period-select option[value="recent5"]'), "Fünfjahres-Zeitraum auswählbar");
+ok(doc.querySelector('#period-select option[value="2030"]')?.disabled
+  && doc.querySelector('#period-select option[value="2050"]')?.disabled,
+  "2030/2050 werden ehrlich als noch nicht verfügbare Projektionen markiert");
 ok(!doc.querySelector("#legend").hidden, "Legende sichtbar");
 ok(doc.querySelectorAll("#legend-ticks span").length === 6, `Legenden-Ticks (${doc.querySelectorAll("#legend-ticks span").length})`);
 const rank = [...doc.querySelectorAll("#ranking li button")].map((b) => b.textContent.trim());
@@ -111,13 +124,18 @@ ok(!doc.querySelector("#city-data-section").hidden, "Vollständige Städtedaten 
 ok(!doc.querySelector("#city-data").open, "Große Städtetabelle standardmäßig eingeklappt");
 ok(handlers.click && handlers.click.length > 0, "Kartenklick-Handler registriert");
 
-console.log("\nGrundkarte ohne Drittanbieter:");
-ok(calls.tileLayer === 0, `keine Kacheln von Fremdanbietern geladen (tileLayer-Aufrufe: ${calls.tileLayer})`);
-ok(calls.attribution === 0, `kein Attributions-/Watermark-Balken in der Karte (${calls.attribution})`);
-ok(calls.geoJSON >= 1, `Länderflächen selbst gezeichnet (geoJSON: ${calls.geoJSON})`);
+console.log("\nOSM-Grundkarte und Klimadaten:");
+ok(calls.tileLayer === 1 && calls.tileUrl.includes("tile.openstreetmap.org"),
+  `dynamische OSM-Kacheln eingebunden (${calls.tileUrl})`);
+ok(calls.mapOptions && calls.mapOptions.maxZoom >= 18 && calls.tileAttribution.includes("OpenStreetMap"),
+  "hoher Zoom und sichtbare OSM-Attribution konfiguriert");
+ok(calls.layers >= 1, "Layer-Steuerung für Grundkarte/Klimadaten eingebunden");
+ok(calls.geoJSON >= 1, `Ländergrenzen als zusätzliche Vektorebene (${calls.geoJSON})`);
 ok(calls.overlay >= 1, `Daten-Overlay eingebunden (${calls.overlay})`);
 ok(calls.circles >= 5, `Städtemarker gesetzt (${calls.circles})`);
-ok(doc.querySelector("#attribution").textContent.includes("Copernicus"), "Quellenangabe (Copernicus/ERA5) im Fußbereich der Seite");
+ok(doc.querySelector("#attribution").textContent.includes("Copernicus")
+  && doc.querySelector("#attribution").textContent.includes("OpenStreetMap"),
+  "Quellenangaben für Klimadaten und OSM im Fußbereich der Seite");
 
 console.log("\nInteraktion – Klick auf die Karte:");
 handlers.click[0]({ latlng: { lat: 48.85, lng: 2.35 }, containerPoint: { x: 10, y: 10 } });
@@ -224,6 +242,14 @@ await new Promise((r) => setTimeout(r, 3000));
 ok(doc.querySelector("#month-picker").hidden, "Monatsauswahl wieder versteckt");
 ok([...doc.querySelectorAll("[data-wq-only]")].every(n => n.hidden), "Winterquartier-Karten wieder versteckt");
 ok(doc.querySelector("#feel-title").textContent === "Dein Wohlfühlwetter", "Überschrift zurückgesetzt");
+
+doc.querySelector("#period-select").value = "recent5";
+doc.querySelector("#period-select").dispatchEvent(new window.Event("change", { bubbles: true }));
+await new Promise((r) => setTimeout(r, 3000));
+ok((doc.querySelector("#legend-title").textContent || "").includes("Letzte 5 Jahre"),
+  "Zeitraum-Auswahl aktualisiert die Legende: " + doc.querySelector("#legend-title").textContent);
+ok((doc.querySelector("#detail").textContent || "").includes("2021–2025"),
+  "Ortsdetails zeigen ebenfalls die gewählte Periode");
 
 console.log("\nAusklappbare vollständige Städtedaten:");
 doc.querySelector("#city-data summary").click();

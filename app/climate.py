@@ -189,6 +189,7 @@ class Filter:
     winter: Params = WINTER_DEFAULTS
     months: tuple[int, ...] | None = None
     summer_months: tuple[int, ...] = DEFAULT_SUMMER_MONTHS
+    period: str = "all"
 
     @property
     def winter_months(self) -> tuple[int, ...]:
@@ -203,18 +204,18 @@ class Filter:
     def counts(self, cd: "ClimateData") -> np.ndarray:
         """Tage/Jahr (bzw. Tage im Monatsfenster) je Rasterpunkt."""
         if self.kind == "combo":
-            return cd.comfort_counts(self.p, self.winter, self.summer_months)
+            return cd.comfort_counts(self.p, self.winter, self.summer_months, self.period)
         if self.kind == "summer":
-            return cd.counts(self.p, self.summer_months)
+            return cd.counts(self.p, self.summer_months, self.period)
         if self.kind == "winter":
-            return cd.counts(self.winter, self.winter_months)
-        return cd.counts(self.p, self.months)
+            return cd.counts(self.winter, self.winter_months, self.period)
+        return cd.counts(self.p, self.months, self.period)
 
     def days_limit(self, cd: "ClimateData") -> float:
         """Höchstzahl, die die Skala annehmen kann (365,25 bzw. Fensterlänge)."""
         if self.is_winterquarters:
             return 365.25
-        return cd.month_limit(self.months)
+        return cd.month_limit(self.months, self.period)
 
     def label(self) -> str:
         """Kurzbezeichnung für Legende/Tooltip, z. B. „Mai – September“."""
@@ -259,6 +260,30 @@ MAX_WIDTH = 1400
 FAR_DISTANCE = 0.06
 
 
+def _recent_five_calendar_years(day_dates: np.ndarray) -> tuple[slice, bool]:
+    """Liefert die letzten fünf vollständigen Kalenderjahre und deren Verfügbarkeit."""
+    dates = np.asarray(day_dates, dtype="datetime64[D]")
+    if dates.size == 0:
+        return slice(0, 0), False
+
+    last_date = dates[-1]
+    last_year = int(str(last_date)[:4])
+    # Ein laufendes/abgeschnittenes letztes Jahr zählt nicht als vollständiges Jahr.
+    last_complete_year = last_year if str(last_date)[5:] == "12-31" else last_year - 1
+    first_day = np.datetime64(f"{last_complete_year - 4:04d}-01-01", "D")
+    after_last_day = np.datetime64(f"{last_complete_year + 1:04d}-01-01", "D")
+    start = int(np.searchsorted(dates, first_day, side="left"))
+    stop = int(np.searchsorted(dates, after_last_day, side="left"))
+    last_day = after_last_day - np.timedelta64(1, "D")
+    available = bool(dates[0] <= first_day and last_date >= last_day)
+
+    # Bei einem Datensatz, der vollständig vor dem ermittelten Fünfjahresfenster
+    # endet, bleibt die nicht verfügbare Option trotzdem mit echten Grenzen beschreibbar.
+    if stop <= start:
+        return slice(0, len(dates)), False
+    return slice(start, stop), available
+
+
 class ClimateData:
     def __init__(self, data_dir: Path):
         data_dir = Path(data_dir)
@@ -271,8 +296,22 @@ class ClimateData:
 
         start = np.datetime64(self.meta["start_date"])
         days = start + np.arange(self.n_days)
+        self.day_dates = days
         self.day_month = days.astype("datetime64[M]").astype(int) % 12  # 0=Januar
         self.years = self.n_days / 365.25
+
+        # Die Messreihe wird nicht dupliziert: Zeiträume sind nur Ausschnitte
+        # derselben täglichen ERA5-Werte. So kann die Fünfjahresansicht auch auf
+        # dem kleinen Render-Free-Service ohne zusätzliche Datendateien laufen.
+        recent5_slice, self._has_recent5 = _recent_five_calendar_years(days)
+        self._period_slices = {
+            "all": slice(0, self.n_days),
+            "recent5": recent5_slice,
+        }
+        self._period_years = {
+            key: (part.stop - part.start) / 365.25
+            for key, part in self._period_slices.items()
+        }
 
         bbox = self.meta["bbox"]
         self.bbox = bbox
@@ -289,12 +328,10 @@ class ClimateData:
         self.repaired = self._repair_sentinels()
         self.season_delta = self._season_sign()
         self._counts_cache: dict = {}
-        self._annual_summary_cache: dict[str, np.ndarray] | None = None
-        self._city_climate_cache: list[dict] | None = None
+        self._annual_summary_cache: dict[str, dict[str, np.ndarray]] = {}
+        self._city_climate_cache: dict[str, list[dict]] = {}
         self._alpha_cache: "OrderedDict[tuple, np.ndarray]" = OrderedDict()
         self._idw_cache: "OrderedDict[tuple, tuple]" = OrderedDict()
-        self._month_day_count = np.bincount(self.day_month, minlength=12).astype(np.float64)
-        self._month_days = self._month_day_count / self.years
 
         # Qualität des Datensatzes (von scripts/check_grid.py geschrieben)
         report = data_dir / "quality_report.json"
@@ -322,6 +359,71 @@ class ClimateData:
         model = str(self.meta.get("model", "")).lower()
         source = str(self.meta.get("source", "")).lower()
         return model != "era5" or "synthetisch" in source or "synthetic" in source
+
+    def _period_slice(self, period: str = "all") -> slice:
+        """Tagesausschnitt für die gewählte historische Bezugsperiode."""
+        try:
+            return self._period_slices[str(period)]
+        except KeyError as exc:
+            raise ValueError("period muss 'all' oder 'recent5' sein") from exc
+
+    def years_in_period(self, period: str = "all") -> float:
+        """Länge des Ausschnitts in mittleren Jahren (365,25 Tage)."""
+        self._period_slice(period)  # validiert die ID
+        return float(self._period_years[str(period)])
+
+    def period_info(self, period: str = "all") -> dict:
+        """Beschriftung und reale Datumsgrenzen einer verfügbaren Zeitreihe."""
+        part = self._period_slice(period)
+        start_date = str(self.day_dates[part.start])
+        end_date = str(self.day_dates[part.stop - 1])
+        start_year, end_year = start_date[:4], end_date[:4]
+        years = self.years_in_period(period)
+        if period == "recent5":
+            available = self._has_recent5
+            label = (f"Letzte 5 Jahre ({start_year}–{end_year})" if available
+                     else f"Letzte 5 Jahre (nicht im Datensatz)")
+            description = (
+                f"Mittelwert der jüngsten fünf Kalenderjahre im Datensatz ({start_date} bis {end_date}). "
+                "Diese kurze Periode reagiert stärker auf einzelne warme oder kalte Jahre."
+                if available else
+                "Im vorhandenen Datensatz liegen keine fünf vollständigen Jahre für diesen Vergleich vor."
+            )
+        else:
+            available = True
+            label = f"Gesamter Zeitraum ({start_year}–{end_year})"
+            description = (
+                f"Mittelwert über alle vorhandenen Tage von {start_date} bis {end_date} "
+                f"({years:.1f} Jahre)."
+            )
+            if years < 30:
+                description += " Das ist keine offizielle 30-jährige Klimanormalperiode."
+        return {
+            "id": period,
+            "label": label,
+            "start_date": start_date,
+            "end_date": end_date,
+            "years": round(years, 2),
+            "available": available,
+            "description": description,
+        }
+
+    def period_options(self) -> list[dict]:
+        """Historische Auswahl plus sichtbare, aber noch nicht belegte Projektionen."""
+        options = [self.period_info("all"), self.period_info("recent5")]
+        end_date = str(self.day_dates[-1])
+        projection_reason = (
+            f"Noch nicht verfügbar: ERA5 enthält historische Reanalysen nur bis {end_date}. "
+            "Für 2030/2050 muss erst ein dokumentiertes Klimamodell-Ensemble mit festgelegtem "
+            "Emissionsszenario eingebunden werden; deshalb werden hier keine Zukunftswerte geschätzt."
+        )
+        for year in (2030, 2050):
+            options.append({
+                "id": str(year), "label": f"Projektion {year} (noch nicht verfügbar)",
+                "start_date": None, "end_date": None, "years": None,
+                "available": False, "projection": True, "description": projection_reason,
+            })
+        return options
 
     def _season_sign(self) -> float:
         """Ø (Juli − Januar) der Tageshöchstwerte im Süden – muss positiv sein.
@@ -420,13 +522,15 @@ class ClimateData:
             return int(math.floor(x + 1e-9))
         raise ValueError(mode)
 
-    def days_mask(self, p: Params, month=None, point: int | None = None) -> np.ndarray:
+    def days_mask(self, p: Params, month=None, point: int | None = None,
+                  period: str = "all") -> np.ndarray:
         """Boolesche Matrix (Punkte, Tage) bzw. (Tage,) für einen Einzelpunkt.
 
         ``month`` darf ``None`` (ganzes Jahr), eine Monatsnummer (0–11) oder eine
-        Liste von Monaten sein – siehe :func:`norm_months`.
+        Liste von Monaten sein – siehe :func:`norm_months`. ``period`` wählt den
+        gesamten Datensatz oder dessen jüngste fünf Kalenderjahre.
         """
-        sel = self._day_sel(month)
+        sel = self._day_sel(month, period)
 
         def get(name):
             arr = self.raw[name]
@@ -445,43 +549,46 @@ class ClimateData:
             ok &= (get("prec") <= self._q(p.prec_max, SCALES["prec"], "max"))
         return ok
 
-    def _day_sel(self, month=None) -> slice | np.ndarray:
-        """Tagesindex für ein Monatsfenster (``None`` = alle Tage)."""
+    def _day_sel(self, month=None, period: str = "all") -> slice | np.ndarray:
+        """Tagesindex für ein Monatsfenster innerhalb der gewählten Periode."""
+        part = self._period_slice(period)
         ms = norm_months(month)
         if ms is None:
-            return slice(None)
+            return part
+        selected_months = self.day_month[part]
         if len(ms) == 1:
-            return np.flatnonzero(self.day_month == ms[0])
-        return np.flatnonzero(np.isin(self.day_month, ms))
+            return np.flatnonzero(selected_months == ms[0]) + part.start
+        return np.flatnonzero(np.isin(selected_months, ms)) + part.start
 
-    def counts(self, p: Params, month=None) -> np.ndarray:
-        """Tage pro Jahr bzw. Tage im gewählten Monatsfenster, je Rasterpunkt."""
-        key = (p, norm_months(month), self.n_days)
+    def counts(self, p: Params, month=None, period: str = "all") -> np.ndarray:
+        """Mittlere Tage pro Jahr bzw. im Monatsfenster je Rasterpunkt."""
+        key = (p, norm_months(month), str(period))
         hit = self._counts_cache.get(key)
         if hit is None:
-            # Immer durch die Zahl der Jahre teilen: im Jahresmodus ergeben sich
-            # Tage/Jahr, im Monatsmodus die mittleren Tage dieses Monats.
-            hit = self.days_mask(p, month).sum(axis=1).astype(np.float64) / self.years
+            hit = (self.days_mask(p, month, period=period).sum(axis=1).astype(np.float64)
+                   / self.years_in_period(period))
             if len(self._counts_cache) > 400:
                 self._counts_cache.clear()
             self._counts_cache[key] = hit
         return hit
 
-    def monthly_counts(self, p: Params) -> np.ndarray:
-        """(12, Punkte) – Tage je Kalendermonat (gemittelt über die Jahre)."""
+    def monthly_counts(self, p: Params, period: str = "all") -> np.ndarray:
+        """(12, Punkte) – Tage je Kalendermonat im gewählten Zeitraum."""
         out = np.zeros((12, self.n_points), dtype=np.float64)
         for m in range(12):
-            out[m] = self.counts(p, month=m)
+            out[m] = self.counts(p, month=m, period=period)
         return out
 
-    def month_limit(self, month=None) -> float:
-        """Maximal erreichbare Tageszahl (365,25 im Jahr bzw. Tage im Fenster)."""
+    def month_limit(self, month=None, period: str = "all") -> float:
+        """Maximal erreichbare Tageszahl im Zeitraum (365,25 im Jahresmodus)."""
         ms = norm_months(month)
         if ms is None:
             return 365.25
-        return float(np.isin(self.day_month, ms).sum() / self.years)
+        part = self._period_slice(period)
+        return float(np.isin(self.day_month[part], ms).sum() / self.years_in_period(period))
 
-    def comfort_counts(self, summer: Params, winter: Params, summer_months=None) -> np.ndarray:
+    def comfort_counts(self, summer: Params, winter: Params, summer_months=None,
+                       period: str = "all") -> np.ndarray:
         """Wohlfühl-Tage/Jahr an *einem* Ort mit Sommer- und Winterquartier-Profil.
 
         Sommer- und Winterfenster sind überschneidungsfrei, deshalb ist die Summe
@@ -493,13 +600,14 @@ class ClimateData:
         if ms is None:
             ms = DEFAULT_SUMMER_MONTHS
         rest = tuple(m for m in range(12) if m not in ms)
-        return self.counts(summer, ms) + self.counts(winter, rest)
+        return self.counts(summer, ms, period) + self.counts(winter, rest, period)
 
-    def point_monthly(self, p: Params, idx: int) -> np.ndarray:
-        """(12,) – Wohlfühl-Tage je Kalendermonat an einem einzelnen Rasterpunkt."""
+    def point_monthly(self, p: Params, idx: int, period: str = "all") -> np.ndarray:
+        """(12,) – mittlere Wohlfühl-Tage je Monat an einem Rasterpunkt."""
         out = np.empty(12, dtype=np.float64)
+        years = self.years_in_period(period)
         for m in range(12):
-            out[m] = self.days_mask(p, month=m, point=int(idx))[0].sum() / self.years
+            out[m] = self.days_mask(p, month=m, point=int(idx), period=period)[0].sum() / years
         return out
 
     # --------------------------------------------------------------- Rendering
@@ -702,39 +810,45 @@ class ClimateData:
                 "name_de": best.get("name_de", ""), "pop": int(best.get("pop", 0)),
                 "lat": best["lat"], "lon": best["lon"], "dist_km": round(best_km, 1)}
 
-    def _monthly(self, values: np.ndarray, total: bool = False) -> list[float]:
-        """12 Monatswerte: Mittel je Tag (``total=False``) oder Summe je Jahr."""
-        acc = np.bincount(self.day_month, weights=values.astype(np.float64), minlength=12)
-        div = self.years if total else self._month_day_count
+    def _monthly(self, values: np.ndarray, total: bool = False,
+                 period: str = "all") -> list[float]:
+        """12 Monatswerte des Zeitraums: Mittel je Tag oder Summe je Jahr."""
+        months = self.day_month[self._period_slice(period)]
+        acc = np.bincount(months, weights=values.astype(np.float64), minlength=12)
+        div = (self.years_in_period(period) if total
+               else np.bincount(months, minlength=12).astype(np.float64))
         return [round(float(v), 2) for v in (acc / np.maximum(div, 1e-9))]
 
-    def _annual_summary(self) -> dict[str, np.ndarray]:
+    def _annual_summary(self, period: str = "all") -> dict[str, np.ndarray]:
         """Vektorisierte Jahresmittel und Tageszahlen für alle Rasterpunkte.
 
         Werte bleiben in der quantisierten Rohdarstellung, bis eine Kennzahl
         berechnet wird. Dadurch genügt ein kleiner gecachter Ergebnisvektor je
         Messgröße statt zusätzlicher Float-Kopien des ganzen Rasters.
         """
-        if self._annual_summary_cache is not None:
-            return self._annual_summary_cache
+        period = str(period)
+        if period in self._annual_summary_cache:
+            return self._annual_summary_cache[period]
 
-        tmax = self.raw["tmax"]
-        tmin = self.raw["tmin"]
-        tdew = self.raw["tdew"]
-        sun = self.raw["sun"]
-        prec = self.raw["prec"]
+        part = self._period_slice(period)
+        years = self.years_in_period(period)
+        tmax = self.raw["tmax"][:, part]
+        tmin = self.raw["tmin"][:, part]
+        tdew = self.raw["tdew"][:, part]
+        sun = self.raw["sun"][:, part]
+        prec = self.raw["prec"][:, part]
 
         def days(mask: np.ndarray) -> np.ndarray:
-            return np.count_nonzero(mask, axis=1).astype(np.float64) / self.years
+            return np.count_nonzero(mask, axis=1).astype(np.float64) / years
 
-        self._annual_summary_cache = {
+        summary = {
             # Temperatur-/Taupunkt-Rohwerte haben 0,5-°C-Schritte.
             "tmax": tmax.mean(axis=1) / 2.0,
             "tmin": tmin.mean(axis=1) / 2.0,
             "tdew": tdew.mean(axis=1) / 2.0,
             # Ein Rohwert Sonne entspricht 15 Minuten; Regen ist in 0,5-mm-Schritten.
             "sun": sun.mean(axis=1) / 4.0,
-            "prec": prec.sum(axis=1, dtype=np.int64).astype(np.float64) / (2.0 * self.years),
+            "prec": prec.sum(axis=1, dtype=np.int64).astype(np.float64) / (2.0 * years),
             # 0,5 °C und 0,5 mm Quantisierung; Sonne ist in Viertelstunden codiert.
             "frost_days": days(tmin <= 0),
             "winter_days": days(tmin < 0),
@@ -748,11 +862,12 @@ class ClimateData:
             "heavy_rain_days": days(prec >= 20),
             "sunny_days": days(sun > 16),
         }
-        return self._annual_summary_cache
+        self._annual_summary_cache[period] = summary
+        return summary
 
-    def annual_climatology(self, idx: int) -> dict:
+    def annual_climatology(self, idx: int, period: str = "all") -> dict:
         """Jahresmittel und mittlere jährliche Ereignistage eines Rasterpunkts."""
-        summary = self._annual_summary()
+        summary = self._annual_summary(period)
         return {
             "year": {
                 "tmax": round(float(summary["tmax"][idx]), 1),
@@ -767,24 +882,27 @@ class ClimateData:
             "frost_days": round(float(summary["frost_days"][idx]), 1),
         }
 
-    def climatology(self, idx: int) -> dict:
+    def climatology(self, idx: int, period: str = "all") -> dict:
         """Monats- und Jahresklima eines Rasterpunkts (°C, h/Tag, mm)."""
-        vals = {name: self.raw[name][idx].astype(np.float64) * UNIT_FACTORS[name] for name in VARS}
+        part = self._period_slice(period)
+        vals = {name: self.raw[name][idx, part].astype(np.float64) * UNIT_FACTORS[name]
+                for name in VARS}
         return {
-            "months": {name: self._monthly(vals[name], total=(name == "prec")) for name in VARS},
-            **self.annual_climatology(idx),
+            "months": {name: self._monthly(vals[name], total=(name == "prec"), period=period)
+                       for name in VARS},
+            **self.annual_climatology(idx, period),
         }
 
-    def city_climate_rows(self) -> list[dict]:
+    def city_climate_rows(self, period: str = "all") -> list[dict]:
         """Jahresklima aller Städte, am jeweils nächsten ERA5-Gitterpunkt."""
-        if self._city_climate_cache is not None:
-            return self._city_climate_cache
+        if period in self._city_climate_cache:
+            return self._city_climate_cache[period]
         rows: list[dict] = []
         if not self.cities:
-            self._city_climate_cache = rows
+            self._city_climate_cache[period] = rows
             return rows
 
-        summary = self._annual_summary()
+        summary = self._annual_summary(period)
         for i, city in enumerate(self.cities):
             point = int(self.city_point_idx[i])
             climate = {
@@ -809,21 +927,25 @@ class ClimateData:
                 "grid_distance_km": round(float(self.city_point_km[i]), 1),
                 "climate": climate,
             })
-        self._city_climate_cache = rows
+        self._city_climate_cache[period] = rows
         return rows
 
-    def point_report(self, lat: float, lon: float, p: Params, month=None) -> dict:
+    def point_report(self, lat: float, lon: float, p: Params, month=None,
+                     period: str = "all") -> dict:
         """Alles, was die Detailkarte zu einem Ort zeigt.
 
         ``month`` ist der Vergleichszeitraum für ``days_here``/``percentile`` –
         ``None`` (Jahr), eine Monatsnummer oder ein Monatsfenster.
         """
         idx = self.point_index(lat, lon)
-        days = self.days_mask(p, point=idx)[0]
-        per_month = [round(float(days[self.day_month == m].sum() / self.years), 1) for m in range(12)]
+        part = self._period_slice(period)
+        days = self.days_mask(p, point=idx, period=period)[0]
+        selected_months = self.day_month[part]
+        per_month = [round(float(days[selected_months == m].sum() / self.years_in_period(period)), 1)
+                     for m in range(12)]
         yearly = round(sum(per_month), 1)
 
-        counts = self.counts(p, month)
+        counts = self.counts(p, month, period)
         own = float(counts[idx])
         percentile = round(float((counts <= own).mean()) * 100.0, 1)
         best_idx = int(np.argmax(counts))
@@ -846,15 +968,16 @@ class ClimateData:
             "grid_distance_km": round(float(111.0 * np.hypot(self.lat[idx] - lat,
                                                              (self.lon[idx] - lon) * math.cos(math.radians(lat))))),
             "city": self.nearest_city(lat, lon),
-            "climate": self.climatology(idx),
+            "climate": self.climatology(idx, period),
             "days_here": round(own, 1),
             "percentile": percentile,
             "europe_best": best,
             "params": p.query(),
             "month": month if isinstance(month, int) else None,
             "months": list(norm_months(month)) if norm_months(month) else None,
-            "month_limit": round(self.month_limit(month), 1),
-            "limit": round(self.month_limit(month), 1),
+            "month_limit": round(self.month_limit(month, period), 1),
+            "limit": round(self.month_limit(month, period), 1),
+            "period": self.period_info(period),
         }
         if isinstance(month, (int, np.integer)):
             rep["selected_month"] = int(month)
@@ -864,8 +987,8 @@ class ClimateData:
     def winterquarters_point(self, lat: float, lon: float, f: Filter) -> dict:
         """Sommer-, Winter- und Kombinations-Tage an einem Ort (Winterquartier-Modus)."""
         idx = self.point_index(lat, lon)
-        sm = self.point_monthly(f.p, idx)
-        wm = self.point_monthly(f.winter, idx)
+        sm = self.point_monthly(f.p, idx, f.period)
+        wm = self.point_monthly(f.winter, idx, f.period)
         sm_months = list(f.summer_months)
         wm_months = list(f.winter_months)
         summer = float(sm[sm_months].sum())
@@ -972,7 +1095,8 @@ class ClimateData:
         return rows
 
     def season_split_report(self, summer: Params, winter: Params, min_len: int = 3,
-                            max_len: int = 9, limit: int = 8) -> dict:
+                            max_len: int = 9, limit: int = 8,
+                            period: str = "all") -> dict:
         """Beste Aufteilung des Jahres in Sommer- und Winterquartier-Monate.
 
         Für jeden Ort und jede zusammenhängende Aufteilung (Sommerfenster der
@@ -981,8 +1105,8 @@ class ClimateData:
         nach ``summer``, Winter nach ``winter``. Gesucht ist die Kombination aus
         Aufteilung **und** Ort mit der höchsten Summe.
         """
-        sm = self.monthly_counts(summer)              # (12, P)
-        wm = self.monthly_counts(winter)
+        sm = self.monthly_counts(summer, period)      # (12, P)
+        wm = self.monthly_counts(winter, period)
         sums, windows = self._window_sums(sm - wm, min_len, max_len)
         values = wm.sum(axis=0)[None, :] + sums       # (S, P) Tage/Jahr
         mean = values.mean(axis=1)
@@ -995,6 +1119,7 @@ class ClimateData:
         per_point_days = values[per_point, np.arange(values.shape[1])]
         idx_best = int(np.argmax(per_point_days))
         return {
+            "period": self.period_info(period),
             "window_range": {"min_months": int(min_len), "max_months": int(max_len)},
             "summer_params": summer.query(),
             "winter_params": winter.query(),
@@ -1029,7 +1154,8 @@ class ClimateData:
 
     def pair_report(self, lat: float, lon: float, role: str, summer: Params, winter: Params,
                     summer_months=None, limit: int = 8, max_km: float | None = None,
-                    min_len: int = 3, max_len: int = 9) -> dict:
+                    min_len: int = 3, max_len: int = 9,
+                    period: str = "all") -> dict:
         """Bestes Gegenstück zu einem festen Quartier (Zwei-Orte-Kombination).
 
         ``role`` sagt, was der gewählte Ort *ist*: ``'summer'`` (dann wird das
@@ -1047,13 +1173,13 @@ class ClimateData:
         want_label = "Winterquartier" if role == "summer" else "Sommerquartier"
 
         anchor = self.point_index(lat, lon)
-        sm_a = self.point_monthly(summer, anchor)
-        wm_a = self.point_monthly(winter, anchor)
+        sm_a = self.point_monthly(summer, anchor, period)
+        wm_a = self.point_monthly(winter, anchor, period)
         # Eigene Wohlfühl-Tage des Ankers in *seinem* Quartier-Fenster
         own_days = (float(sm_a[list(ms)].sum()) if role == "summer"
                     else float(wm_a[list(rest)].sum()))
 
-        counts = self.counts(cd_want, months_want)
+        counts = self.counts(cd_want, months_want, period)
         city_days = counts[self.city_point_idx] if self.city_point_idx.size else np.zeros(0)
         order = np.argsort(-city_days)[: max(limit * 6, 40)]
         picked: list[tuple[float, float]] = []
@@ -1070,8 +1196,8 @@ class ClimateData:
                 continue
             picked.append((klat, klon))
             # Monatswerte des Kandidaten für beide Profile (jeweils 12 kleine Zählungen)
-            sm_b = self.point_monthly(summer, int(self.city_point_idx[i]))
-            wm_b = self.point_monthly(winter, int(self.city_point_idx[i]))
+            sm_b = self.point_monthly(summer, int(self.city_point_idx[i]), period)
+            wm_b = self.point_monthly(winter, int(self.city_point_idx[i]), period)
             if role == "summer":      # Anker = Sommer, Kandidat = Winter
                 base = float(wm_b.sum())
                 delta = sm_a - wm_b
@@ -1102,6 +1228,7 @@ class ClimateData:
                 break
         out.sort(key=lambda r: (-r["total_days"], r["km"]))
         return {
+            "period": self.period_info(period),
             "role": role,
             "wanted": want_name,
             "wanted_label": want_label,
@@ -1123,7 +1250,8 @@ class ClimateData:
         }
 
     def two_city_combination(self, p: Params, summer_months=None, limit: int = 8,
-                             min_distance_km: float = 50.0) -> dict:
+                             min_distance_km: float = 50.0,
+                             period: str = "all") -> dict:
         """Beste feste Sommer-/Winteraufteilung auf zwei verschiedene Städte.
 
         Anders als :meth:`season_split_report` gilt in beiden Zeitfenstern
@@ -1137,13 +1265,14 @@ class ClimateData:
         min_distance_km = max(0.0, float(min_distance_km))
         if not self.cities or not self.city_point_idx.size:
             return {"candidates": [], "best": None,
+                    "period": self.period_info(period),
                     "summer_months": list(ms), "winter_months": list(rest),
                     "summer_label": months_label(ms), "winter_label": months_label(rest),
                     "params": p.query(), "min_distance_km": min_distance_km}
 
         # (Monat, Stadt); ein und dasselbe Traumwetterprofil wird für beide Orte
         # verwendet. Die komplementären Monatsfenster teilen das Jahr vollständig.
-        monthly = self.monthly_counts(p)[:, self.city_point_idx]
+        monthly = self.monthly_counts(p, period)[:, self.city_point_idx]
         summer_days = monthly[list(ms)].sum(axis=0)
         winter_days = monthly[list(rest)].sum(axis=0)
         city_lats = np.asarray([c["lat"] for c in self.cities], dtype=np.float64)
@@ -1217,6 +1346,7 @@ class ClimateData:
         candidates.sort(key=lambda row: (-row["total_days"], row["distance_km"],
                                          row["summer_city"]["name"], row["winter_city"]["name"]))
         return {
+            "period": self.period_info(period),
             "summer_months": list(ms),
             "winter_months": list(rest),
             "summer_label": months_label(ms),

@@ -357,12 +357,23 @@ def summer_window(sfrom: int, sto: int) -> tuple[int, ...]:
         m = (m + 1) % 12
 
 
+def parse_period_id(period: str) -> str:
+    """Validiert die historischen Zeitfenster; Projektionen sind derzeit nicht aktiv."""
+    value = (period or "all").strip().lower()
+    if value not in ("all", "recent5"):
+        raise HTTPException(400, "period muss 'all' oder 'recent5' sein; Zukunftsprojektionen sind noch nicht verfügbar")
+    if value == "recent5" and not climate().period_info(value)["available"]:
+        raise HTTPException(400, "Der Datensatz enthält keine fünf vollständigen Jahre für 'recent5'")
+    return value
+
+
 def parse_filter(
     view: str = Query("plain", description="plain | wq (Winterquartier-Modus)"),
     wview: str = Query("combo", description="combo | summer | winter"),
     sfrom: int = Query(5, ge=1, le=12, description="Sommerfenster ab Monat"),
     sto: int = Query(9, ge=1, le=12, description="Sommerfenster bis Monat"),
     month: str | None = Query(None),
+    period: str = Query("all", description="all | recent5"),
     p: Params = Depends(parse_params),
     winter: Params = Depends(parse_winter_params),
 ) -> Filter:
@@ -376,10 +387,12 @@ def parse_filter(
     if kind in ("wq", "winterquartier", "quartier"):
         if wview not in ("combo", "summer", "winter"):
             raise HTTPException(400, "wview muss 'combo', 'summer' oder 'winter' sein")
-        return Filter(kind=wview, p=p or Params(), winter=winter, summer_months=summer_window(sfrom, sto))
+        return Filter(kind=wview, p=p or Params(), winter=winter,
+                      summer_months=summer_window(sfrom, sto), period=parse_period_id(period))
     if kind not in ("plain", "normal"):
         raise HTTPException(400, "view muss 'plain' oder 'wq' sein")
-    return Filter(kind="plain", p=p or Params(), winter=winter, months=parse_month(month))
+    return Filter(kind="plain", p=p or Params(), winter=winter, months=parse_month(month),
+                  period=parse_period_id(period))
 
 
 def render_cached(f: Filter, width: int, fixed: bool) -> tuple[bytes, dict]:
@@ -401,7 +414,9 @@ def render_cached(f: Filter, width: int, fixed: bool) -> tuple[bytes, dict]:
                                  meta={"months": list(f.months) if f.months else None,
                                        "view_kind": f.kind,
                                        "window_label": f.label(),
-                                       "unit_label": f.unit_label()})
+                                       "unit_label": f.unit_label(),
+                                       "period": f.period,
+                                       "period_info": cd.period_info(f.period)})
     if f.is_winterquarters:
         info["summer_months"] = list(f.summer_months)
         info["winter_months"] = list(f.winter_months)
@@ -459,6 +474,9 @@ def api_meta():
         "winter_presets": WINTER_PRESETS,
         "defaults": Params().query(),
         "winter_defaults": WINTER_DEFAULTS.query(),
+        "periods": cd.period_options(),
+        "default_period": "all",
+
         # Alles, was die Oberfläche für den Winterquartier-Modus braucht.
         "winterquarters": {
             # 1-basiert wie der month-Parameter, damit die Oberfläche nichts umrechnen muss
@@ -544,7 +562,7 @@ def api_point(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge
     """
     cd = ready_dataset()
     month = f.single_month()
-    rep = cd.point_report(lat, lon, f.p, month if month is not None else f.months)
+    rep = cd.point_report(lat, lon, f.p, month if month is not None else f.months, f.period)
     rep["view_kind"] = f.kind
     if f.is_winterquarters:
         rep["wq"] = cd.winterquarters_point(lat, lon, f)
@@ -559,6 +577,7 @@ def api_ranking(f: Filter = Depends(parse_filter), limit: int = 12):
         "month_label": f.label(),
         "unit_label": f.unit_label(),
         "view_kind": f.kind,
+        "period": f.period,
         "cities": cd.ranking_counts(f.counts(cd), max(1, min(40, limit))),
     }
 
@@ -567,7 +586,7 @@ def api_ranking(f: Filter = Depends(parse_filter), limit: int = 12):
 def api_cities_map(f: Filter = Depends(parse_filter), limit: int = 400):
     """Größte Orte mit ihrer Tageszahl – für anklickbare Kartenmarker."""
     cd = ready_dataset()
-    return {"month": f.single_month(), "view_kind": f.kind,
+    return {"month": f.single_month(), "view_kind": f.kind, "period": f.period,
             "cities": cd.cities_for_map_counts(f.counts(cd), max(20, min(1200, limit)))}
 
 
@@ -577,6 +596,7 @@ def api_winterquarters_combination(
     sfrom: int = Query(5, ge=1, le=12),
     sto: int = Query(9, ge=1, le=12),
     limit: int = Query(8, ge=1, le=40),
+    period: str = Query("all", description="all | recent5"),
 ):
     """Findet die beste Sommer-/Winter-Kombination aus zwei Städten.
 
@@ -585,9 +605,11 @@ def api_winterquarters_combination(
     deckt alle restlichen Monate ab.
     """
     months = summer_window(sfrom, sto)
+    period_id = parse_period_id(period)
     return ready_dataset().two_city_combination(
         p, months, limit=max(1, min(40, limit)),
         min_distance_km=WQ_MIN_CITY_DISTANCE_KM,
+        period=period_id,
     )
 
 
@@ -603,7 +625,8 @@ def api_winterquarters_optimize(f: Filter = Depends(parse_filter),
     Wetterprofile. Antwort: beste Aufteilungen samt bestem Ort und bester Stadt.
     """
     lo, hi = sorted((int(min_months), int(max_months)))
-    return ready_dataset().season_split_report(f.p, f.winter, lo, hi, max(1, min(40, limit)))
+    return ready_dataset().season_split_report(f.p, f.winter, lo, hi, max(1, min(40, limit)),
+                                               period=f.period)
 
 
 @app.get("/api/winterquarters/pair")
@@ -624,7 +647,8 @@ def api_winterquarters_pair(lat: float = Query(..., ge=-90, le=90),
         raise HTTPException(400, "role muss 'summer' oder 'winter' sein")
     return ready_dataset().pair_report(lat, lon, role, f.p, f.winter, f.summer_months,
                                        limit=max(1, min(40, limit)), max_km=max_km,
-                                       min_len=WQ_MIN_MONTHS, max_len=WQ_MAX_MONTHS)
+                                       min_len=WQ_MIN_MONTHS, max_len=WQ_MAX_MONTHS,
+                                       period=f.period)
 
 
 @app.get("/api/build")
@@ -673,21 +697,19 @@ def api_cities():
 
 
 @app.get("/api/cities/climate")
-def api_cities_climate():
+def api_cities_climate(period: str = Query("all", description="all | recent5")):
     """Jahres-Klimakenngrößen für alle Städte (unabhängig vom Kartenfilter).
 
     Die Stadtkoordinaten werden dem jeweils nächsten ERA5-Rasterpunkt
-    zugeordnet. Tageszahlen sind Mittelwerte pro Jahr über den gesamten
-    Datensatzzeitraum; Grenzwerte stehen explizit in ``indicators``.
+    zugeordnet. Tageszahlen sind Mittelwerte pro Jahr über den gewählten
+    Zeitraum; Grenzwerte stehen explizit in ``indicators``.
     """
+    period_id = parse_period_id(period)
     cd = ready_dataset()
+    selected_period = cd.period_info(period_id)
     return JSONResponse(
         content={
-            "period": {
-                "start_date": cd.meta.get("start_date"),
-                "end_date": cd.meta.get("end_date"),
-                "years": round(cd.years, 2),
-            },
+            "period": selected_period,
             "grid_step_deg": cd.meta.get("grid_step_deg"),
             "city_count": len(cd.cities),
             "city_method": "nearest_grid_point",
@@ -695,7 +717,7 @@ def api_cities_climate():
                 key: {"label": label, "threshold": threshold, "unit": "Tage/Jahr"}
                 for key, label, threshold in CITY_DAY_INDICATORS
             },
-            "cities": cd.city_climate_rows(),
+            "cities": cd.city_climate_rows(period_id),
         },
         headers={"Cache-Control": "public, max-age=3600"},
     )
