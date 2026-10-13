@@ -91,6 +91,29 @@ def test_point_report(cd: ClimateData) -> None:
     assert rep["grid_distance_deg"] < 1.5
 
 
+def test_climatology_event_day_thresholds(cd: ClimateData) -> None:
+    """Die Tageskennzahlen verwenden ihre dokumentierten, inklusiven Grenzen."""
+    idx = cd.point_index(48.85, 2.35)
+    raw = cd.raw
+    tmax, tmin, tdew, sun, prec = (raw[k][idx] for k in ("tmax", "tmin", "tdew", "sun", "prec"))
+    climate = cd.climatology(idx)
+    expected = {
+        "hot_days": tmax > 60,             # Tmax > 30 °C
+        "very_hot_days": tmax >= 70,       # Tmax ≥ 35 °C
+        "summer_days": tmax >= 50,         # Tmax ≥ 25 °C
+        "winter_days": tmin < 0,           # Tmin < 0 °C
+        "ice_days": tmax < 0,              # Tmax < 0 °C
+        "tropical_nights": tmin >= 40,     # Tmin ≥ 20 °C
+        "sultry_days": tdew > 30,          # Taupunkt > 15 °C
+        "wet_days": prec >= 2,             # Niederschlag ≥ 1 mm
+        "heavy_rain_days": prec >= 20,     # Niederschlag ≥ 10 mm
+        "sunny_days": sun > 16,            # Sonne > 4 h
+    }
+    for key, mask in expected.items():
+        assert climate[key] == round(float(mask.sum() / cd.years), 1), key
+    assert climate["frost_days"] == round(float((tmin <= 0).sum() / cd.years), 1)
+
+
 def test_render_png(cd: ClimateData) -> None:
     from io import BytesIO
 
@@ -232,3 +255,55 @@ def test_gegenstueck_suche(cd: ClimateData) -> None:
     swap = cd.pair_report(41.4, 2.17, "winter", sommer, WINTER_DEFAULTS, DEFAULT_SUMMER_MONTHS, limit=6)
     assert swap["role"] == "winter" and swap["wanted"] == "summer"
     assert swap["anchor"]["own_days"] == pytest.approx(swap["anchor"]["winter_days"], abs=0.2)
+
+
+def test_zwei_staedte_mit_einem_festen_profil(cd: ClimateData) -> None:
+    """Das Profil gilt für beide Orte; nur der fest gewählte Zeitraum wird aufgeteilt."""
+    profil = Params(tmax_min=18, tmax_max=30, tmin_min=5, tmin_max=20,
+                    tdew_max=18, sun_min=3, prec_max=99)
+    sommer = (4, 5, 6)  # Mai – Juli
+    report = cd.two_city_combination(profil, sommer, limit=8, min_distance_km=50)
+
+    assert report["summer_months"] == list(sommer)
+    assert report["winter_months"] == [0, 1, 2, 3, 7, 8, 9, 10, 11]
+    assert report["summer_label"] == "Mai – Juli"
+    assert report["winter_label"] == "August – April"
+    candidates = report["candidates"]
+    assert report["best"] == candidates[0]
+    assert 0 < len(candidates) <= 8
+    totals = [candidate["total_days"] for candidate in candidates]
+    assert totals == sorted(totals, reverse=True)
+
+    monthly = cd.monthly_counts(profil)
+    city_monthly = monthly[:, cd.city_point_idx]
+    summer_totals = city_monthly[list(sommer)].sum(axis=0)
+    winter_totals = city_monthly[report["winter_months"]].sum(axis=0)
+    city_lats = np.radians(np.asarray([city["lat"] for city in cd.cities]))
+    city_lons = np.radians(np.asarray([city["lon"] for city in cd.cities]))
+    expected_best = 0.0
+    for summer_index, (lat, lon) in enumerate(zip(city_lats, city_lons)):
+        dlat = city_lats - lat
+        dlon = (city_lons - lon + np.pi) % (2 * np.pi) - np.pi
+        a = (np.sin(dlat / 2) ** 2
+             + np.cos(lat) * np.cos(city_lats) * np.sin(dlon / 2) ** 2)
+        distances = 2 * 6371 * np.arcsin(np.sqrt(np.clip(a, 0, 1)))
+        eligible = distances >= 50
+        if eligible.any():
+            expected_best = max(expected_best, summer_totals[summer_index] + winter_totals[eligible].max())
+    assert report["best"]["total_days"] == pytest.approx(expected_best, abs=0.11)
+
+    city_indexes = { (float(city["lat"]), float(city["lon"])): index
+                     for index, city in enumerate(cd.cities) }
+    for candidate in candidates:
+        summer_city = candidate["summer_city"]
+        winter_city = candidate["winter_city"]
+        assert candidate["distance_km"] >= 50
+        assert summer_city["lat"] != winter_city["lat"] or summer_city["lon"] != winter_city["lon"]
+        assert candidate["total_days"] == pytest.approx(
+            candidate["summer_days"] + candidate["winter_days"], abs=0.2)
+        summer_index = cd.city_point_idx[city_indexes[(summer_city["lat"], summer_city["lon"])]]
+        winter_index = cd.city_point_idx[city_indexes[(winter_city["lat"], winter_city["lon"])]]
+        expected_summer = monthly[list(sommer), summer_index].sum()
+        expected_winter = monthly[report["winter_months"], winter_index].sum()
+        assert candidate["summer_days"] == pytest.approx(expected_summer, abs=0.11)
+        assert candidate["winter_days"] == pytest.approx(expected_winter, abs=0.11)

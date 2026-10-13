@@ -1,6 +1,7 @@
 """Tests der HTTP-Schnittstellen (pytest + fastapi TestClient)."""
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -87,6 +88,30 @@ def test_cities_map_and_search(client: TestClient) -> None:
     names = [c["name"] for c in r.json()["cities"]]
     assert "Berlin" in names
     assert client.get("/api/cities/search", params={"q": "x"}).json()["cities"] != [] or True
+
+
+def test_cities_climate_returns_complete_city_table(client: TestClient) -> None:
+    """Die Zusatzansicht enthält jede Stadt plus klar definierte Jahreswerte."""
+    r = client.get("/api/cities/climate")
+    assert r.status_code == 200
+    assert "max-age=3600" in r.headers.get("cache-control", "")
+    data = r.json()
+    assert data["period"]["start_date"]
+    assert data["period"]["end_date"]
+    assert data["period"]["years"] > 0
+    assert data["city_method"] == "nearest_grid_point"
+    assert data["city_count"] == len(data["cities"])
+    assert data["city_count"] == len(json.loads((DATA_DIR / "cities.json").read_text()))
+
+    city = data["cities"][0]
+    assert {"name", "country", "lat", "lon", "pop", "grid_distance_km", "climate"} <= set(city)
+    assert {"tmax", "tmin", "tdew", "sun", "prec"} <= set(city["climate"]["year"])
+    assert {"hot_days", "summer_days", "winter_days", "ice_days", "sultry_days",
+            "wet_days", "sunny_days", "very_hot_days", "tropical_nights", "heavy_rain_days"} \
+        <= set(city["climate"])
+    assert data["indicators"]["hot_days"]["threshold"] == "Tageshöchsttemperatur > 30 °C"
+    assert data["indicators"]["sunny_days"]["threshold"] == "Sonnenschein > 4 Stunden/Tag"
+    assert all(city["climate"][key] >= 0 for key in data["indicators"])
 
 
 def test_meta_kennzeichnet_datenbasis(client: TestClient) -> None:
@@ -253,3 +278,39 @@ def test_ranking_und_staedte_im_winterquartier(client: TestClient) -> None:
     # Sommer- und Winteransicht dürfen sich nicht gleichen
     sommer = client.get("/api/ranking", params={**params, "wview": "summer", "limit": 5}).json()
     assert [c["days"] for c in sommer["cities"]] != [c["days"] for c in rank["cities"]]
+
+
+def test_winterquarters_combination_uses_fixed_window_and_one_profile(client: TestClient) -> None:
+    params = {
+        "sfrom": 5, "sto": 7, "limit": 6,
+        "tmax_min": 18, "tmax_max": 30,
+        "tmin_min": 5, "tmin_max": 20,
+        "tdew_max": 18, "sun_min": 3, "prec_max": 99,
+    }
+    response = client.get("/api/winterquarters/combination", params=params)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["summer_months"] == [4, 5, 6]
+    assert data["winter_months"] == [0, 1, 2, 3, 7, 8, 9, 10, 11]
+    assert data["summer_label"] == "Mai – Juli"
+    assert data["winter_label"] == "August – April"
+    assert data["params"]["tmax_min"] == 18
+    assert data["params"]["tmax_max"] == 30
+    assert data["params"]["tmin_min"] == 5
+    assert data["params"]["tmin_max"] == 20
+    assert data["params"]["tdew_max"] == 18
+    assert data["params"]["sun_min"] == 3
+    assert data["min_distance_km"] == 50
+    assert 0 < len(data["candidates"]) <= 6
+    assert data["best"] == data["candidates"][0]
+    totals = [candidate["total_days"] for candidate in data["candidates"]]
+    assert totals == sorted(totals, reverse=True)
+    for candidate in data["candidates"]:
+        assert candidate["distance_km"] >= 50
+        assert candidate["total_days"] == pytest.approx(
+            candidate["summer_days"] + candidate["winter_days"], abs=0.2)
+        assert candidate["summer_city"] != candidate["winter_city"]
+
+    # Ein Sommerfenster über alle zwölf Monate lässt kein Winterquartier übrig.
+    full_year = client.get("/api/winterquarters/combination", params={"sfrom": 6, "sto": 5})
+    assert full_year.status_code == 400
