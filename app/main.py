@@ -32,6 +32,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, HTTPException, Query, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
 
 from .build_progress import DEFAULT_REPO, build_status
 from .climate import (CITY_DAY_INDICATORS, DEFAULT_SUMMER_MONTHS, FIELD_WIDTH, MONTH_NAMES,
@@ -131,6 +132,14 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Mein perfektes Klima – Europa", docs_url="/api/docs", lifespan=lifespan)
+
+# Text-Antworten (JSON, GeoJSON, JS, CSS) komprimiert ausliefern. Das spart auf
+# dem Free-Plan deutlich Bandbreite: die Ländergrenzen allein sind ~330 KB JSON,
+# die Städtetabelle ~1,6 MB. Bilder und Schriftdateien (PNG/WOFF2) sind bereits
+# komprimiert und bleiben unangetastet – Starlette überspringt sie anhand des
+# Content-Type. Kompressionsstufe 6 statt 9: auf der geteilten Free-CPU zählt
+# jede Millisekunde, der Unterschied in der Größe ist marginal.
+app.add_middleware(GZipMiddleware, minimum_size=500, compresslevel=6)
 
 _climate: ClimateData | None = None
 _load_error: str | None = None

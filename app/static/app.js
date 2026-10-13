@@ -227,13 +227,15 @@ function initMap() {
   map.createPane("cities").style.zIndex = 550;
 
   fetch("/api/countries").then(r => r.json()).then(geo => {
+    // Land liegt als ruhige, dunkle Fläche unter dem Datenbild; die Grenzen
+    // sind nur eine feine helle Linie darüber.
     landLayer = L.geoJSON(geo, {
       pane: "land", interactive: false,
-      style: { stroke: false, fillColor: "#16283c", fillOpacity: 1 },
+      style: { stroke: false, fillColor: "#132238", fillOpacity: 1 },
     }).addTo(map);
     borderLayer = L.geoJSON(geo, {
       pane: "borders", interactive: false,
-      style: { color: "#8fa9c4", weight: 0.8, opacity: 0.55, fill: false },
+      style: { color: "#a7c0da", weight: 0.75, opacity: 0.5, fill: false },
     }).addTo(map);
   }).catch(() => {});
 
@@ -268,6 +270,23 @@ function updateOverlay() {
     overlay.setUrl(url);
     overlay.setBounds(bounds());
   }
+  fadeOverlayIn();
+}
+
+/** Neues Kartenbild weich einblenden, sobald es geladen ist.
+ *  Der jsdom-Stub der Tests kennt `getElement` nicht – deshalb die Prüfung.
+ *  Das Sicherheitsnetz sorgt dafür, dass das Bild auch dann sichtbar wird, wenn
+ *  das load-Ereignis bereits vorbei ist (z. B. aus dem Browser-Cache). */
+function fadeOverlayIn() {
+  if (!overlay || typeof overlay.getElement !== "function") return;
+  const img = overlay.getElement();
+  if (!img || !img.style) return;
+  img.style.opacity = "0";
+  let shown = false;
+  const show = () => { if (shown) return; shown = true; img.style.opacity = "1"; };
+  img.addEventListener("load", show, { once: true });
+  if (img.complete) requestAnimationFrame(show);
+  setTimeout(show, 1500);
 }
 
 /* ------------------------------------------------------------- Städtemarker */
@@ -303,9 +322,9 @@ function paintCities() {
     if (c.pop < limit || added >= 420) continue;
     added++;
     const dot = L.circleMarker([c.lat, c.lon], {
-      pane: "cities", radius: c.pop > 1_000_000 ? 5 : 3.6,
-      color: "#0b1420", weight: 1.2,
-      fillColor: colorFor(c.days / vmax), fillOpacity: 0.95,
+      pane: "cities", radius: c.pop > 1_000_000 ? 5.4 : 3.9,
+      color: "rgba(255,255,255,.8)", weight: 1.1,
+      fillColor: colorFor(c.days / vmax), fillOpacity: 1,
       className: "city-marker",
     });
     dot.on("click", (e) => {
@@ -430,7 +449,14 @@ function climateDiagram(rep) {
   const y = (t) => padT + (hi - t) / (hi - lo) * (H - padT - padB);
   const ys = (s) => padT + (1 - s / sunMax) * (H - padT - padB);
   const bw = (W - padL - padR) / 12;
-  let parts = [`<svg viewBox="0 0 ${W} ${H}" class="climsvg" role="img" aria-label="Klimadiagramm">`];
+  let parts = [`<svg viewBox="0 0 ${W} ${H}" class="climsvg" role="img" aria-label="Klimadiagramm">`,
+    `<defs><linearGradient id="klima-sun-area" x1="0" y1="0" x2="0" y2="1">`
+    + `<stop offset="0%" stop-color="#ffd479" stop-opacity=".38"/>`
+    + `<stop offset="100%" stop-color="#ffd479" stop-opacity="0"/></linearGradient></defs>`];
+  // Waagerechte Hilfslinien als ruhiger Hintergrund
+  for (let t = Math.ceil(lo / 10) * 10; t <= hi; t += 10) {
+    parts.push(`<line x1="${padL}" x2="${W - padR}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}" class="grid"/>`);
+  }
   // Null-Grad-Linie
   if (lo < 0) parts.push(`<line x1="${padL}" x2="${W - padR}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}" class="zero"/>`);
   for (let i = 0; i < 12; i++) {
@@ -446,6 +472,10 @@ function climateDiagram(rep) {
   }
   const sunPath = c.sun.map((s, i) =>
     `${i === 0 ? "M" : "L"}${(padL + i * bw + bw / 2).toFixed(1)},${ys(s).toFixed(1)}`).join(" ");
+  // Fläche unter der Sonnenkurve macht die Linie auch klein gut lesbar.
+  const areaPath = `${sunPath} L${(padL + 11 * bw + bw / 2).toFixed(1)},${(H - padB).toFixed(1)}`
+    + ` L${(padL + bw / 2).toFixed(1)},${(H - padB).toFixed(1)} Z`;
+  parts.push(`<path d="${areaPath}" class="sunarea" fill="url(#klima-sun-area)"/>`);
   parts.push(`<path d="${sunPath}" class="sunline"/>`);
   c.sun.forEach((s, i) => parts.push(
     `<circle cx="${(padL + i * bw + bw / 2).toFixed(1)}" cy="${ys(s).toFixed(1)}" r="1.7" class="sundot"/>`));
@@ -461,7 +491,8 @@ function renderDetail(opts = {}) {
   if (opts.loading) {
     box.innerHTML = "";
     box.append(el("h3", {}, el("span", { text: "Auswertung …" }), closeBtn()),
-      el("p", { class: "muted", text: "Tagesdaten werden gezählt." }));
+      el("p", { class: "muted", text: "Tagesdaten werden gezählt." }),
+      el("div", { class: "skeleton" }, el("span"), el("span"), el("span")));
     return;
   }
   if (opts.error) {
@@ -506,19 +537,23 @@ function renderDetail(opts = {}) {
     climateDiagram(rep) || el("p", { class: "muted", text: "keine Klimadaten" }),
     el("div", {
       class: "climnums",
-      text: `Jahr: Ø max ${num(year.tmax, 1)} °C · Ø min ${num(year.tmin, 1)} °C · Taupunkt ${num(year.tdew, 1)} °C · `
-        + `Sonne ${num(year.sun, 1)} h/Tag · Regen ${num(year.prec, 0)} mm`,
+      html: `Jahr: Ø max <b>${num(year.tmax, 1)} °C</b> · Ø min <b>${num(year.tmin, 1)} °C</b> · `
+        + `Taupunkt <b>${num(year.tdew, 1)} °C</b> · Sonne <b>${num(year.sun, 1)} h/Tag</b> · `
+        + `Regen <b>${num(year.prec, 0)} mm</b>`,
     }),
     el("div", {
       class: "climnums",
-      text: `${fmtDays(clim.summer_days || 0)} Sommertage (Tmax ≥ 25 °C) · ${fmtDays(clim.hot_days || 0)} Hitzetage (Tmax > 30 °C) · `
-        + `${fmtDays(clim.winter_days || 0)} Wintertage (Tmin < 0 °C) · ${fmtDays(clim.ice_days || 0)} Eistage (Tmax < 0 °C)`,
+      html: `<b>${fmtDays(clim.summer_days || 0)}</b> Sommertage (Tmax ≥ 25 °C) · `
+        + `<b>${fmtDays(clim.hot_days || 0)}</b> Hitzetage (Tmax > 30 °C) · `
+        + `<b>${fmtDays(clim.winter_days || 0)}</b> Wintertage (Tmin < 0 °C) · `
+        + `<b>${fmtDays(clim.ice_days || 0)}</b> Eistage (Tmax < 0 °C)`,
     }),
     el("div", {
       class: "climnums",
-      text: `${fmtDays(clim.sultry_days || 0)} schwüle Tage (Taupunkt > 15 °C) · `
-        + `${fmtDays(clim.wet_days || 0)} Regentage (≥ 1 mm) · ${fmtDays(clim.sunny_days || 0)} Sonnentage (> 4 h) · `
-        + `${fmtDays(clim.frost_days || 0)} Frosttage (Tmin ≤ 0 °C)`,
+      html: `<b>${fmtDays(clim.sultry_days || 0)}</b> schwüle Tage (Taupunkt > 15 °C) · `
+        + `<b>${fmtDays(clim.wet_days || 0)}</b> Regentage (≥ 1 mm) · `
+        + `<b>${fmtDays(clim.sunny_days || 0)}</b> Sonnentage (> 4 h) · `
+        + `<b>${fmtDays(clim.frost_days || 0)}</b> Frosttage (Tmin ≤ 0 °C)`,
     }),
     el("div", { class: "sub", style: "margin-top:.35rem", text: cityLine }),
   );
@@ -755,17 +790,23 @@ async function loadRanking() {
     const host = $("#ranking");
     host.innerHTML = "";
     if (!data.cities.length) { host.append(el("li", { class: "muted", text: "keine Treffer" })); return; }
+    const best = Math.max(1, ...data.cities.map(c => c.days));
     data.cities.forEach((c, i) => {
+      // Anteil am Spitzenwert als feiner Balken hinter der Zeile
+      const share = Math.max(6, Math.round((c.days / best) * 100));
       host.append(el("li", {},
         el("button", {
           title: `${c.name} – Datenpunkt ${c.dist_km} km entfernt`,
+          style: `--w:${share}%`,
           onclick: () => {
             map.flyTo([c.lat, c.lon], Math.max(map.getZoom(), 6), { duration: 0.7 });
             selectPlace(c.lat, c.lon, c.name, c.country);
           },
         },
-          el("span", {}, el("span", { class: "place", text: `${i + 1}. ${c.name}` }),
-            el("span", { class: "region", text: " · " + c.country })),
+          el("span", { class: "rank", text: String(i + 1) }),
+          el("span", { class: "who" },
+            el("span", { class: "place", text: c.name }),
+            el("span", { class: "region", text: c.country ? " · " + c.country : "" })),
           el("span", { class: "days", text: fmtDays(c.days) }))));
     });
   } catch (err) {

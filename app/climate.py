@@ -71,15 +71,18 @@ CITY_DAY_INDICATORS = (
     ("sunny_days", "Sonnentage", "Sonnenschein > 4 Stunden/Tag"),
 )
 
-# Farbskala: wenige Tage (blau) -> viele Tage (rot)
+# Farbskala: wenige Tage (tiefes Blau) -> viele Tage (Rot).
+# Sieben Stützstellen; die Farbtöne sind so gewählt, dass die Stufen auch auf
+# dunklem Untergrund klar getrennt wirken und die Legende exakt zur Karte passt
+# (die Legende liest dieselbe Liste über /api/meta).
 COLOR_STOPS = np.array([
-    [0.00, 16, 38, 92],
-    [0.15, 28, 92, 168],
-    [0.32, 32, 150, 160],
-    [0.50, 62, 166, 92],
-    [0.68, 198, 205, 63],
-    [0.84, 240, 140, 30],
-    [1.00, 200, 40, 30],
+    [0.00, 10, 32, 76],      # #0a204c  kaum Wohlfühltage
+    [0.15, 22, 78, 150],     # #164e96
+    [0.32, 28, 134, 166],    # #1c86a6
+    [0.50, 44, 166, 124],    # #2ca67c
+    [0.68, 150, 190, 74],    # #96be4a
+    [0.84, 240, 166, 46],    # #f0a62e
+    [1.00, 214, 54, 44],     # #d6362c
 ])
 
 
