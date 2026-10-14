@@ -1,67 +1,185 @@
-# Monetarisierung: Mein perfektes Klima
+# Monetarisierung mit wenig Betreuung und ohne laufende Akquise
 
-Stand: 14.10.2026. **Produktideen und Testhypothesen**, keine nachgewiesenen Marktpreise, Partnerverträge oder Umsatzprognosen. Keine Bezahlschranken oder Tracking-Skripte. Ein optionaler First-Party-Werbeplatz ist jetzt vorbereitet, standardmäßig ausgeschaltet. Details: [werbung-und-wachstum.md](werbung-und-wachstum.md).
+Stand: **14.10.2026**. Strategie, noch keine Partnerintegration. Programmverfügbarkeit,
+Annahmebedingungen, Provisionen und Netzwerkanforderungen wurden hier nicht live verifiziert.
+Alle Zahlen unten sind **Rechenannahmen, keine Marktpreise oder Umsatzprognosen**.
 
-## Empfehlung
+## Klare Empfehlung
 
-Die kostenlose Klimakarte bleibt das Vertrauensprodukt. Geld verdienen wir an der anschließenden Entscheidung: **„Wo möchte ich den Winter verbringen – und wie plane ich das?“**
+**Kostenlose Klimasuche → passendes Ziel → freiwilliger Unterkunftslink → Provision.**
+Ein Partner übernimmt Angebot, Verfügbarkeit, Buchung, Zahlung und Kundendienst. Später
+kann ein Werbenetzwerk unverkaufte Werbeplätze automatisch füllen. **Keine eigene
+Quartierdatenbank, keine Vermieterakquise, keine persönliche Reisevermittlung.**
 
-Start: ein optionaler persönlicher Quartier-Report zum Einmalpreis und klar gekennzeichnete Unterkunftslinks. Ein Abo erst testen, wenn Nutzer regelmäßig zurückkommen. Viele Menschen suchen ein Winterquartier nur ein- oder zweimal im Jahr.
+Das ersetzt die frühere Empfehlung, zuerst manuelle Reports, Concierge-Leistungen und
+B2B-Piloten zu verkaufen. Diese Angebote sind für das gewünschte geringe Betreuungspensum
+nicht der richtige Start. Vollständig passiv ist auch Affiliate-Marketing nicht:
+Programmfreigabe, rechtliche Einrichtung, Qualitätskontrolle und Abrechnung bleiben nötig.
 
-## Angebote, Priorität und Preishypothesen
+| Weg | Priorität | Einmalige Arbeit | Laufender Aufwand / Entscheidung |
+| --- | --- | --- | --- |
+| Unterkunfts-Affiliate über ein bestehendes Programm | **1 – starten** | Ein Programm auswählen, Freigabe, geprüfte Deep-Links, Kennzeichnung | Keine Anbieterakquise; Links und tatsächlich ausgezahlte Provisionen monatlich prüfen |
+| Automatische Displaywerbung, z. B. AdSense als Kandidat | **2 – später testen** | Website-Freigabe, echte Anzeigen-IDs, Consent/CMP, Rechtsprüfung, ggf. ads.txt | Kein Anzeigenverkauf nötig; Richtlinien, Technik und Ertrag kontrollieren. Erst wenn Reichweite die laufenden Kosten rechtfertigt |
+| Bezahlte Suchanzeigen **für die eigene Website** | **3 – erst bei bewiesenem Ertrag** | Kleiner, begrenzter Test mit passenden Suchbegriffen | Das sind **Kosten**, keine Einnahmen. Ohne positiven Deckungsbeitrag nicht skalieren |
+| Direkte Sponsoren / Verkauf von Werbeplätzen | Nicht priorisieren | Vermieter oder Veranstalter gewinnen, Verträge und Rechnungen | Laufende Akquise; widerspricht dem Ziel. Nur bei eingehenden Anfragen nutzen |
+| Concierge, manuelle Reports, eigenes Vermietungsportal, B2B-Vertrieb | Vorläufig weglassen | Hoher Produkt-/Vertriebsaufwand | Zu viel Support oder individuelle Betreuung |
 
-| Priorität | Angebot | Konkreter Nutzen | Preis-/Erlösmodell zum Testen | Aufwand / Risiko |
-| --- | --- | --- | --- | --- |
-| 1 | Persönlicher Winter-/Sommerquartier-Report | Wohnort, Wunschprofil, bis zu 10 Ziele, Monatsvergleich, Zugewinn gegenüber zu Hause, Quellen und Grenzen; herunterladbarer PDF-Bericht | Einmalig 9–19 €, z. B. Pilot 12 € | Mittel; Report muss über den bestehenden kostenlosen CSV-Export hinaus echten Mehrwert liefern |
-| 1 | Unterkunfts-Affiliate | Nach der Klimasuche optional passende Langzeitunterkünfte am Ziel und im ausgewählten Reisefenster finden | Vergütung gemäß tatsächlich abgeschlossenem Partnervertrag | Niedrig–mittel; Programme, Freigabe, Deep-Links und Langzeitverfügbarkeit prüfen; kein Partner ist bisher integriert |
-| 2 | Concierge-Paket / persönliche Auswertung | Beratung für Überwinterer oder Remote Worker: 3–5 Ziele, relevante Monatsverteilung und individuelle Erläuterung | Pilot 49–99 € einmalig | Schnell manuell testbar, aber begrenzte Skalierung. Keine Rechts-, Medizin- oder Steuerberatung |
-| 2 | Plus-Saisonplaner | Profile/Shortlist speichern, mehrere Wohnorte/Ziele vergleichen, Reiseplanung und Aktualisierungs-Hinweise | 29–49 €/Jahr oder Saisonpass; nicht sofort ein Monatsabo erzwingen | Mittel–hoch; braucht Konten, Datenschutz, echten wiederkehrenden Nutzen und Kündigungsprozesse |
-| 3 | B2B-Widget / API | Reiseveranstalter, Relocation-Berater oder Langzeitvermieter zeigen passende Reisezeiten und Klimavergleiche | Pilot ab 99 €/Monat, Preis nach Volumen und Supportaufwand testen | Hoch; Authentifizierung, Rate-Limits, SLA, Dokumentation und kommerzielle Datenlizenzen nötig |
-| 3 | Sponsoring von Ratgeberseiten | Ein Sponsor unterstützt z. B. den Guide „Winter in Südeuropa“ | Individuell verhandelter Festpreis | Mittel; deutlich „Anzeige“, redaktioneller Inhalt und Ranking unabhängig |
-| Später | Aggregierte B2B-Nachfrageberichte | Nur ausreichend große, anonymisierte Gruppen: Interesse an Regionen und Monaten | Individuell validieren, zunächst kein Preisversprechen | Hohe Datenschutz- und Reidentifikationsrisiken; keine Wohnorte oder individuellen Suchprofile verkaufen |
+## 1. Unterkunftsvermittlung ohne eigenes Inventar
 
-## Platzierung auf der Homepage
+### Ein Programm, nicht zehn Integrationen
 
-1. **Kostenlos:** Karte, Regler, Wohnortsuche, transparentes Ranking und mehrere Klimadetails ohne Login.
-2. **Nach einem erfolgreichen Ergebnis:** dezenter Button „Meinen Saisonplan als PDF erhalten – 12 €“. Vor Kauf eine echte Beispielseite und konkrete Inhaltsliste zeigen. Erst einbauen, wenn Report und Zahlung existieren; keine funktionslosen Kaufbuttons.
-3. **Unter den Zieldetails:** „Unterkünfte für November–März in Málaga ansehen · Werbung/Affiliate-Link“. Reisemonate aus der Planung übernehmen, aber persönliche Wohnort-/Wunschprofildaten nicht an Partner weitergeben.
-4. **Im Footer:** „Für Reiseanbieter: Klima-Widget anfragen“. Kontaktweg nur veröffentlichen, wenn ein tatsächliches Postfach oder Formular betreut wird.
-5. Keine Werbebanner über der Karte, keine Paywall auf Quellen/Unsicherheiten und kein kostenpflichtiges „besseres“ Klimaranking.
+Als **Prüfkandidaten**, nicht als bestätigte Partnerschaften: Unterkunftsprogramme rund um
+Booking.com oder Expedia/FeWo-direkt sowie passende Reiseprogramme in Affiliate-Netzwerken
+wie Awin oder Travelpayouts. Beim jeweiligen offiziellen Programm prüfen, ob es für Betreiber,
+Region und Website offen ist und ob die gewünschte Verlinkung zugelassen ist. Ein Netzwerk
+spart Einzelverhandlungen, garantiert aber weder Aufnahme noch Zugang zu jedem Anbieter.
 
-## Vertrauen als Produktmerkmal
+Auswahlkriterien, in dieser Reihenfolge:
 
-- Provisionen dürfen die Reihenfolge des Klimarankings **niemals** beeinflussen. Bezahlte Partner separat anzeigen, nicht als vermeintlich beste Klimaorte.
-- Die jetzt verfügbaren 2030/2050-Näherungen nicht als exakte lokale Zukunfts-Wohlfühltage verkaufen; ihre Feuchte-, Sonnen- und Variabilitätsannahmen immer mitliefern. Modellstreuung, Szenario und Datenlücken gehören auch in einen kostenpflichtigen Report.
-- Konten und Marketing-E-Mails freiwillig; keine Kopplung der kostenlosen Suche an Newsletter-Einwilligung.
-- Affiliate-Tracking, Analytics und andere nicht notwendige Technologien vor Einsatz rechtlich prüfen und erforderliche Einwilligung einholen. Auch ohne Cookie ist Tracking nicht automatisch unproblematisch.
-- Vor Zahlungen: Impressum, Datenschutz, Preise inkl. Steuern, Widerruf/Regeln für digitale Inhalte, Rechnungen und Kündigung bei Abos juristisch prüfen.
-- Bezahlen lassen wir für Aufbereitung, Planung und Komfort, nicht für die Behauptung exklusiver Rechte an offenen Klimadaten. Daten-, Karten- und Ortslizenzen gesondert prüfen.
+1. **Echte Eignung für Winterquartiere:** Gibt es möblierte Unterkünfte für 4–12 Wochen
+   bzw. den gewünschten Aufenthalt? Sind z. B. Málaga, Algarve und Sizilien abgedeckt?
+   Ein normales Hotelprogramm ist nicht automatisch ein Langzeitwohnungsprogramm.
+2. Freigegebene Ziel-/Suchlinks statt einer API-Integration; Reiseanbieter betreibt
+   Suche, Inventar und Checkout. Keine Preise oder Verfügbarkeiten selbst pflegen.
+3. Klare Provision, Zuordnung/Attributionsfenster, Stornoregeln, Auszahlungsgrenze und
+   Zahlungsverzug. Entscheidend ist **bestätigte/ausgezahlte**, nicht vorgemerkte Provision.
+4. Datenschutz, Tracking, erlaubte Traffic-Quellen und Deep-Link-Regeln; insbesondere
+   bezahlte Suchanzeigen und Marken-Keywords ausdrücklich prüfen.
+5. Möglichst ein Dashboard und ein Vertrag. Erst bei nachweisbaren Lücken einen zweiten
+   Partner ergänzen; keine Vielzahl von Feeds, Skripten oder Konten aufbauen.
 
-## 90-Tage-Testplan
+### Nutzerführung in dieser App
 
-### Tage 1–30: Zahlungsbereitschaft statt Feature-Ballast
+- In den **Details eines gewählten Ziels**, vor allem nach erfolgreicher Winterquartiersuche:
+  **„Unterkünfte in Málaga ansehen · Werbung / Affiliate-Link“**.
+- Direkt dabei: „Bei einer Buchung können wir eine Provision erhalten. Das Klimaranking
+  bleibt unabhängig. Preise und Verfügbarkeit beim Anbieter prüfen.“ Keine unbelegte
+  Zusage „gleicher Preis“ oder „beste/günstigste Unterkunft“.
+- **Keine automatische Weiterleitung**, keine Overlay-Anzeige auf der Karte. Nur ein
+  bewusst angeklickter Link; Zielanbieter vorher erkennbar. Kein Login in der Klima-App.
+- Die App kennt eine Saison, aber nicht zwingend ein konkretes Reisejahr oder
+  Buchungsdaten. Zunächst nur den **Zielort** übergeben. Optional später An-/Abreise und
+  Gästezahl ausdrücklich bestätigen lassen. Oktober–April nicht stillschweigend in
+  Buchungsdaten umwandeln; Aufenthaltslimits des Partners beachten.
+- Unterstützt der Partner die lange Aufenthaltsdauer nicht, offen darauf hinweisen und
+  die Suche beim Anbieter anbieten. Keine 7-Nächte-Suche als verfügbares Winterquartier ausgeben.
+- Ausschließlich freigegebene Parameter (Ziel, ggf. bestätigte Reisedaten, eigene Partnerkennung)
+  übertragen. **Nie Wohnort, vollständiges Klimaprofil oder persönliche Suchhistorie**.
+- Keine Unterkunfts- oder Preislisten scrapen. Keine Provision durch bloße Verlinkung
+  behaupten: Ohne freigeschaltetes Programm und korrekten Affiliate-Link gibt es keinen
+  eingerichteten Provisionsfluss.
 
-- 10–15 Gespräche mit Überwinterern, Ruheständlern und Remote Workern; Wohnort-/Saisonablauf testen.
-- Ein Beispielreport mit Quellen und drei Zielen erstellen. Optional eine transparente Interessentenliste ohne Zahlungsversprechen.
-- Kleinen bezahlten Pilot manuell liefern; Preisvarianten 9/12/19 € in vergleichbaren Gruppen testen.
-- Messen: Suchstart → gültiger Wohnort → Ergebnis → Report-Interesse → bezahlter, tatsächlich gelieferter Report. Kennzahlen datensparsam erheben.
+### Kleine technische Umsetzung nach Programmfreigabe
 
-### Tage 31–60: Report automatisieren und Affiliate testen
+Ein serverseitig konfigurierter Link-Adapter reicht: `enabled`, Anbietername, erlaubter
+HTTPS-Host, echte Partnerkennung und dokumentierte Orts-/Datumsparameter. Partner-URL nach
+dessen Vorgaben erzeugen (manche Programme erlauben nur unveränderte/signierte Links).
+Keine frei wählbare Weiterleitungs-URL aus Besuchereingaben und keine API-Geheimnisse im
+Browser. Bei fehlender/ungültiger Konfiguration den Affiliate-CTA vollständig verbergen.
 
-- Nur bei tatsächlichen Käufen PDF-Erstellung und Zahlung automatisieren. Kaufbestätigung erst serverseitig nach validiertem Zahlungsanbieter-Webhook; signierter Download-Link, keine Zahlungsdaten im eigenen Server.
-- Ein freigegebenes Unterkunftsprogramm integrieren. Klicks nicht als Buchungen ausgeben; Stornos und tatsächlich ausgezahlte Provisionen berücksichtigen.
-- Zielgrößen vorab festlegen: z. B. 10 gelieferte Pilot-Reports, durchschnittlich weniger als 15 Minuten Support pro Report, positive Deckungsbeiträge. Das sind Testziele, keine erwarteten Ergebnisse.
+Zunächst direkte Links mit `rel="sponsored nofollow noopener noreferrer"`, keine Pixel,
+keine eingebetteten Partnerwidgets und kein eigener Redirect-/Trackingdienst. Das ist
+technisch einfacher, aber **keine automatische Einwilligungs- oder Datenschutzbefreiung**.
+Programmkonformität und Rechtsgrundlage einschließlich Attribution/Referrer prüfen.
 
-### Tage 61–90: B2B-Pilot oder Saisonpass
+## 2. Werbung automatisch verkaufen, nicht selbst akquirieren
 
-- Drei Reise-/Relocation-Anbieter ansprechen; einen bezahlten Widget-Pilot statt einer großen API-Plattform liefern.
-- Wiederkehrende Nutzung beobachten. Nur bei klarer Wiederkehr einen Saisonpass/Jahresplan testen; bei Einmalbedarf beim Report bleiben.
-- Schlechte Angebote einstellen. Erfolg heißt Zahlungen und zufriedene Nutzer, nicht Newsletter-Adressen oder Klicks allein.
+Ein Publisher-Netzwerk kann die Nachfrage beschaffen. Ein unaufdringlicher Platz **unter
+Ergebnissen oder einem Ratgeber**, nicht vor Suchstart und nicht über der Karte, genügt
+für den ersten Test. Auf Mobilgeräten Platz reservieren, damit nichts springt.
 
-## Beispielrechnung, ausdrücklich hypothetisch
+Voraussetzungen: Publisher- und Website-Freigabe, echte IDs, erforderliche Betreiber- und
+Datenschutzangaben, geeignete Consent-Lösung gemäß Anbieter und Rechtslage, ggf. ads.txt.
+Ablehnen und Widerrufen testen; die Klimasuche muss ohne Werbeeinwilligung funktionieren.
+Nicht personalisierte Anzeigen sind kein pauschaler Ausweg aus diesen Anforderungen.
 
-Bei **10.000 Besuchen/Monat** und einer Report-Kaufrate von **1 % aller Besuche** entstehen 100 Käufe × 12 € = **1.200 € Brutto-Kundenzahlungen**. Bei 0,2 % wären es nur 240 €. Das ist keine Umsatzprognose und noch kein Gewinn: Umsatzsteuer, Zahlungsgebühren, Rückerstattungen, Infrastruktur, Datenaufbereitung, Support und Akquisekosten abziehen.
+**Der vorhandene `/api/ads`-Platz ist kein Werbenetzwerk.** Er zeigt nur selbst konfigurierte
+Sponsor-Kampagnen; er sucht keine zahlenden Werbekunden. Er bleibt standardmäßig aus und
+ist lediglich für spätere eingehende Sponsorenanfragen nützlich. Eine Netzwerk-Anzeige
+braucht eine separate Integration; keine fremden Skripte in die Kampagnen-JSON schreiben.
+Technische Details: [werbung-und-wachstum.md](werbung-und-wachstum.md).
 
-Affiliate und B2B erst mit realen Vertragswerten ergänzen. Nicht doppelt zählen: Besucher, Ergebnisnutzer, Partnerklicks und abgeschlossene Buchungen sind unterschiedliche Nenner.
+## 3. Reichweite: wenige gute Einstiegsseiten statt täglicher Produktion
 
-**Nächster sinnvoller Schritt:** Wohnort-Suche veröffentlichen, einen Beispielreport erstellen und zehn bezahlte Pilotkunden gewinnen. Danach entscheiden, ob Automatisierung oder B2B den höheren Nutzen bringt.
+Als überschaubares Startpaket drei dauerhafte, indexierbare Hilfeseiten:
+
+- „Überwintern in Europa: milde Orte im Vergleich“
+- „Winterquartier nach deinem Wohlfühlklima finden“
+- „Im Sommer der Hitze entfliehen“
+
+Jeweils eine echte Beispielsuche, Methodik, Datenstand, Grenzen und einen klaren Einstieg
+in die App anbieten. Keine tausenden austauschbaren KI-Stadtseiten, keine tägliche
+Social-Media-Pflicht, kein Aufbau einer manuell gepflegten Unterkunftsliste. Die vorhandenen
+teilbaren Ergebnisse nutzen. Suchreichweite braucht Zeit und ist nicht garantiert.
+
+## 4. Erst Ertrag messen, dann eventuell Traffic einkaufen
+
+**Illustration mit frei angenommenen Werten:**
+
+| Schritt pro Monat | Annahme / Rechnung |
+| --- | --- |
+| Besuche | 10.000 |
+| Unterkunftsklicks | 12 % der Besuche = 1.200 |
+| Zugeordnete Buchungen | 1,5 % der Partnerklicks = 18 |
+| Durchschnittliche Provision | 35 € vor Stornokorrektur |
+| Bestätigter Anteil nach Stornos | 80 % |
+| Affiliate-Ertrag | 10.000 × 0,12 × 0,015 × 35 € × 0,8 = **504 €** |
+| Display, separat | 20.000 Seitenaufrufe × angenommene 3 € Seiten-RPM / 1.000 = **60 €** |
+| Zusammen | **564 € vor Betrieb, Steuern und eigener Arbeit** |
+
+Das sind keine erwartbaren Ergebnisse. Bei nur 3 % Unterkunftsklicks und 0,5 % Buchungen
+wären es bei sonst gleichen Annahmen nur **42 € Affiliate-Ertrag**. Programmquoten,
+Stornos, Auszahlungsverzug, Consent und Adblocker können das Ergebnis stark verändern.
+
+Im ersten Beispiel: 564 € / 10.000 Besuche = **0,0564 € Erlös je Besuch**. Schon ein
+angenommener Einkaufspreis von 0,30 € pro Anzeigenklick wäre unrentabel. Die eigene Zeit,
+Hosting, CMP und sonstige Kosten senken die tragbare Grenze weiter. Gekaufte Besucher
+können sich anders verhalten als organische; diese Erträge nicht ungeprüft übertragen.
+
+**Regel:** Keine laufenden Such-/Social-Anzeigen, bevor für diese Zielgruppe belastbare,
+nach Stornos bestätigte Erträge vorliegen. Danach höchstens ein ausdrücklich freigegebenes
+Testbudget (z. B. 100 € Gesamtkappe, ein Kanal, kein Retargeting). Suchbegriffe mit
+Quartierabsicht statt „Wetter morgen“. Pausieren, wenn der Preis pro qualifiziertem Besuch
+über dem gemessenen Erlös abzüglich Kosten und Sicherheitspuffer liegt. Nicht auf
+Buchungsklicks als angebliche Käufe optimieren. Es wurde kein Budget ausgegeben.
+
+## 5. Schlanker Start- und Betriebsplan
+
+### Einrichtung (einmalig, Freigabezeiten sind nicht planbar)
+
+1. Betreiberangaben, Datenschutz, Werbekennzeichnung sowie kommerzielle Daten-/Kartenrechte
+   prüfen. Standard-OSM hat Nutzungsregeln und keine garantierte Lieferfähigkeit; bei
+   wachsendem Traffic einen geeigneten Kartentarif mitkalkulieren.
+2. Ein Affiliate-Programm anhand obiger Kriterien beantragen. Bis zur Aufnahme keine
+   vermeintlichen Buchungsangebote oder Platzhalter-Partnerlinks veröffentlichen.
+3. Nach Freigabe einen Ziel-CTA integrieren und mit fünf Orten testen: Mobil/Desktop,
+   Sonderzeichen, richtige Destination, langer Aufenthalt und Jahreswechsel. Nur gemäß
+   Programmbedingungen testen; keine provisionspflichtigen Eigenbuchungen erzeugen.
+4. Drei hilfreiche Einstiegsseiten veröffentlichen. Automatische Link-Checks nur im
+   Rahmen der Programmregeln; keine Bots durch Affiliate-Trackinglinks schicken, die
+   dadurch Klicks vortäuschen. Ein zentraler Abschalter muss Links sofort verbergen können.
+5. Nach einem ausreichend langen Zuordnungs-/Stornozeitraum Ertrag prüfen. Displaywerbung
+   nur ergänzen, wenn erwarteter Mehrertrag die Consent-/Technik-/Betreuungskosten deckt.
+
+### Wiederkehrend (Ziel: 30–60 Minuten monatlich, keine Garantie)
+
+- Partner-Dashboard: Klicks, vorgemerkte **und bestätigte** Provisionen, Auszahlungen,
+  Stornos, Warnungen. Drei bis fünf Ziel-Links stichprobenartig prüfen.
+- Einnahmen minus Hosting/CMP/sonstige Kosten protokollieren. Nach Einrichtung
+  Betreuungszeit mitschreiben; unrentable Kanäle oder solche mit zu viel Aufwand abschalten.
+- Freigabe-/Richtlinienänderungen und Ausfälle erfordern zeitnahe Reaktion, nicht erst
+  am Monatsende. Inhalte mindestens vor der Wintersaison auf Aktualität prüfen.
+
+**Messgrenze des jetzigen Codes:** `/analytics` zählt Seitenaufrufe als Tages-Summen,
+nicht eindeutige Besucher, Suchabschlüsse, Affiliate-Klicks oder Buchungen. Die obige
+Besuchs-Funnelrechnung lässt sich damit **noch nicht** vollständig belegen. Anfangs
+Partner-Dashboard plus Seitenaufrufe getrennt auswerten, niemals Seitenaufrufe als
+Besucher ausgeben. Kampagnenkennungen nur grob, ohne Wohnort/Profil; zusätzliche
+Conversion-Messung erst mit überprüfter Rechtsgrundlage und nötiger Einwilligung.
+
+## Nicht umgesetzt / nächster Entscheidungspunkt
+
+Keine Affiliate-Anmeldung, Publisher-Konten, Werbetags, CMP, Weiterleitungslinks,
+Zahlungsintegration oder Akquisekampagnen wurden aktiviert. Der vorhandene Sponsorplatz
+bleibt unverändert aus. **Nächster Schritt ist die Auswahl und Freigabe eines einzigen
+langzeitgeeigneten Unterkunftsprogramms; erst dann dessen dokumentierten Link-Adapter bauen.**

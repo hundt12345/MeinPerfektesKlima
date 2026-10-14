@@ -23,7 +23,7 @@ const markerClicks = [];
 function chain(extra = {}) {
   const layer = {
     addTo: () => layer, setUrl: () => layer, setBounds: () => layer, remove: () => layer,
-    clearLayers: () => layer, addLayer: (l) => layer, addOverlay: () => layer, setStyle: () => layer,
+    clearLayers: () => layer, addLayer: (l) => layer, addOverlay: () => layer, setStyle: () => layer, setOpacity: () => layer,
     on: (evt, fn) => { (layer._h ||= {})[evt] = fn; return layer; },
     bindTooltip: () => layer, setLatLng: () => layer, ...extra,
   };
@@ -39,6 +39,9 @@ function makeLeafletStub() {
     getContainer: () => ({ append: () => {}, style: {}, clientWidth: 1100 }),
     flyTo: () => mapObject,
     getZoom: () => 5,
+    hasLayer: () => true,
+    getSize: () => ({ x: 1100, y: 700 }),
+    latLngToContainerPoint: ([lat, lon]) => ({ x: (lon + 25) * 15, y: (72 - lat) * 18 }),
     setZoom: () => mapObject,
     addLayer: () => mapObject,
     removeLayer: () => mapObject,
@@ -135,12 +138,15 @@ ok(!doc.querySelector("#city-data").open, "Große Städtetabelle standardmäßig
 ok(handlers.click && handlers.click.length > 0, "Kartenklick-Handler registriert");
 
 console.log("\nOSM-Grundkarte und Klimadaten:");
-ok(calls.tileLayer === 2 && calls.tileUrls.some(layer => layer.url.includes("light_nolabels"))
-  && calls.tileUrls.some(layer => layer.url.includes("light_only_labels") && layer.pane === "osmLabels"),
-  "OSM-Grundkarte und transparente Beschriftungsebene sind getrennt");
-ok(calls.mapOptions && calls.mapOptions.maxZoom >= 18 && calls.tileAttribution.includes("OpenStreetMap")
-  && calls.tileAttribution.includes("CARTO"),
-  "hoher Zoom sowie OSM- und CARTO-Attribution konfiguriert");
+ok(calls.tileLayer === 1 && calls.tileUrls[0].url === "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+  "Standard-OSM ohne API-Key und ohne externen Beschriftungs-Kacheldienst");
+ok(calls.mapOptions && calls.mapOptions.maxZoom === 19 && calls.tileAttribution.includes("OpenStreetMap")
+  && !calls.tileAttribution.includes("CARTO"),
+  "Straßenzoom und korrekte OSM-Attribution konfiguriert");
+ok(doc.querySelector("#climate-opacity").value === "55", "Klimafläche startet mit 55 % Deckkraft");
+doc.querySelector("#climate-opacity").value = "30";
+doc.querySelector("#climate-opacity").dispatchEvent(new window.Event("input", { bubbles: true }));
+ok(doc.querySelector("#climate-opacity-value").textContent === "30 %", "Deckkraftregler aktualisiert Ausgabe");
 ok(calls.layers >= 1, "Layer-Steuerung für Grundkarte/Klimadaten eingebunden");
 ok(calls.geoJSON >= 1, `Ländergrenzen als zusätzliche Vektorebene (${calls.geoJSON})`);
 ok(calls.overlay >= 1, `Daten-Overlay eingebunden (${calls.overlay})`);
@@ -424,6 +430,12 @@ window.fetch = originalFetch;
 doc.querySelector("#mode-year").click();
 await new Promise(r => setTimeout(r, 400));
 ok(doc.querySelector("#sponsor-slot").hidden, "ohne konfigurierte Kampagne bleibt der Werbeplatz verborgen");
+
+ok(doc.querySelector("#climate-opacity").value === "30", "Modus-/Zeitraumwechsel behalten die Deckkraft bei");
+doc.querySelector("#btn-reset").click();
+await new Promise(r => setTimeout(r, 400));
+ok(doc.querySelector("#climate-opacity").value === "55"
+  && doc.querySelector("#climate-opacity-value").textContent === "55 %", "Zurücksetzen stellt 55 % Deckkraft wieder her");
 
 console.log(failures.length ? `\n${failures.length} Fehler` : "\nAlle Prüfungen bestanden");
 process.exit(failures.length ? 1 : 0);

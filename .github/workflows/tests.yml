@@ -45,6 +45,9 @@ jobs:
       - name: Abhängigkeiten
         run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
 
+      - name: OSM und Beschriftungen (echtes Leaflet, offline)
+        run: npm run test:map
+
       # Selbstversorgt (keine laufende App nötig): prüft die Statusseite mit
       # Balken, die erscheint, solange keine geprüften Klimadaten vorliegen.
       - name: Statusseite (jsdom)

@@ -105,7 +105,8 @@ Die kleine abgeleitete Datei `app/data/projections.json` wird mit ausgeliefert;
 fehlende/ungültige oder nicht zur ERA5-Basis passende Manifeste deaktivieren Zukunftsoptionen.
 
 **Monetarisierung und Werbung:** [docs/monetarisierung.md](docs/monetarisierung.md) beschreibt
-Report- und Partnerangebote; [docs/werbung-und-wachstum.md](docs/werbung-und-wachstum.md)
+den priorisierten Affiliate-Start ohne laufende Akquise, Werbenetzwerke und Kostenregeln
+für bezahlten Traffic; [docs/werbung-und-wachstum.md](docs/werbung-und-wachstum.md)
 beurteilt Reichweitenkampagnen, dynamische Sponsoranzeigen und Voraussetzungen für AdSense.
 Ein kontextueller First-Party-Werbeplatz ist implementiert, standardmäßig ausgeschaltet und
 ohne Cookies/Ad-Tracking. Aktivierung erfolgt nur über geprüfte Betreiber-Kampagnen in
@@ -309,8 +310,13 @@ werden OSM-Kacheln direkt im Browser nachgeladen:
 * **Farbflächen, Verläufe, Symbole** sind reines CSS (inkl. Logo und Suchlupe) –
   keine Bilddateien, keine zusätzlichen Anfragen.
 * **Kartendetails:** OpenStreetMap liefert Straßen und Ortsnamen bis in hohe Zoomstufen;
-  die Ebenensteuerung kann die Klimafläche ausblenden. Die Leaflet-Attribution nennt die
-  OSM-Mitwirkenden. Das durchscheinende Klimaraster zeigt weiterhin nur die Datenauflösung 0,75°.
+  direkte Standard-OSM-Karte braucht keinen API-Key und ersetzt die CARTO-Kachelebenen.
+  Zusätzliche GeoNames-Ortsnamen liegen kontrastreich und kollisionsgeprüft **über** dem
+  Klimaraster, unabhängig von den Klimapunkten. Deckkraftregler (0–90 %, Start 55 %) und
+  Ebenensteuerung machen Straßen/Orte lesbar; bei 0 % bzw. ausgeblendeter Klimafläche
+  bleiben nur die Original-OSM-Beschriftungen. Attribution: OSM und GeoNames.
+  Der Straßenzoom erhöht **nicht** die Datenauflösung des 0,75°-Klimarasters.
+  Hintergründe und Prüfschritte: [docs/karte.md](docs/karte.md).
 * **Farbskala der Karte:** `COLOR_STOPS` in `app/climate.py` ist die eine Quelle für
   Karte, Legende (`/api/meta`) und Städtepunkte; die Stützstellen sind so gewählt,
   dass die Stufen auf dunklem Grund klar getrennt wirken.

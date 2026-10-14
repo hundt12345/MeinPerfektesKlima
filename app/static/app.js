@@ -1,9 +1,9 @@
 /* Mein perfektes Klima – Europa
    Karte + Bedienung (Vanilla JS, Leaflet).
 
-   CARTO liefert OSM-basierte Basiskacheln; transparente Kartenbeschriftungen
-   liegen separat über dem Klimaraster. Klima und GeoNames-Marker kommen aus
-   der eigenen API. Die sichtbare Attribution nennt OSM und CARTO.
+   Die Standard-OSM-Karte benötigt keinen API-Key. Zusätzliche Ortsnamen liegen
+   über dem Klimaraster und stammen wie die Klimapunkte aus der eigenen API
+   (GeoNames). Keine zweite externe Kachelquelle für Beschriftungen.
 */
 "use strict";
 
@@ -25,10 +25,11 @@ let META = null;             // /api/meta
 let WQ_BOUNDS = {};          // META.winterquarters (Sommerfenster, Saisonlänge)
 let GRID = null;             // letzte /api/map-Antwort
 let map = null, overlay = null, borderLayer = null;
-let osmLayer = null, osmLabelLayer = null, layerControl = null;
+let osmLayer = null, placeLabelLayer = null, layerControl = null;
 let cityLayer = null, cityData = [], markerIndex = new Map();
 let wqLayer = null;          // Wohnort + vorgeschlagene Ziele auf der Karte
-const CLIMATE_OVERLAY_OPACITY = 0.78;
+const CLIMATE_OVERLAY_OPACITY = 0.55;
+let climateOpacity = CLIMATE_OVERLAY_OPACITY;
 // Ab dieser Zoomstufe zeigt die OSM-Karte genauere Grenzen als unsere Linien.
 const BORDER_MAX_ZOOM = 9;
 let hoverTip = null, marker = null;
@@ -481,26 +482,25 @@ function initMap() {
     maxBoundsViscosity: 0.7,
   }).setView([52.5, 11], 4);
 
-  // Die Kartenbeschriftungen liegen in einer eigenen transparenten Kachelebene.
-  // So bleiben Orts- und Straßennamen immer über der halbtransparenten Klimafläche
-  // statt im Wetter-Layer zu verschwinden. Beide CARTO-Stile basieren auf OSM.
+  // Standard-OSM wie vor der CARTO-Umstellung: kein Konto, Token oder Key.
+  // Nur sichtbare Kacheln laden; Browser-Caching/Referer nicht unterdrücken.
   const borderPane = map.createPane("borders"); borderPane.style.zIndex = 450;
-  map.createPane("osmLabels").style.zIndex = 500;
+  const labelPane = map.createPane("placeLabels");
+  labelPane.style.zIndex = 500;
+  labelPane.style.pointerEvents = "none"; // Klick, Ziehen und Hover gehen zur Karte
   map.createPane("cities").style.zIndex = 550;
-  const osmAttribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap-Mitwirkende</a>'
-    + ' &copy; <a href="https://carto.com/attributions">CARTO</a>';
-  osmLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png", {
-    maxZoom: 19, attribution: osmAttribution,
+  osmLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap-Mitwirkende</a>',
     updateWhenIdle: true, keepBuffer: 2,
   }).addTo(map);
-  osmLabelLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png", {
-    pane: "osmLabels", maxZoom: 19, attribution: osmAttribution,
-    updateWhenIdle: true, keepBuffer: 2,
+  placeLabelLayer = L.layerGroup([], {
+    attribution: 'Orte: <a href="https://www.geonames.org/">GeoNames</a>',
   }).addTo(map);
   layerControl = L.control.layers({ "OpenStreetMap": osmLayer }, {}, {
     collapsed: true, position: "topleft",
   }).addTo(map);
-  layerControl.addOverlay(osmLabelLayer, "OSM-Beschriftungen");
+  layerControl.addOverlay(placeLabelLayer, "Ortsnamen über Klimadaten");
 
   // Nur Landgrenzen als Linien (Küsten zeigt die Grundkarte). Früher kamen hier
   // Länderflächen, deren Schnittkanten am Kartenrand als gerade Striche auftauchten.
@@ -527,9 +527,14 @@ function initMap() {
     else map.addLayer(borderLayer);
   });
   map.on("moveend zoomend", () => {
+    paintPlaceLabels();
     const w = currentWidth();
     if (overlay && GRID && GRID.width && Math.abs(w - GRID.width) > 160) refresh();
   });
+  map.on("overlayadd overlayremove", (event) => {
+    if (event.layer === overlay) paintPlaceLabels();
+  });
+  map.on("resize", paintPlaceLabels);
   window.addEventListener("resize", () => { if (overlay && GRID) overlay.setBounds(bounds()); });
 }
 
@@ -542,7 +547,7 @@ function updateOverlay() {
   const url = "/api/map.png?" + queryString();
   if (!overlay) {
     overlay = L.imageOverlay(url, bounds(), {
-      opacity: CLIMATE_OVERLAY_OPACITY, interactive: false,
+      opacity: climateOpacity, interactive: false,
       className: "klima-overlay", pane: "overlayPane",
     }).addTo(map);
     if (layerControl) layerControl.addOverlay(overlay, "Klimadaten");
@@ -551,6 +556,7 @@ function updateOverlay() {
     overlay.setBounds(bounds());
   }
   fadeOverlayIn();
+  paintPlaceLabels();
 }
 
 /** Neues Kartenbild weich einblenden, sobald es geladen ist.
@@ -562,13 +568,53 @@ function fadeOverlayIn() {
   const img = overlay.getElement();
   if (!img || !img.style) return;
   img.style.opacity = "0";
-  const opacity = overlay.options && Number.isFinite(Number(overlay.options.opacity))
-    ? Number(overlay.options.opacity) : 1;
   let shown = false;
-  const show = () => { if (shown) return; shown = true; img.style.opacity = String(opacity); };
+  // Deckkraft erst beim Einblenden lesen: ein laufender Bildabruf darf eine
+  // zwischenzeitliche Regleränderung nicht mit dem alten Wert überschreiben.
+  const show = () => { if (shown) return; shown = true; img.style.opacity = String(climateOpacity); };
   img.addEventListener("load", show, { once: true });
   if (img.complete) requestAnimationFrame(show);
   setTimeout(show, 1500);
+}
+
+/** Nur Darstellung ändern, keine neue Klimaberechnung/PNG-Anfrage. */
+function setClimateOpacity(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return;
+  climateOpacity = Math.max(0, Math.min(0.9, number));
+  $("#climate-opacity").value = Math.round(climateOpacity * 100);
+  $("#climate-opacity-value").textContent = `${Math.round(climateOpacity * 100)} %`;
+  if (overlay) overlay.setOpacity(climateOpacity);
+  paintPlaceLabels();
+}
+
+/** Lokale, kontrastreiche Ortsnamen statt eines externen Labels-Tilediensts.
+ *  OSM enthält weiterhin die vollständigen Orts-/Straßennamen. Diese ergänzende
+ *  Ebene hält große Orte bei kräftiger Klimafarbe lesbar. Größere Städte zuerst;
+ *  Bildschirmrechtecke verhindern Kollisionen auch nach Zoom und Verschieben. */
+function paintPlaceLabels() {
+  if (!placeLabelLayer || !map) return;
+  placeLabelLayer.clearLayers();
+  // Ohne Klimafläche reichen die Originalbeschriftungen der OSM-Karte.
+  if (!overlay || !map.hasLayer(overlay) || climateOpacity === 0) return;
+  const size = map.getSize();
+  const boxes = [];
+  for (const city of [...cityData].sort((a, b) => b.pop - a.pop)) {
+    if (city.pop < cityZoomLimit()) continue;
+    const point = map.latLngToContainerPoint([city.lat, city.lon]);
+    const width = Math.min(180, 18 + [...city.name].length * 7);
+    const box = { x: point.x + 8, y: point.y - 11, width, height: 22 };
+    if (box.x < 0 || box.y < 0 || box.x + width > size.x || box.y + box.height > size.y) continue;
+    if (boxes.some(b => box.x < b.x + b.width + 6 && box.x + width + 6 > b.x
+        && box.y < b.y + b.height + 6 && box.y + box.height + 6 > b.y)) continue;
+    boxes.push(box);
+    placeLabelLayer.addLayer(L.marker([city.lat, city.lon], {
+      pane: "placeLabels", interactive: false, keyboard: false,
+      icon: L.divIcon({ className: "city-label", html: `<span>${escapeHtml(city.name)}</span>`,
+        iconSize: [width, 22], iconAnchor: [-8, 11] }),
+    }));
+    if (boxes.length >= 80) break;
+  }
 }
 
 /* ------------------------------------------------------------- Städtemarker */
@@ -587,7 +633,12 @@ async function loadCities() {
     const data = await getJSON("/api/cities/map?" + q);
     cityData = data.cities || [];
     paintCities();
-  } catch { cityData = []; }
+    paintPlaceLabels();
+  } catch {
+    cityData = [];
+    paintCities();
+    paintPlaceLabels();
+  }
 }
 
 function paintCities() {
@@ -596,7 +647,6 @@ function paintCities() {
   if (!state.showCities || !cityData.length) return;
   const vmax = Math.max(1, (GRID && GRID.vmax) || 1);
   const limit = cityZoomLimit();
-  const zoom = map.getZoom();
   const unit = monthUnit();
   let added = 0;
   for (const c of cityData) {
@@ -617,15 +667,6 @@ function paintCities() {
       + `<span class="sub">${escapeHtml(c.name)}${c.country ? ` · ${escapeHtml(c.country)}` : ""}</span>`,
       { direction: "top", offset: [0, -4], className: "klima city-tip", opacity: 1 });
     cityLayer.addLayer(dot);
-
-    // Dauerhafte Beschriftung nur für große Orte (sonst wird die Karte unleserlich)
-    const wantLabel = c.pop > 2_000_000 || (zoom >= 5 && c.pop > 900_000) || (zoom >= 6 && c.pop > 300_000);
-    if (wantLabel) {
-      cityLayer.addLayer(L.marker([c.lat, c.lon], {
-        pane: "cities", interactive: false, keyboard: false,
-        icon: L.divIcon({ className: "city-label", html: `<span>${escapeHtml(c.name)}</span>`, iconSize: null }),
-      }));
-    }
   }
 }
 
@@ -1775,7 +1816,10 @@ async function boot() {
   $("#fixed-scale").checked = state.fixedScale;
   $("#fixed-scale").addEventListener("change", (e) => { state.fixedScale = e.target.checked; refresh(true); });
   $("#show-cities").addEventListener("change", (e) => { state.showCities = e.target.checked; paintCities(); });
+  $("#climate-opacity").addEventListener("input", (e) => setClimateOpacity(Number(e.target.value) / 100));
+  setClimateOpacity(climateOpacity);
   $("#btn-reset").addEventListener("click", () => {
+    setClimateOpacity(CLIMATE_OVERLAY_OPACITY);
     state.params = { ...META.defaults };
     state.period = META.default_period || "all";
     lastScenario = "ssp245";

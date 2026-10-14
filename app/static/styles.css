@@ -320,12 +320,17 @@ details.more p { color: var(--muted); line-height: 1.5; margin: .5rem 0 0; }
 
 .klima-overlay { transition: opacity .3s; }
 
-.city-label { background: transparent; border: 0; }
+.map-opacity { margin: .7rem 0; }
+.map-opacity label { display: flex; justify-content: space-between; gap: .5rem; font-size: .85rem; }
+.map-opacity output { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.map-opacity input { width: 100%; height: 28px; margin: .3rem 0 0; accent-color: var(--accent); }
+.city-label { background: transparent; border: 0; pointer-events: none; }
 .city-label span {
-  display: inline-block; transform: translate(8px, -9px);
-  color: #fff; font-size: .68rem; font-weight: 600;
-  padding: .05rem .35rem; border-radius: 6px; background: rgba(11, 18, 32, .72);
-  white-space: nowrap; pointer-events: none;
+  display: block; width: 100%; height: 22px; box-sizing: border-box;
+  color: #fff; font-size: 11px; line-height: 20px; font-weight: 600;
+  padding: 0 6px; border: 1px solid rgba(255, 255, 255, .8); border-radius: 5px;
+  background: rgba(11, 18, 32, .9);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
 }
 .city-marker { cursor: pointer; }
 .wq-pin { background: transparent; border: 0; }
