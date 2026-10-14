@@ -10,8 +10,8 @@ Drei Modi:
 1. **Ganzes Jahr** – „Wo ist es übers Jahr gerechnet am häufigsten genau so, wie ich es mag?“
 2. **Urlaubsmonat** – „Ich will im Juli Urlaub machen: Wo gibt es dann die meisten Tage mit
    meinem Wunschwetter?“ (Die Monatsauswahl erscheint nur in diesem Modus.)
-3. **Winterquartier** – „Welche zwei Orte passen gemeinsam zu meinem Traumwetter?“ Du legst ein
-   Sommerfenster fest; gesucht werden global der beste Sommer- und Winterort (siehe [unten](#der-winterquartier-modus)).
+3. **Winterquartier** – „Ich lebe in dieser Stadt – wohin kann ich im Winter oder Sommer ausweichen?“
+   Dein Wohnort bleibt fest, die App sucht ein passendes saisonales Reiseziel (siehe [unten](#der-winterquartier-modus)).
 
 Dazu:
 
@@ -66,40 +66,50 @@ Beide Varianten verwenden bereits gespeicherte Daten; es wird keine externe
 Klimaschnittstelle pro Klick aufgerufen. Der gesamte Datensatz umfasst nur zehn
 Jahre und ist **keine offizielle 30-jährige Klimanormalperiode**.
 
-**2030 und 2050 sind sichtbar, aber noch deaktiviert.** ERA5 ist eine historische
-Reanalyse und enthält keine Zukunft. Dafür braucht es ein ausgewiesenes Ensemble
-von Klimamodellen, ein Emissionsszenario (z. B. SSP2-4.5) sowie eine klar
-beschriebene Bezugsperiode und Bias-Korrektur. Bis ein solcher Datensatz
-verlässlich aufbereitet ist, zeigt die App dort bewusst keine geschätzten oder
-erfundenen Zahlen. Zukunftswerte sollten Modell- und Szenariounsicherheit
-sichtbar machen und sind nicht mit beobachteten ERA5-Jahren gleichzusetzen.
+**2030 und 2050 sind jetzt auswählbar – ausdrücklich als modellbasierte Näherungen.**
+31 CMIP6-Modelle aus dem regional aggregierten IPCC-Atlas liefern monatliche Temperaturänderungen
+und Niederschlagsfaktoren für SSP1-2.6, SSP2-4.5 und SSP5-8.5. Sie werden auf die historischen
+ERA5-Tage übertragen. 2030 = 2021–2040, 2050 = 2041–2060, Änderungsbasis = 2016–2025.
+Taupunkt wird bei angenommener konstanter relativer Feuchte geschätzt; Sonnenstunden und
+die Wetterabfolge bleiben unverändert. Es werden keine lokalen täglichen Zukunftsläufe oder
+neuen Extremverteilungen simuliert. Ortsdetails zeigen die regionale Modellstreuung, nicht
+Unsicherheitsintervalle der Wohlfühltage. Die Projektionen gelten für alle Auswertungen inkl. CSV.
+
+Quelle, Annahmen, Reproduktion, Lizenz und Datentor:
+[docs/klimaprojektionen.md](docs/klimaprojektionen.md).
+Die kleine abgeleitete Datei `app/data/projections.json` wird mit ausgeliefert;
+fehlende/ungültige oder nicht zur ERA5-Basis passende Manifeste deaktivieren Zukunftsoptionen.
+
+**Monetarisierung und Werbung:** [docs/monetarisierung.md](docs/monetarisierung.md) beschreibt
+Report- und Partnerangebote; [docs/werbung-und-wachstum.md](docs/werbung-und-wachstum.md)
+beurteilt Reichweitenkampagnen, dynamische Sponsoranzeigen und Voraussetzungen für AdSense.
+Ein kontextueller First-Party-Werbeplatz ist implementiert, standardmäßig ausgeschaltet und
+ohne Cookies/Ad-Tracking. Aktivierung erfolgt nur über geprüfte Betreiber-Kampagnen in
+`app/data/ad_campaigns.json` oder `KLIMA_AD_CAMPAIGNS_FILE`. Kein Netzwerk-Konto, Budget oder
+Sponsor wurde angelegt, keine AdSense-Tags/CMP integriert.
 
 ## Der Winterquartier-Modus
 
-Im Winterquartier-Modus stellst du **ein einziges Traumwetter-Profil** ein und
-wählst ein festes, zusammenhängendes Sommerfenster. Die App durchsucht global
-die erfassten Städte nach der besten Kombination aus zwei unterschiedlichen
-Orten: Am Sommerort zählen die gewählten Monate, am Winterort alle übrigen
-Monate. Für beide Zeiträume gelten dieselben Temperatur-, Taupunkt-, Sonnen-
-und Niederschlagsfilter; die Wohlfühltage werden addiert. Die Orte müssen
-mindestens 50 km auseinanderliegen.
+Im Winterquartier-Modus wählst du zuerst **deine Heimatstadt** aus den Suchtreffern.
+Dann legst du ein gemeinsames Wohlfühlprofil, die festen Sommermonate und die gewünschte
+Ausweichsaison (Winter oder Sommer) fest. Der Wohnort bleibt in allen Vorschlägen unverändert.
+Im Winter ausweichen bedeutet: im Sommer zu Hause, in den übrigen Monaten am Reiseziel.
+Im Sommer ausweichen bedeutet das Gegenteil. Zwischen den Städten liegen mindestens 50 km Luftlinie.
 
-Das Sommerfenster wird bei der Suche **nicht automatisch verändert**. So bleibt
-die eigene Planung erhalten: Zum Beispiel kann Málaga für Mai–Juli und Moskau
-für August–April ausgewertet werden. Ein Sommerfenster darf 1 bis 11 Monate
-lang sein, damit mindestens ein Monat dem Winterort zugeordnet werden kann.
+Das Sommerfenster wird **nicht automatisch verändert** und darf 1 bis 11 Monate umfassen.
+Alle erfassten Zielstädte werden geprüft. Die Ergebnisse zeigen die Jahressumme der beiden
+Orte, den Zugewinn gegenüber ganzjährigem Verbleib zu Hause (auch wenn er negativ ist),
+Monatsaufteilung und Entfernung. Ein Klick auf ein Ziel öffnet die Klimaauswertung auf der Karte.
+Wohnort, Saison und Filter bleiben in teilbaren URL-Hashes erhalten.
 
-Die Karte und die Top-Orte-Liste zeigen ergänzend die Zahl der Wohlfühltage,
-die dasselbe Profil an einem einzelnen Ort im ganzen Jahr erreicht. Sie ersetzen
-nicht die Zwei-Orte-Summe. Die Ergebnisliste enthält die beste Kombination und
-weitere Alternativen einschließlich Monatsaufteilung, Punktzahlen und Distanz.
+Die Karte und die Top-Orte-Liste zeigen ergänzend die Jahreszahl an einem **Einzelort**,
+nicht die Wohnort-/Reiseziel-Summe.
 
-Die neue Suche steht unter `GET /api/winterquarters/combination` und erhält das
-Profil über `tmax_min`, `tmax_max`, `tmin_min`, `tmin_max`, `tdew_max`, `sun_min`
-und `prec_max`; `sfrom` und `sto` setzen die festen Sommermonate. Die älteren
-Endpunkte `/api/winterquarters/optimize` und `/api/winterquarters/pair` bleiben
-für bestehende API-Clients verfügbar, werden aber von der neuen Oberfläche
-nicht mehr verwendet.
+Die Oberfläche verwendet `GET /api/winterquarters/escape` mit `lat`, `lon`,
+`season=winter|summer`, Wetterparametern, `sfrom`, `sto`, `period` und `limit`.
+Die globale Suche `/api/winterquarters/combination` und die älteren Endpunkte
+`/api/winterquarters/optimize` und `/api/winterquarters/pair` bleiben für bestehende
+API-Clients verfügbar, werden aber von der aktuellen Oberfläche nicht mehr verwendet.
 
 Grenzen: ERA5-Mittel über zehn Jahre glätten einzelne Extremjahre; die
 Auswertung ist eine Optimierung der Tageszahlen, keine Empfehlung zu Miete,
@@ -373,6 +383,7 @@ Hinweise:
 
 | Endpunkt | Zweck |
 |---|---|
+| `GET /api/ads?context=wq&placement=sidebar` | optionale kontextuelle Sponsorkampagne, standardmäßig leer |
 | `GET /api/meta` | Datensatz-Infos, Standardwerte, Presets, verfügbare Zeiträume/Projektionen, Rasterpunkte, Qualitätsstatus |
 | `GET /api/map` | Statistik (min./max. Tage, Legendenwerte) + Rasterwerte |
 | `GET /api/map.png` | Kartenbild (Web-Mercator-PNG, transparent über See) |
@@ -381,18 +392,21 @@ Hinweise:
 | `GET /api/cities/map` | größte Orte mit Tageszahl (für anklickbare Marker) |
 | `GET /api/cities/climate` | vollständige Städteliste mit Jahresmitteln, Tageskennzahlen und Grenzwerten |
 | `GET /api/cities/search?q=` | Ortssuche (schlankes JSON) |
+| `GET /api/winterquarters/escape` | fester Wohnort (`lat`, `lon`), Ausweichsaison (`season=winter|summer`), Ziele und Zugewinn |
 | `GET /api/winterquarters/combination` | globale Zwei-Orte-Suche: ein Profil, festes Sommerfenster, beste Paare |
 | `GET /api/winterquarters/optimize` | Legacy-Endpunkt: automatische Saisonaufteilung mit zwei Profilen |
 | `GET /api/winterquarters/pair` | Legacy-Endpunkt: Gegenstück-Suche zu einem festen Ort (`lat, lon, role=summer|winter`) |
 | `GET /api/cities`, `GET /api/countries` | statische Geo-Daten |
 
 Die Karten- und Ortsendpunkte verstehen die gemeinsamen Wetterfilter
-`tmax_min, tmax_max, tmin_min, tmin_max, tdew_max, sun_min, prec_max`; `period=all|recent5`
-wählt den gesamten ERA5-Zeitraum oder die jüngsten fünf Jahre. Kartenabfragen können zusätzlich
-`width` und `fixed` annehmen. Der neue Zwei-Orte-Endpunkt nutzt dieselben Wetterparameter plus:
+`tmax_min, tmax_max, tmin_min, tmin_max, tdew_max, sun_min, prec_max`; `period=all|recent5|2030|2050`
+wählt historische Daten oder Zukunftsnäherungen (Standard SSP2-4.5). Alternativen:
+`2030-ssp126`, `2030-ssp585`, `2050-ssp126`, `2050-ssp585`. Kartenabfragen können zusätzlich
+`width` und `fixed` annehmen. Die Quartiersuche nutzt dieselben Wetterparameter plus:
 
 | Parameter | Bedeutung |
 |---|---|
+| `lat`, `lon`, `season` | Wohnort im Europagebiet und Ausweichsaison (`winter` oder `summer`), nur `/escape` |
 | `sfrom`, `sto` | festes, zusammenhängendes Sommerfenster (Monat 1–12); der Winterort übernimmt die übrigen Monate |
 | `limit` | maximale Zahl der zurückgegebenen Kombinationen |
 
@@ -411,6 +425,13 @@ Die aktuelle Oberfläche verwendet diese Legacy-Parameter nicht: Im Winterquarti
 Modus gilt ein gemeinsames Traumwetter-Profil für beide Städte und Zeiträume.
 
 ## Tests
+
+Zusätzlich prüfen `tests/test_projections.py` die Taupunktannahme, Monatsdeltas,
+Filter ohne erneute int8-Quantisierung, Zuordnung der Regionen, API-Konsistenz und
+Fail-closed-Verhalten ungültiger Manifeste. `tests/test_ads.py` prüft Kontext, Laufzeit,
+Konfigurationswechsel, URL-Sicherheit und deaktivierte Werbung. Der UI-Smoketest prüft
+Zukunfts-Methode/Modellstreuung und sichere dynamische Anzeigen.
+
 
 ```bash
 pytest tests                  # Zähl-Kern, Rendering, API, Datentor, ERA5-Ableitungen
@@ -431,14 +452,15 @@ Baufortschritt, `KLIMA_ALLOW_UNVERIFIED=1` ⇒ Karte mit Kennzeichnung.
 `tests/test_climate.py` und `tests/test_api.py` decken Monatsfenster und die
 Winterquartier-Berechnungen ab: Die Zwei-Orte-Suche wird gegen dasselbe Profil,
 das unveränderte Monatsfenster, die getrennten Monatszählungen, die Summe und den
-Mindestabstand geprüft. Die Legacy-Endpunkte werden weiterhin auf Kompatibilität
+Mindestabstand geprüft. Die Wohnort-Suche wird zusätzlich in beiden Ausweichsaisons
+und beiden Zeiträumen gegen exakte Monatswerte und den Zugewinn gegenüber zu Hause getestet. Die Legacy-Endpunkte werden weiterhin auf Kompatibilität
 getestet.
 
 Der UI-Smoketest prüft u. a., dass OSM-Kacheln mit Attribution und Layer-Steuerung
 verwendet werden und dass Klicks auf Karte, Städtemarker und Top-Orte die Detailkarte
 mit Klimaprofil öffnen. Außerdem prüft er die Zeitraumauswahl (Fünfjahresansicht;
-2030/2050 ohne Projektionen deaktiviert) und die Sichtbarkeitsregeln der Modi
+2030/2050 in drei Szenarien als Näherungen aktiviert) und die Sichtbarkeitsregeln der Modi
 (Monatsauswahl nur im Urlaubsmonat, Zwei-Orte-Suche nur im Winterquartier-Modus –
 inklusive der CSS-Regel
 `[hidden] { display: none !important; }`, ohne die `display:flex` die Monatsauswahl
-sichtbar ließe) sowie den festen Saisonzeitraum, die globale Suche und deren Ergebnisse.
+sichtbar ließe) sowie den festen Saisonzeitraum, die Wohnortsuche, den Saisonwechsel und deren Ergebnisse.

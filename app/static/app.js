@@ -13,6 +13,7 @@ const state = {
   month: 7,                  // 1..12
   params: { tmax_min: 18, tmax_max: 30, tmin_min: 5, tmin_max: 20, tdew_max: 18, sun_min: 3, prec_max: 99 },
   wq: {                      // feste Aufteilung für die Zwei-Orte-Suche
+    season: "winter", home: null, // fester Wohnort, gewünschte Ausweichsaison
     sfrom: 5, sto: 9,        // Sommerfenster (1..12); Winter = die übrigen Monate
   },
   fixedScale: false,
@@ -108,7 +109,14 @@ function updatePeriodHelp() {
   const help = $("#period-help");
   if (help) help.textContent = info ? info.description : "Klimadaten-Zeitraum auswählen.";
   const years = $("#about-years");
-  if (years && info && info.years != null) years.textContent = num(info.years, 1);
+  if (years && info && info.years != null) years.textContent = num(info.analog_sample_years ?? info.years, 1);
+  const warning = $("#projection-warning");
+  warning.hidden = !info?.projection;
+  warning.textContent = info?.projection
+    ? "Näherung: regionale CMIP6-Änderungen + historische ERA5-Tage. Taupunkt geschätzt, Sonne unverändert. Keine neuen Extremwetterverteilungen; Wohlfühltage sind keine direkte Klimamodell-Ausgabe." : "";
+  $("#city-data-method").textContent = info?.projection
+    ? "Modell-basierte Näherung, keine zukünftigen Messwerte: Taupunkt geschätzt, Sonnenstunden und Tagesvariabilität unverändert aus ERA5."
+    : "Klimamittel für den oben gewählten Bezugszeitraum.";
 }
 
 function setupPeriodSelector() {
@@ -597,7 +605,7 @@ function renderDetail(opts = {}) {
         class: "title",
       }), closeBtn()),
     el("div", { class: "big", text: `${fmtDays(headline)} ${headlineLabel}` }),
-    el("div", { class: "sub period-basis", text: currentPeriodLabel() }),
+    el("div", { class: "sub period-basis", text: rep.period?.label || currentPeriodLabel() }),
     el("div", { class: "sub", text: isWqAfter
       ? `Jahreswerte an einem Ort mit dem gemeinsamen Profil · besser als ${num(rep.percentile, 0)} % aller Rasterpunkte`
       : `mit deiner Einstellung · besser als ${num(rep.percentile, 0)} % aller Rasterpunkte` }),
@@ -629,8 +637,31 @@ function renderDetail(opts = {}) {
         + `<b>${fmtDays(clim.sunny_days || 0)}</b> Sonnentage (> 4 h) · `
         + `<b>${fmtDays(clim.frost_days || 0)}</b> Frosttage (Tmin ≤ 0 °C)`,
     }),
+    projectionDetails(rep),
     el("div", { class: "sub", style: "margin-top:.35rem", text: cityLine }),
   );
+}
+
+function projectionDetails(rep) {
+  if (!rep.period?.projection) return null;
+  const data = rep.climate?.projection;
+  const box = el("details", { class: "projection-detail" },
+    el("summary", { text: "Näherung · Annahmen und Modellstreuung" }),
+    el("p", { text: "Taupunkt geschätzt bei konstanter relativer Feuchte; Sonne und Wetterabfolge aus ERA5 unverändert. Temperaturänderungen sind großräumige Monatsmittel, keine lokalen Tagesprojektionen." }));
+  if (!data) return box;
+  box.append(el("p", { text: `Region: ${data.region_name} (${data.region}) · ${rep.period.model_count} Modelle. `
+    + "10.–90. Perzentil der Temperaturänderung, kein Intervall der Wohlfühltage. Regenfaktor skaliert Intensität, nicht Häufigkeit." }));
+  const table = el("table", { class: "projection-table" },
+    el("caption", { text: `Änderung relativ zu ${rep.period.baseline.start_year}–${rep.period.baseline.end_year}` }),
+    el("thead", {}, el("tr", {}, ["Monat", "ΔT °C", "P10–P90 °C", "Regen ×"].map(text => el("th", { scope: "col", text })))),
+    el("tbody", {}, monthNames.map((month, i) => el("tr", {},
+      el("th", { scope: "row", text: month }),
+      el("td", { text: num(data.temperature_delta_c[i], 2) }),
+      el("td", { text: `${num(data.temperature_delta_p10_c[i], 2)} – ${num(data.temperature_delta_p90_c[i], 2)}` }),
+      el("td", { text: num(data.precipitation_ratio[i], 2) })))));
+  box.append(el("div", { class: "projection-table-wrap" }, table),
+    el("a", { href: rep.period.source_url, target: "_blank", rel: "noopener", text: "Datenquelle und Methodik des IPCC-Atlas" }));
+  return box;
 }
 
 function closeBtn() {
@@ -679,6 +710,50 @@ function initSearch() {
   });
   document.addEventListener("click", (e) => {
     if (!$("#searchbox").contains(e.target)) close();
+  });
+}
+
+/** Eigenständige Wohnortsuche; freier Text ist noch keine gültige Auswahl. */
+function initHomeSearch() {
+  const input = $("#wq-home"), results = $("#wq-home-results"), status = $("#wq-home-status");
+  let timer, request = 0;
+  input.addEventListener("input", () => {
+    clearTimeout(timer);
+    const current = ++request;
+    state.wq.home = null;
+    invalidateCombination(); updateHash();
+    status.textContent = "Bitte eine Stadt aus den Suchtreffern wählen.";
+    results.replaceChildren(); results.hidden = true;
+    const query = input.value.trim();
+    if (query.length < 2) return;
+    timer = setTimeout(async () => {
+      try {
+        const data = await getJSON("/api/cities/search?q=" + encodeURIComponent(query) + "&limit=8");
+        if (current !== request) return;
+        const cities = data.cities.filter(city => city.lat >= 34 && city.lat <= 72 && city.lon >= -25 && city.lon <= 45);
+        for (const city of cities) results.append(el("button", {
+          type: "button", text: [city.name, city.country].filter(Boolean).join(", "),
+          onclick: () => {
+            ++request;
+            state.wq.home = city;
+            input.value = city.name;
+            status.textContent = `Fester Wohnort: ${city.name}`;
+            results.hidden = true;
+            invalidateCombination(); syncWqInputs(); updateHash();
+          },
+        }));
+        results.hidden = !cities.length;
+        status.textContent = cities.length ? "Wähle deinen Wohnort aus der Liste." : "Keine Stadt im erfassten Europagebiet gefunden.";
+      } catch {
+        if (current === request) status.textContent = "Stadtsuche fehlgeschlagen. Bitte erneut versuchen.";
+      }
+    }, 180);
+  });
+  input.addEventListener("keydown", event => {
+    if (event.key === "Escape") { ++request; clearTimeout(timer); results.hidden = true; }
+    if (event.key === "Enter" && !results.hidden) {
+      event.preventDefault(); results.querySelector("button")?.click();
+    }
   });
 }
 
@@ -1075,6 +1150,12 @@ function downloadCityClimateCsv() {
       return typeof value === "number" ? num(value, column.digits ?? 0) : (value ?? "");
     })),
   ];
+  const period = CITY_CLIMATE_DATA?.period;
+  if (period?.projection) {
+    lines[0].push("Datenart", "Projektionszeitraum", "Szenario", "Methodik / Annahmen", "Quelle");
+    for (const row of lines.slice(1)) row.push("Modell-basierte Näherung", period.label, period.scenario,
+      period.assumptions.join(" "), period.source_url);
+  }
   const csv = "\uFEFF" + lines.map(line => line.map(escape).join(";")).join("\r\n");
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   const link = el("a", { href: url, download: `klimadaten-staedte-${state.period}.csv` });
@@ -1133,6 +1214,11 @@ function updateHash() {
   for (const [k, v] of Object.entries(state.params)) p.set(k, v);
   p.set("sfrom", state.wq.sfrom);
   p.set("sto", state.wq.sto);
+  p.set("season", state.wq.season);
+  if (state.wq.home) {
+    p.set("home_lat", state.wq.home.lat); p.set("home_lon", state.wq.home.lon);
+    p.set("home_name", state.wq.home.name);
+  }
   if (state.fixedScale) p.set("fixed", "1");
   history.replaceState(null, "", "#" + p.toString());
 }
@@ -1148,6 +1234,12 @@ function readHash() {
   const sfrom = Number(p.get("sfrom")), sto = Number(p.get("sto"));
   if (Number.isInteger(sfrom) && sfrom >= 1 && sfrom <= 12) state.wq.sfrom = sfrom;
   if (Number.isInteger(sto) && sto >= 1 && sto <= 12) state.wq.sto = sto;
+  if (["winter", "summer"].includes(p.get("season"))) state.wq.season = p.get("season");
+  const lat = Number(p.get("home_lat")), lon = Number(p.get("home_lon"));
+  if (p.has("home_lat") && p.has("home_lon") && Number.isFinite(lat) && Number.isFinite(lon)
+      && lat >= 34 && lat <= 72 && lon >= -25 && lon <= 45) {
+    state.wq.home = { lat, lon, name: p.get("home_name") || "Wohnort" };
+  }
   if (p.get("fixed")) state.fixedScale = true;
 }
 
@@ -1412,6 +1504,7 @@ async function boot() {
   applyParamsToControls();
   buildAllPresets();
   initSearch();
+  initHomeSearch();
   initCityClimateTable();
 
   $("#mode-year").addEventListener("click", () => setMode("year"));
@@ -1421,6 +1514,10 @@ async function boot() {
   sel.addEventListener("change", () => { state.month = Number(sel.value); refresh(true); });
   $("#wq-sfrom").addEventListener("change", setSummerWindow);
   $("#wq-sto").addEventListener("change", setSummerWindow);
+  $("#wq-season").addEventListener("change", event => {
+    state.wq.season = event.target.value;
+    invalidateCombination(); syncWqInputs(); updateHash();
+  });
   $("#btn-wq-search").addEventListener("click", searchCombination);
   $("#fixed-scale").checked = state.fixedScale;
   $("#fixed-scale").addEventListener("change", (e) => { state.fixedScale = e.target.checked; refresh(true); });
@@ -1431,6 +1528,11 @@ async function boot() {
     $("#period-select").value = state.period;
     updatePeriodHelp();
     const summer = WQ_BOUNDS.summer_months || [5, 6, 7, 8, 9];
+    state.wq.home = null;
+    state.wq.season = "winter";
+    $("#wq-home").value = "";
+    $("#wq-home").dispatchEvent(new Event("input"));
+    $("#wq-home-status").textContent = "Bitte eine Stadt aus den Suchtreffern wählen.";
     state.wq.sfrom = summer[0];
     state.wq.sto = summer[summer.length - 1];
     invalidateCombination();
@@ -1471,8 +1573,29 @@ function setMode(mode, initial = false) {
     ? "Beste Einzelorte für dein Profil" : "Top-Orte für diese Einstellung";
   if (mode === "month") $("#month-select").value = state.month;
   if (mode === "wq") syncWqInputs();
+  loadSponsor();
   if (!initial) refresh(true);
   else if (state.selected) renderDetail();
+}
+
+/* Optional first-party sponsors, loaded only by general page mode, never by home/profile. */
+let sponsorSeq = 0;
+async function loadSponsor() {
+  const request = ++sponsorSeq;
+  const host = $("#sponsor-slot");
+  host.hidden = true; host.replaceChildren();
+  try {
+    const data = await getJSON("/api/ads?placement=sidebar&context=" + encodeURIComponent(state.mode));
+    if (request !== sponsorSeq || !data.ad) return;
+    const ad = data.ad;
+    // Defence in depth; all labels are text nodes, never campaign HTML.
+    const link = new URL(ad.url);
+    if (link.protocol !== "https:" || link.username || link.password) return;
+    host.append(el("span", { class: "sponsor-label", text: `Anzeige · ${ad.advertiser}` }),
+      el("strong", { text: ad.title }), el("p", { text: ad.body }),
+      el("a", { href: link.href, target: "_blank", rel: "sponsored nofollow noopener noreferrer", text: ad.cta }));
+    host.hidden = false;
+  } catch { /* No campaign/network error never blocks the climate app. */ }
 }
 
 /* ------------------------------------------------------- Winterquartier-Modus */
@@ -1485,13 +1608,18 @@ function invalidateCombination() {
   if (alternatives) { alternatives.hidden = true; alternatives.innerHTML = ""; }
   const button = $("#btn-wq-search");
   if (button) {
-    button.disabled = summerMonths().length >= 12;
-    button.textContent = "Beste Zwei-Orte-Kombination finden";
+    button.disabled = !state.wq.home || summerMonths().length >= 12;
+    button.textContent = "Passendes Ausweichquartier finden";
   }
 }
 
 /** Synchronisiert die festen Monatsgrenzen und erklärt, welche Monate wohin fallen. */
 function syncWqInputs() {
+  $("#wq-season").value = state.wq.season;
+  if (state.wq.home) {
+    $("#wq-home").value = state.wq.home.name;
+    $("#wq-home-status").textContent = `Fester Wohnort: ${state.wq.home.name}`;
+  }
   const sfrom = $("#wq-sfrom"), sto = $("#wq-sto");
   if (sfrom) sfrom.value = state.wq.sfrom;
   if (sto) sto.value = state.wq.sto;
@@ -1505,7 +1633,10 @@ function syncWqInputs() {
         + `Winterort: ${monthsLabel(winter)} (${winter.length} Monate)`;
   }
   const button = $("#btn-wq-search");
-  if (button && summer.length >= 12) button.disabled = true;
+  if (hint && summer.length < 12) hint.textContent += state.wq.season === "winter"
+    ? " · Zu Hause im Sommer, unterwegs im Winter."
+    : " · Zu Hause im Winter, unterwegs im Sommer.";
+  if (button) button.disabled = !state.wq.home || summer.length >= 12;
 }
 
 function setSummerWindow() {
@@ -1517,7 +1648,7 @@ function setSummerWindow() {
   refresh(true);
 }
 
-/** Sucht global über alle erfassten Städte; das ausgewählte Monatsfenster bleibt fest. */
+/** Sucht Ausweichorte zu einem festen Wohnort; das Monatsfenster bleibt fest. */
 async function searchCombination() {
   syncParams();
   const button = $("#btn-wq-search");
@@ -1527,6 +1658,10 @@ async function searchCombination() {
   out.textContent = "";
   alternatives.hidden = true;
   alternatives.innerHTML = "";
+  if (!state.wq.home) {
+    out.textContent = "Bitte zuerst deinen Wohnort aus den Suchtreffern wählen.";
+    return;
+  }
   if (summer.length >= 12) {
     out.textContent = "Bitte wähle ein Sommerfenster von höchstens 11 Monaten, damit die übrigen Monate einem Winterort zugeordnet werden können.";
     button.disabled = true;
@@ -1537,7 +1672,7 @@ async function searchCombination() {
   button.disabled = true;
   button.textContent = "Suche läuft …";
   out.append(
-    el("strong", { text: "Beste Ortskombination wird gesucht …" }),
+    el("strong", { text: "Passendes Ausweichquartier wird gesucht …" }),
     el("span", { text: "Ein Moment bitte – das gewählte Sommerfenster bleibt unverändert." }));
   try {
     const query = new URLSearchParams();
@@ -1546,8 +1681,10 @@ async function searchCombination() {
     query.set("sfrom", state.wq.sfrom);
     query.set("sto", state.wq.sto);
     query.set("limit", 8);
+    query.set("lat", state.wq.home.lat); query.set("lon", state.wq.home.lon);
+    query.set("season", state.wq.season);
     updateHash();
-    const data = await getJSON("/api/winterquarters/combination?" + query.toString());
+    const data = await getJSON("/api/winterquarters/escape?" + query.toString());
     if (request !== combinationSeq) return;
 
     const best = data.best;
@@ -1555,24 +1692,36 @@ async function searchCombination() {
       out.textContent = "Für dieses Profil und Zeitfenster wurde keine passende Zwei-Orte-Kombination gefunden.";
       return;
     }
-    const summerCity = best.summer_city, winterCity = best.winter_city;
+    // Die vom Nutzer gewählte Stadt bleibt in der Anzeige der feste Wohnort.
+    const homeKey = state.wq.season === "winter" ? "summer_city" : "winter_city";
+    for (const candidate of [...(data.candidates || []), best]) {
+      candidate[homeKey].name = state.wq.home.name;
+      candidate[homeKey].country = state.wq.home.country || candidate[homeKey].country;
+    }
+    const gainLabel = value => `${value >= 0 ? "+" : "−"}${num(Math.abs(value), 1)} Tage gegenüber ganzjährig zu Hause`;
+    const destination = candidate => candidate[state.wq.season + "_city"];
     const cityLabel = city => [city.name, city.country].filter(Boolean).join(", ");
     out.innerHTML = "";
     out.append(
-      el("strong", { text: `${cityLabel(summerCity)} → ${cityLabel(winterCity)} · ${fmtDays(best.total_days)} Wohlfühltage/Jahr` }),
+      el("strong", { text: `${cityLabel(best[homeKey])} → ${cityLabel(destination(best))} · ${fmtDays(best.total_days)} Wohlfühltage/Jahr` }),
       el("span", { text: `${data.summer_label}: ${fmtDays(best.summer_days)} Tage am Sommerort · `
         + `${data.winter_label}: ${fmtDays(best.winter_days)} Tage am Winterort · `
-        + `${num(best.distance_km, 0)} km zwischen den Orten.` }));
+        + `${num(best.distance_km, 0)} km Luftlinie · ${gainLabel(best.gain_days)} (zu Hause: ${fmtDays(data.baseline_days)} Tage/Jahr). ${data.period.label}` }));
 
     (data.candidates || []).forEach((candidate, index) => {
-      const summerPlace = candidate.summer_city, winterPlace = candidate.winter_city;
       alternatives.append(el("li", { class: "combo-item" },
         el("span", { class: "combo-rank", text: `${index + 1}.` }),
         el("span", { class: "combo-main" },
-          el("span", { class: "combo-place", text: `${cityLabel(summerPlace)} → ${cityLabel(winterPlace)}` }),
+          el("button", { class: "combo-place ghost", type: "button",
+            text: `${cityLabel(candidate[homeKey])} → ${cityLabel(destination(candidate))}`,
+            onclick: () => {
+              const city = destination(candidate);
+              map.flyTo([city.lat, city.lon], 6);
+              selectPlace(city.lat, city.lon, city.name, city.country);
+            } }),
           el("span", { class: "combo-details", text: `${data.summer_label}: ${fmtDays(candidate.summer_days)} Tage · `
             + `${data.winter_label}: ${fmtDays(candidate.winter_days)} Tage · `
-            + `${num(candidate.distance_km, 0)} km auseinander` })),
+            + `${num(candidate.distance_km, 0)} km Luftlinie · ${gainLabel(candidate.gain_days)}` })),
         el("span", { class: "days", text: fmtDays(candidate.total_days) })));
     });
     alternatives.hidden = !(data.candidates || []).length;
@@ -1581,8 +1730,8 @@ async function searchCombination() {
     out.textContent = "Suche fehlgeschlagen: " + (err.message || err);
   } finally {
     if (request === combinationSeq) {
-      button.disabled = summerMonths().length >= 12;
-      button.textContent = "Beste Zwei-Orte-Kombination finden";
+      button.disabled = !state.wq.home || summerMonths().length >= 12;
+      button.textContent = "Passendes Ausweichquartier finden";
     }
   }
 }

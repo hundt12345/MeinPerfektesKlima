@@ -70,7 +70,25 @@
         <select id="period-select" aria-describedby="period-help"></select>
       </div>
       <p class="hint" id="period-help"></p>
-      <p class="hint" id="period-projection-note">2030/2050 sind deaktiviert: ERA5 enthält historische Daten, keine Zukunftsprojektionen. Dafür braucht es ein geprüftes Klimamodell-Ensemble mit festgelegtem Szenario.</p>
+      <p class="projection-warning" id="projection-warning" role="status" hidden></p>
+      <details class="projection-sources" id="period-projection-note">
+        <summary>2030 &amp; 2050 · Methode und Quellen</summary>
+        <p class="hint">Jetzt auswählbar: <strong>2030 (2021–2040)</strong> und <strong>2050 (2041–2060)</strong>,
+          jeweils SSP1-2.6, SSP2-4.5 oder SSP5-8.5. <strong>Modell-basierte Näherung</strong>, keine Vorhersage eines Einzeljahres.</p>
+        <p class="hint"><a href="https://github.com/SantanderMetGroup/ATLAS/tree/a1687c6db5590eb9b618fd4e1ebba4b842084031/datasets-aggregated-regionally" target="_blank" rel="noopener">CMIP6 / IPCC-Atlas · Datengrundlage</a>:
+          31 Modelle, regionale monatliche Änderungen von Temperatur und Niederschlag relativ zu 2016–2025,
+          übertragen auf unsere ERA5-Tage. Die Projektionsauflösung ist regional, nicht 0,75°.</p>
+        <p class="hint"><strong>Annahmen:</strong> Tmax und Tmin erhalten denselben Temperaturzuschlag;
+          Taupunkt aus angenommener gleichbleibender relativer Feuchte geschätzt; Sonnenstunden unverändert.
+          Regenintensität skaliert, aber Trocken-/Nassabfolge und Tagesvariabilität bleiben wie in ERA5.
+          Neue Extremwetterverteilungen werden nicht simuliert.</p>
+        <p class="hint">In den Ortsdetails zeigt die Monatstabelle die Modellstreuung der Temperaturänderung (10.–90. Perzentil).
+          Das ist kein Unsicherheitsintervall der Wohlfühltage.</p>
+        <p class="hint"><a href="https://www.climate-service-center.de/about/news_and_events/news/122448/index.php.de" target="_blank" rel="noopener">GERICS-Klimaausblicke (2026)</a>:
+          ergänzende Einordnung für deutsche Landkreise; nicht die Quelle unserer Taupunkt-Schätzung.</p>
+        <p class="hint"><a href="https://cds.climate.copernicus.eu/datasets/projections-cordex-domains-single-levels?tab=overview" target="_blank" rel="noopener">EURO-CORDEX / Copernicus</a>:
+          weiterführende regionale Projektionen. Recherche: 14.10.2026.</p>
+      </details>
     </section>
 
     <section class="card">
@@ -86,11 +104,22 @@
 
     <!-- Einfacher Ablauf: ein Traumwetter-Profil, ein festes Sommerfenster, zwei Städte. -->
     <section class="card wq-setup" id="wq-setup" data-wq-only hidden>
-      <h2>Zwei Orte für dein Traumwetter</h2>
-      <p class="hint">
-        Dasselbe Traumwetter gilt an beiden Orten. Wähle die Sommermonate: In dieser Zeit zählt der Sommerort,
-        in allen übrigen Monaten der Winterort. Die Orte liegen mindestens 50 km auseinander.
-      </p>
+      <h2>Dein Wohnort + dein Ausweichquartier</h2>
+      <p class="hint">Du behältst deinen Wohnort und weichst nur saisonal aus.
+        An beiden Orten gilt dein Wohlfühlprofil. Die Reiseziele liegen mindestens 50 km entfernt.</p>
+      <div class="home-search" id="wq-home-search">
+        <label for="wq-home">Wo lebst du?</label>
+        <input type="search" id="wq-home" placeholder="Deine Stadt, z. B. Berlin …" autocomplete="off"
+               aria-describedby="wq-home-status" aria-controls="wq-home-results">
+        <div id="wq-home-results" class="home-results" hidden></div>
+        <p class="hint" id="wq-home-status" role="status" aria-live="polite">Bitte eine Stadt aus den Suchtreffern wählen.</p>
+      </div>
+      <div class="row">
+        <label for="wq-season">Ausweichen im</label>
+        <select id="wq-season"><option value="winter">Winter</option><option value="summer">Sommer</option></select>
+      </div>
+      <p class="hint">Lege die Sommermonate fest. Im Winter ausweichen = alle übrigen Monate;
+        im Sommer ausweichen = genau diese Monate. Die Aufteilung bleibt bei der Suche unverändert.</p>
       <div class="season-selectors">
         <div class="row">
           <label for="wq-sfrom">Sommer von</label>
@@ -103,13 +132,13 @@
       </div>
       <p class="season-summary" id="wq-window"></p>
       <button class="ghost wq-search-button" id="btn-wq-search" type="button">
-        Beste Zwei-Orte-Kombination finden
+        Passendes Ausweichquartier finden
       </button>
       <p class="combination-summary" id="wq-result" role="status" aria-live="polite" hidden></p>
       <ol class="ranking combination-list" id="wq-alternatives" hidden></ol>
       <p class="hint wq-map-hint">
         Die Karte zeigt ergänzend die Wohlfühltage an einem einzelnen Ort. Die Ergebnisliste zeigt die
-        optimierte Kombination aus Sommer- und Winterort.
+        Kombination aus deinem festen Wohnort und einem saisonalen Reiseziel.
       </p>
     </section>
 
@@ -125,6 +154,8 @@
         <button class="ghost" id="btn-link">Link kopieren</button>
       </div>
     </section>
+
+    <section class="card sponsor-slot" id="sponsor-slot" aria-label="Werbung" hidden></section>
 
     <section class="card">
       <div class="card-head">
@@ -170,7 +201,7 @@
     </summary>
     <div class="city-data-body">
       <p class="city-data-intro">
-        Klimamittel für den oben gewählten Bezugszeitraum. Ereignistage sind als durchschnittliche Tage pro Jahr angegeben;
+        <span id="city-data-method">Klimamittel für den oben gewählten Bezugszeitraum.</span> Ereignistage sind als durchschnittliche Tage pro Jahr angegeben;
         Temperaturmittel, Sonnenschein und Niederschlag sind zusätzlich enthalten. Jede Stadt wird dem nächstgelegenen
         ERA5-Rasterpunkt zugeordnet – die Rasterauflösung und der Abstand stehen in den Daten.
       </p>
@@ -236,11 +267,11 @@
         zählt in diesen Monaten, der Winterort in allen übrigen.
       </p>
       <p>
-        <strong>Winterquartier:</strong> „Beste Zwei-Orte-Kombination finden“ durchsucht alle erfassten Städte
-        und maximiert die Summe der Wohlfühltage an Sommer- und Winterort. Das ausgewählte Zeitfenster wird
-        dabei nicht verschoben; zwischen den Städten liegen mindestens 50 km. Beispiel: Málaga für Mai–Juli,
-        Moskau für August–April. Die Karte zeigt ergänzend, wie viele Wohlfühltage das Profil an einem
-        einzelnen Ort über das ganze Jahr ergibt.
+        <strong>Winterquartier:</strong> Wähle zuerst die Stadt, in der du lebst, dann Winter oder Sommer
+        als Ausweichsaison. „Passendes Ausweichquartier finden“ sucht Reiseziele bei unverändertem Wohnort
+        und Monatsfenster. Die Liste zeigt die Jahressumme beider Orte, den Zugewinn gegenüber einem ganzen
+        Jahr zu Hause und die Luftlinie. Auch ein negativer Zugewinn wird offen ausgewiesen.
+        Die Karte zeigt ergänzend die Jahreswerte an einem einzelnen Ort.
       </p>
     </div>
     <div>
@@ -249,18 +280,24 @@
         Quelle: <span id="about-source">ERA5-Reanalyse (Copernicus/ECMWF)</span>. ERA5 ist ein
         Reanalyse-Modell (ca. 0,25°) und damit kein Stationsmesswert – in Gebirgen und an Küsten sind
         Abweichungen von mehreren Grad möglich. Die Auflösung dieses Datensatzes beträgt
-        <span id="about-grid">0,75°</span>, die Werte sind auf 0,5 °C (Temperatur), 0,25 h (Sonne) und
+        <span id="about-grid">0,75°</span>, die historischen Werte sind auf 0,5 °C (Temperatur), 0,25 h (Sonne) und
         0,5 mm (Regen) gerundet. Ein „Jahr“ entspricht hier dem Mittel über <span id="about-years">10</span>
         Jahre des gewählten Zeitraums. Der gesamte ERA5-Datensatz umfasst nur zehn Jahre und ist daher keine
         offizielle 30-jährige Klimanormalperiode; einzelne Extreme werden geglättet.
       </p>
       <p id="about-quality"></p>
+      <p>2030/2050 sind regionale CMIP6-Delta-Näherungen auf der ERA5-Tagesbasis, keine zukünftigen Messwerte.
+        Taupunkt wird geschätzt, Sonnenstunden und Tagesvariabilität bleiben unverändert.
+        Projektionsfenster und Methodik stehen unter „Klimazeitraum“.</p>
     </div>
   </div>
   <footer>
     <span id="attribution">
       Klimadaten: enthält modifizierte Copernicus-Climate-Change-Service-Informationen (ERA5 / ECMWF),
       gelesen aus der offenen <a href="https://github.com/google-research/arco-era5" rel="noopener">ARCO-ERA5-Kopie</a> ·
+      Projektionen: <a href="https://github.com/SantanderMetGroup/ATLAS" rel="noopener">CMIP6 / IPCC AR6 Atlas</a>,
+      Iturbide et al. (2021), DOI: 10.5281/zenodo.3691645, CC BY 4.0; WCRP und CMIP6-Modellgruppen;
+      modifiziert durch regionale Delta-Übertragung auf ERA5 ·
       Ländergrenzen: Natural Earth (gemeinfrei) · Orte: <a href="https://www.geonames.org/" rel="noopener">GeoNames</a> (CC-BY 4.0) ·
       Grundkarte: <a href="https://www.openstreetmap.org/copyright" rel="noopener">© OpenStreetMap-Mitwirkende</a>
       (Kacheln direkt vom OSM-Kartendienst) ·

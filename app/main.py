@@ -17,7 +17,7 @@
 Die Karten- und Ortsendpunkte teilen sich :func:`parse_filter`. Dessen
 ``view=wq``-Filter mit getrenntem Sommer-/Winterprofil bleibt für ältere
 API-Clients erhalten. Die aktuelle Oberfläche nutzt für die neue
-Zwei-Orte-Suche ``/api/winterquarters/combination`` mit einem gemeinsamen
+Wohnort-Suche ``/api/winterquarters/escape`` mit einem gemeinsamen
 Wetterprofil und einem festen ``sfrom``/``sto``-Fenster.
 """
 from __future__ import annotations
@@ -34,6 +34,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 
+from .ads import select_ad
 from .build_progress import DEFAULT_REPO, build_status
 from .climate import (CITY_DAY_INDICATORS, DEFAULT_SUMMER_MONTHS, FIELD_WIDTH, MONTH_NAMES,
                       WINTER_DEFAULTS, ClimateData, Filter, Params, cyclic_months,
@@ -358,12 +359,11 @@ def summer_window(sfrom: int, sto: int) -> tuple[int, ...]:
 
 
 def parse_period_id(period: str) -> str:
-    """Validiert die historischen Zeitfenster; Projektionen sind derzeit nicht aktiv."""
+    """Only enable projection IDs from a validated regional model manifest."""
     value = (period or "all").strip().lower()
-    if value not in ("all", "recent5"):
-        raise HTTPException(400, "period muss 'all' oder 'recent5' sein; Zukunftsprojektionen sind noch nicht verfügbar")
-    if value == "recent5" and not climate().period_info(value)["available"]:
-        raise HTTPException(400, "Der Datensatz enthält keine fünf vollständigen Jahre für 'recent5'")
+    options = {item["id"]: item for item in climate().period_options()}
+    if value not in options or not options[value]["available"]:
+        raise HTTPException(400, "Klimazeitraum unbekannt oder nicht verfügbar")
     return value
 
 
@@ -373,7 +373,7 @@ def parse_filter(
     sfrom: int = Query(5, ge=1, le=12, description="Sommerfenster ab Monat"),
     sto: int = Query(9, ge=1, le=12, description="Sommerfenster bis Monat"),
     month: str | None = Query(None),
-    period: str = Query("all", description="all | recent5"),
+    period: str = Query("all", description="all | recent5 | 2030 | 2050 (optional -ssp126 or -ssp585)"),
     p: Params = Depends(parse_params),
     winter: Params = Depends(parse_winter_params),
 ) -> Filter:
@@ -596,7 +596,7 @@ def api_winterquarters_combination(
     sfrom: int = Query(5, ge=1, le=12),
     sto: int = Query(9, ge=1, le=12),
     limit: int = Query(8, ge=1, le=40),
-    period: str = Query("all", description="all | recent5"),
+    period: str = Query("all", description="all | recent5 | 2030 | 2050 (optional -ssp126 or -ssp585)"),
 ):
     """Findet die beste Sommer-/Winter-Kombination aus zwei Städten.
 
@@ -611,6 +611,23 @@ def api_winterquarters_combination(
         min_distance_km=WQ_MIN_CITY_DISTANCE_KM,
         period=period_id,
     )
+
+
+@app.get("/api/winterquarters/escape")
+def api_winterquarters_escape(
+    lat: float = Query(..., ge=34, le=72),
+    lon: float = Query(..., ge=-25, le=45),
+    season: str = Query("winter", pattern="^(winter|summer)$"),
+    p: Params = Depends(parse_params),
+    sfrom: int = Query(5, ge=1, le=12),
+    sto: int = Query(9, ge=1, le=12),
+    limit: int = Query(8, ge=1, le=40),
+    period: str = Query("all"),
+):
+    """Saisonales Ausweichquartier zu einem unveränderlichen Wohnort."""
+    return ready_dataset().escape_report(
+        lat, lon, season, p, summer_window(sfrom, sto), limit=limit,
+        min_distance_km=WQ_MIN_CITY_DISTANCE_KM, period=parse_period_id(period))
 
 
 @app.get("/api/winterquarters/optimize")
@@ -678,6 +695,13 @@ def api_build(refresh: bool = False):
     return payload
 
 
+@app.get("/api/ads")
+def api_ads(context: str = Query("year", pattern="^(year|month|wq)$"),
+            placement: str = Query("sidebar", pattern="^sidebar$")):
+    """Operator-configured contextual sponsors; no user identity or tracking."""
+    return JSONResponse({"ad": select_ad(context, placement)}, headers={"Cache-Control": "no-store"})
+
+
 @app.get("/api/countries")
 def api_countries():
     path = DATA_DIR / "countries.geojson"
@@ -697,7 +721,7 @@ def api_cities():
 
 
 @app.get("/api/cities/climate")
-def api_cities_climate(period: str = Query("all", description="all | recent5")):
+def api_cities_climate(period: str = Query("all", description="all | recent5 | 2030 | 2050 (optional -ssp126 or -ssp585)")):
     """Jahres-Klimakenngrößen für alle Städte (unabhängig vom Kartenfilter).
 
     Die Stadtkoordinaten werden dem jeweils nächsten ERA5-Rasterpunkt
@@ -712,7 +736,7 @@ def api_cities_climate(period: str = Query("all", description="all | recent5")):
             "period": selected_period,
             "grid_step_deg": cd.meta.get("grid_step_deg"),
             "city_count": len(cd.cities),
-            "city_method": "nearest_grid_point",
+            "city_method": "nearest_grid_point_regional_delta" if cd.is_projection(period_id) else "nearest_grid_point",
             "indicators": {
                 key: {"label": label, "threshold": threshold, "unit": "Tage/Jahr"}
                 for key, label, threshold in CITY_DAY_INDICATORS

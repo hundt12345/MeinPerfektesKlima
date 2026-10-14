@@ -128,8 +128,10 @@ def test_meta_perioden_und_zukunftsprojektionen(client: TestClient) -> None:
     assert periods["recent5"]["available"] is True
     assert periods["recent5"]["start_date"] == "2021-01-01"
     assert periods["recent5"]["end_date"] == "2025-12-31"
-    assert periods["2030"]["available"] is False
-    assert periods["2050"]["available"] is False
+    assert periods["2030"]["available"] is True
+    assert periods["2030"]["approximation"] is True
+    assert periods["2050"]["available"] is True
+    assert periods["2050"]["model_count"] == 31
     assert "Klimamodell" in periods["2050"]["description"]
 
 
@@ -148,7 +150,7 @@ def test_recent5_is_used_for_all_climate_endpoints(client: TestClient) -> None:
     assert cities["period"]["id"] == "recent5"
     assert cities["period"]["start_date"] == "2021-01-01"
 
-    assert client.get("/api/map", params={"period": "2050"}).status_code == 400
+    assert client.get("/api/map", params={"period": "2060"}).status_code == 400
 
 
 def test_ranking_and_static(client: TestClient) -> None:
@@ -345,3 +347,30 @@ def test_winterquarters_combination_uses_fixed_window_and_one_profile(client: Te
     # Ein Sommerfenster über alle zwölf Monate lässt kein Winterquartier übrig.
     full_year = client.get("/api/winterquarters/combination", params={"sfrom": 6, "sto": 5})
     assert full_year.status_code == 400
+
+
+@pytest.mark.parametrize("season,home_key", [("winter", "summer_city"), ("summer", "winter_city")])
+def test_escape_quarters_api(client: TestClient, season: str, home_key: str) -> None:
+    response = client.get("/api/winterquarters/escape", params={
+        "lat": 52.52, "lon": 13.405, "season": season, "sfrom": 11, "sto": 2,
+        "period": "recent5", "limit": 3,
+    })
+    assert response.status_code == 200
+    report = response.json()
+    assert report["summer_months"] == [0, 1, 10, 11]
+    assert report["summer_label"] == "November – Februar"
+    assert report["period"]["id"] == "recent5"
+    assert len(report["candidates"]) == 3
+    for candidate in report["candidates"]:
+        assert candidate[home_key]["lat"] == 52.52
+        assert candidate[home_key]["lon"] == 13.405
+        assert candidate["total_days"] - report["baseline_days"] == pytest.approx(candidate["gain_days"], abs=.11)
+
+
+def test_escape_quarters_validation(client: TestClient) -> None:
+    params = {"lat": 52.52, "lon": 13.405}
+    assert client.get("/api/winterquarters/escape").status_code == 422
+    assert client.get("/api/winterquarters/escape", params={**params, "season": "spring"}).status_code == 422
+    assert client.get("/api/winterquarters/escape", params={**params, "lat": 0}).status_code == 422
+    assert client.get("/api/winterquarters/escape", params={**params, "period": "2060"}).status_code == 400
+    assert client.get("/api/winterquarters/escape", params={**params, "sfrom": 6, "sto": 5}).status_code == 400

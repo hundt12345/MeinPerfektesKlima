@@ -183,7 +183,7 @@ em { color: var(--text); font-style: normal; font-weight: 650; }
 .badge {
   display: inline-flex; align-items: center; gap: .45rem;
   font-size: .75rem; color: var(--text-2);
-  background: linear-gradient(180deg, var(--card-top), var(--card-bottom)), var(--surface);
+  background: var(--surface);
   border: 1px solid var(--line); border-radius: 999px;
   padding: .36rem .8rem; max-width: 46ch;
   box-shadow: var(--shadow-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -210,15 +210,12 @@ main {
 
 .card {
   position: relative;
-  background: linear-gradient(180deg, var(--card-top), var(--card-bottom)), var(--surface);
+  background: var(--surface);
   border: 1px solid var(--line); border-radius: var(--radius);
   padding: 1rem 1.05rem; box-shadow: var(--shadow);
 }
-.card::after {  /* feine Lichtkante oben */
-  content: ""; position: absolute; inset: 0 0 auto; height: 1px; border-radius: var(--radius) var(--radius) 0 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .16) 22%, rgba(255, 255, 255, .16) 78%, transparent);
-  pointer-events: none;
-}
+/* Keine wiederholten horizontalen Lichtkanten zwischen den Karten. */
+.card::after { content: none; }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
 .card-head h2 { margin-bottom: 0; }
 
@@ -849,3 +846,24 @@ footer a { color: var(--muted); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }
+
+/* Saisonaler Wohnort-Finder: Suchtreffer bleiben im normalen Kartenfluss. */
+.home-search { margin-bottom: .8rem; }
+.home-search label { display: block; margin-bottom: .4rem; }
+.home-search input { width: 100%; }
+.home-results { display: flex; flex-direction: column; gap: .3rem; margin-top: .4rem; }
+.home-results button { text-align: left; white-space: normal; }
+.projection-sources summary { cursor: pointer; color: var(--accent-2); font-size: .8rem; margin-top: .7rem; }
+.projection-sources p { line-height: 1.55; }
+
+.projection-warning { border-left: 3px solid var(--warn); padding: .6rem .7rem;
+  background: rgba(255, 180, 84, .08); font-size: .8rem; line-height: 1.5; }
+.projection-detail { font-size: .8rem; line-height: 1.5; margin: .8rem 0; }
+.projection-detail summary { cursor: pointer; color: var(--accent-2); }
+.projection-table-wrap { overflow-x: auto; }
+.projection-table { width: 100%; border-collapse: collapse; font-size: .75rem; margin-top: .5rem; }
+.projection-table th, .projection-table td { padding: .3rem; text-align: right; }
+.projection-table th:first-child, .projection-table td:first-child { text-align: left; }
+.sponsor-label { display: block; color: var(--muted); font-size: .7rem; letter-spacing: .08em; margin-bottom: .5rem; }
+.sponsor-slot p { color: var(--text-2); font-size: .85rem; line-height: 1.5; }
+.sponsor-slot a { display: inline-block; margin-top: .25rem; }
