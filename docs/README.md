@@ -8,5 +8,6 @@ typische Einstellungen – „ganzes Jahr, ausgewogen mild“ und „Juli, warm 
 ## Produkt und Betrieb
 
 - [Klimaprojektionen 2030/2050: Quelle, Annahmen, Reproduktion](klimaprojektionen.md)
-- [Monetarisierungsideen und Report-Pilot](monetarisierung.md)
+- [Monetarisierung und Affiliate-Start](monetarisierung.md)
+- [Fahrplan: was zu tun ist, damit die Seite trägt](monetarisierung-fahrplan.md)
 - [Homepage bewerben und dynamische Anzeigen betreiben](werbung-und-wachstum.md)

@@ -12,6 +12,13 @@
   POST /api/analytics/pageview  aggregierter First-Party-Tageszähler
   GET /api/analytics/summary   geschützte Seitenaufruf-Zusammenfassung
   GET /analytics        Betreiber-Dashboard für Seitenaufrufe
+  GET /klima            Verzeichnis aller Ortsprofile (SEO-Einstieg)
+  GET /klima/{ort}      serverseitiges Ortsprofil mit echten Zahlen, FAQ, Teilen
+  GET /ueberwintern-in-europa, /sommerhitze-entfliehen  Ratgeber aus den Daten
+  GET /sitemap.xml, /robots.txt, /feed.xml, /badge/{ort}.svg
+  GET /impressum, /datenschutz  aus den Betreiberangaben (sonst 503)
+  GET /api/affiliate    serverseitig konfigurierter Partnerlink (Standard: aus)
+  POST /api/analytics/event   erlaubte Funnel-Ereignisse (aggregiert)
   GET /api/ranking      Beste Orte (Städte) für die aktuellen Parameter
   GET /api/cities       Städteliste für die Suche
   GET /api/cities/climate  vollständige Städteliste mit Jahres-Klimakenngrößen
@@ -44,9 +51,13 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 
-from .ads import select_ad
-from .analytics import is_enabled as analytics_enabled, pageview_summary, record_pageview
+from . import seo
+from .ads import ads_enabled, select_ad
+from .affiliate import affiliate_enabled, select_affiliate
+from .analytics import (event_summary, is_enabled as analytics_enabled, pageview_summary,
+                        record_event, record_pageview)
 from .build_progress import DEFAULT_REPO, build_status
+from .legal import legal_configured, load_legal, notice_html
 from .sharing import decode_share_state, render_share_card, share_headline
 from .climate import (CITY_DAY_INDICATORS, DEFAULT_SUMMER_MONTHS, FIELD_WIDTH, MONTH_NAMES,
                       WINTER_DEFAULTS, ClimateData, Filter, Params, cyclic_months,
@@ -859,7 +870,7 @@ def share_page(request: Request, state: str = Query(..., min_length=1, max_lengt
     index_path = STATIC_DIR / "index.html"
     if not index_path.exists():
         raise HTTPException(500, "index.html fehlt")
-    document = index_path.read_text(encoding="utf-8")
+    document = index_path.read_text(encoding="utf-8").replace("%%ORIGIN%%", origin)
     description_tag = f'<meta name="description" content="{html.escape(description, quote=True)}">'
     document, replaced = re.subn(r'<meta\s+name="description"\s+content="[^"]*"\s*/?>',
                                  description_tag, document, count=1)
@@ -903,9 +914,14 @@ def api_analytics_summary(request: Request, days: int = Query(30, ge=1, le=365))
         raise HTTPException(401, "Ungültiger Schlüssel", headers={"WWW-Authenticate": "Bearer"})
     try:
         summary = pageview_summary(days)
+        funnel = event_summary(days)
     except Exception as exc:  # Do not expose local paths or database internals.
         logging.getLogger(__name__).exception("Could not read aggregate page views")
         raise HTTPException(503, "Analytics-Daten sind gerade nicht verfügbar") from exc
+    for row, event_row in zip(summary["daily"], funnel["daily"]):
+        row["events"] = event_row["events"]
+    summary["events"] = funnel["events"]
+    summary["events_total"] = funnel["total"]
     return JSONResponse(summary, headers={"Cache-Control": "no-store"})
 
 
@@ -917,12 +933,187 @@ def analytics_dashboard():
     return FileResponse(path, headers={"Cache-Control": "no-store"})
 
 
-@app.get("/")
-def index():
+# ------------------------------------------------------------------ Inhaltsseiten
+# Serverseitig gerenderte Seiten aus denselben geprüften Daten wie die Karte.
+# Sie sind der Einstieg für Suchmaschinen und Social Media; ohne Datensatz
+# antworten sie (wie die Karte) mit 503 statt mit erfundenen Zahlen.
+CACHE_PUBLIC = {"Cache-Control": "public, max-age=600"}
+
+
+def landing_view() -> "seo.DatasetView":
+    return seo.view_for(ready_dataset())
+
+
+@app.get("/robots.txt", include_in_schema=False)
+def robots_txt(request: Request):
+    return Response(seo.robots_txt(public_origin(request)), media_type="text/plain; charset=utf-8",
+                    headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+def sitemap_xml(request: Request):
+    body = seo.sitemap_xml(landing_view(), public_origin(request))
+    return Response(body, media_type="application/xml", headers=CACHE_PUBLIC)
+
+
+@app.get("/feed.xml", include_in_schema=False)
+def feed_xml(request: Request):
+    body = seo.feed_xml(landing_view(), public_origin(request))
+    return Response(body, media_type="application/rss+xml; charset=utf-8", headers=CACHE_PUBLIC)
+
+
+@app.get("/klima", response_class=HTMLResponse, include_in_schema=False)
+def klima_index(request: Request):
+    return HTMLResponse(seo.index_page(landing_view(), public_origin(request)),
+                        headers=CACHE_PUBLIC)
+
+
+@app.get("/klima/{slug}", response_class=HTMLResponse, include_in_schema=False)
+def klima_place(request: Request, slug: str):
+    view = landing_view()
+    page = seo.city_page(view, public_origin(request), slug)
+    if page is None:
+        raise HTTPException(404, "Für diesen Ort gibt es kein Profil")
+    return HTMLResponse(page[0], headers=CACHE_PUBLIC)
+
+
+@app.get("/klima/{slug}/card.png", include_in_schema=False)
+def klima_card(request: Request, slug: str):
+    """1200×630-Vorschau je Ortsprofil – für Social Media und Newsletter."""
+    view = landing_view()
+    entry, context = seo.city_context_by_slug(view, slug)
+    if entry is None:
+        raise HTTPException(404, "Für diesen Ort gibt es kein Profil")
+    state = seo.social_card_state(entry)
+    location = f"{entry.name}, {entry.country}" if entry.country else entry.name
+    png = render_share_card(context["report"], state, location)
+    return Response(content=png, media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/og/home.png", include_in_schema=False)
+def og_home():
+    """1200×630-Vorschau der Startseite für Social Media und Newsletter."""
+    png = seo.render_home_card(landing_view())
+    return Response(content=png, media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.get("/badge/{slug}.svg", include_in_schema=False)
+def badge_svg(slug: str):
+    """Einbettbare Kennzahl-Grafik – verlinkt in Blogs zurück auf das Ortsprofil."""
+    view = landing_view()
+    entry = view.by_slug.get(slug)
+    if entry is None:
+        raise HTTPException(404, "Für diesen Ort gibt es kein Profil")
+    svg = seo.badge_svg(entry, view.days(entry, "mild"))
+    return Response(svg, media_type="image/svg+xml",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
+def _guide_response(request: Request, slug: str) -> HTMLResponse:
+    page = seo.guide_page(landing_view(), public_origin(request), slug)
+    if page is None:
+        raise HTTPException(404, "Diesen Ratgeber gibt es nicht")
+    return HTMLResponse(page[0], headers=CACHE_PUBLIC)
+
+
+@app.get("/ueberwintern-in-europa", response_class=HTMLResponse, include_in_schema=False)
+def guide_winter(request: Request):
+    return _guide_response(request, "ueberwintern-in-europa")
+
+
+@app.get("/sommerhitze-entfliehen", response_class=HTMLResponse, include_in_schema=False)
+def guide_summer(request: Request):
+    return _guide_response(request, "sommerhitze-entfliehen")
+
+
+@app.get("/guide/{slug}/card.png", include_in_schema=False)
+def guide_card(slug: str):
+    guide = seo.GUIDES.get(slug)
+    if guide is None:
+        raise HTTPException(404, "Diesen Ratgeber gibt es nicht")
+    png = seo.render_guide_card(landing_view(), guide)
+    return Response(content=png, media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.get("/api/site", include_in_schema=False)
+def api_site():
+    """Kleine Statusauskunft: welche optionalen Bausteine sind eingerichtet?"""
+    try:
+        pages = len(seo.view_for(ready_dataset()).entries)
+    except HTTPException:
+        pages = 0
+    return JSONResponse({
+        "legal_configured": legal_configured(),
+        "affiliate_enabled": affiliate_enabled(),
+        "ads_enabled": ads_enabled(),
+        "analytics_enabled": analytics_enabled(),
+        "landing_pages": pages,
+    }, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/api/affiliate", include_in_schema=False)
+def api_affiliate(context: str = Query("year", pattern="^(year|month|wq)$"),
+                  lat: float = Query(..., ge=-90, le=90),
+                  lon: float = Query(..., ge=-180, le=180),
+                  name: str = Query("", max_length=100),
+                  country: str = Query("", max_length=100),
+                  slug: str = Query("", max_length=80)):
+    """Höchstens ein serverseitig konfigurierter Partnerlink – sonst ``null``."""
+    link = select_affiliate(context, city=name, country=country, lat=lat, lon=lon, slug=slug)
+    return JSONResponse({"link": link}, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/impressum", response_class=HTMLResponse, include_in_schema=False)
+def impressum(request: Request):
+    legal = load_legal()
+    if legal is None:
+        return HTMLResponse(seo.layout(
+            title="Impressum – noch nicht eingerichtet", description="Betreiberangaben fehlen",
+            canonical=public_origin(request) + "/impressum", origin=public_origin(request),
+            body=notice_html()), status_code=503)
+    return HTMLResponse(seo.render_impressum(legal, public_origin(request)),
+                        headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.get("/datenschutz", response_class=HTMLResponse, include_in_schema=False)
+def datenschutz(request: Request):
+    legal = load_legal()
+    if legal is None:
+        return HTMLResponse(seo.layout(
+            title="Datenschutz – noch nicht eingerichtet", description="Betreiberangaben fehlen",
+            canonical=public_origin(request) + "/datenschutz", origin=public_origin(request),
+            body=notice_html()), status_code=503)
+    return HTMLResponse(seo.render_datenschutz(
+        legal, public_origin(request), analytics_on=analytics_enabled(),
+        ads_on=ads_enabled(), affiliate_on=affiliate_enabled()),
+        headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.post("/api/analytics/event", status_code=204, include_in_schema=False)
+def api_analytics_event(name: str = Query(..., max_length=32)):
+    """Erlaubte Funnel-Ereignisse – unbekannte Namen werden still verworfen."""
+    if analytics_enabled():
+        try:
+            record_event(name)
+        except Exception:  # Messung darf die App niemals stören.
+            logging.getLogger(__name__).exception("Could not record aggregate event")
+    return Response(status_code=204, headers={"Cache-Control": "no-store"})
+
+
+def page_html(request: Request) -> str:
+    """index.html mit absoluten URLs (canonical, Open Graph) für die echte Domain."""
     path = STATIC_DIR / "index.html"
     if not path.exists():
         raise HTTPException(500, "index.html fehlt")
-    return FileResponse(path)
+    return path.read_text(encoding="utf-8").replace("%%ORIGIN%%", public_origin(request))
+
+
+@app.get("/")
+def index(request: Request):
+    return HTMLResponse(page_html(request))
 
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

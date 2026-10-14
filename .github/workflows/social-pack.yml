@@ -1,0 +1,83 @@
+name: Social-Paket bauen
+
+# Erzeugt regelmäßig ein fertiges Streupaket (Grafiken + Beitragstexte) aus den
+# Klimadaten und legt es als Artefakt ab. Standardmäßig wird NICHTS veröffentlicht:
+# Veröffentlicht wird nur, wenn das Repository-Variable SOCIAL_POST_ENABLED auf
+# "true" steht und die Zugangsdaten als Secrets hinterlegt sind.
+#
+# Einrichtung:
+#   Settings → Variables → SOCIAL_POST_ENABLED = true   (optional)
+#   Settings → Secrets  → KLIMA_PUBLIC_URL, MASTODON_BASE_URL, MASTODON_TOKEN,
+#                         TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID,
+#                         BLUESKY_HANDLE, BLUESKY_APP_PASSWORD
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"        # jeden Montag 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      weeks:
+        description: "Wie viele Wochen planen?"
+        required: false
+        default: "4"
+      post_today:
+        description: "Fällige Beiträge von heute veröffentlichen (nur mit Secrets)"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  paket:
+    runs-on: ubuntu-latest
+    env:
+      KLIMA_PUBLIC_URL: ${{ secrets.KLIMA_PUBLIC_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Abhängigkeiten installieren
+        run: pip install -r requirements.txt
+
+      - name: Prüfen, ob das Klimaraster vorliegt
+        id: daten
+        run: |
+          if [ -f app/data/climate_grid.npz ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "Kein app/data/climate_grid.npz im Repo – zuerst den Workflow „Klimadaten bauen“ ausführen."
+          fi
+
+      - name: Social-Paket erzeugen
+        if: steps.daten.outputs.ok == 'true'
+        run: python scripts/social_pack.py --weeks "${{ github.event.inputs.weeks || '4' }}" --out social
+
+      - name: Beitragstexte im Protokoll zeigen
+        if: steps.daten.outputs.ok == 'true'
+        run: |
+          echo '--- Kalender ---'
+          head -60 social/kalender.md
+
+      - uses: actions/upload-artifact@v4
+        if: steps.daten.outputs.ok == 'true'
+        with:
+          name: social-paket
+          path: social/
+          retention-days: 90
+
+      - name: Fällige Beiträge veröffentlichen (optional)
+        if: steps.daten.outputs.ok == 'true' && (vars.SOCIAL_POST_ENABLED == 'true' || inputs.post_today)
+        env:
+          MASTODON_BASE_URL: ${{ secrets.MASTODON_BASE_URL }}
+          MASTODON_TOKEN: ${{ secrets.MASTODON_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          BLUESKY_HANDLE: ${{ secrets.BLUESKY_HANDLE }}
+          BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
+        run: python scripts/social_post.py --post --due "$(date -u +%F)"

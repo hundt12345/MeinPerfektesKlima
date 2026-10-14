@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "configured": false,
+  "_hinweis": "Vorlage für Impressum und Datenschutzerklärung. Felder ausfüllen und `configured` auf true setzen (oder KLIMA_LEGAL_FILE auf eine gepflegte Datei zeigen lassen). Solange configured=false ist, antworten /impressum und /datenschutz mit HTTP 503 und einer Einrichtungshilfe; die Fußzeilen-Links erscheinen erst nach dem Ausfüllen. `notes` und `affiliate_note` sind freie Zusatztexte des Betreibers.",
+  "updated": "",
+  "operator": {
+    "name": "",
+    "legal_form": "",
+    "street": "",
+    "zip": "",
+    "city": "",
+    "country": "Deutschland"
+  },
+  "contact": {
+    "email": "",
+    "phone": ""
+  },
+  "responsible": "",
+  "vat_id": "",
+  "hosting": {
+    "provider": "",
+    "location": "",
+    "request_logs": true,
+    "log_retention_days": 7
+  },
+  "affiliate_note": "",
+  "notes": ""
+}

@@ -507,6 +507,24 @@ footer .privacy-note { margin: .65rem 0 0; color: var(--muted); font-size: .76re
 .sponsor-label { display: block; color: var(--muted); font-size: .72rem; margin-bottom: .4rem; }
 .sponsor-slot p { color: var(--text-2); font-size: .88rem; line-height: 1.5; }
 
+/* Teilen-Kit und optionaler Partnerplatz in der Orts-Detailkarte */
+.share-more { margin-top: .5rem; border-top: 1px solid var(--line); padding-top: .45rem; }
+.share-more summary { cursor: pointer; color: var(--muted); font-size: .84rem; }
+.share-more[open] summary { color: var(--text-2); }
+.partner-host:empty { display: none; }
+.partner-slot {
+  margin-top: .8rem; padding: .7rem .75rem; border: 1px solid var(--line);
+  border-radius: 10px; background: var(--panel);
+}
+.partner-slot .sponsor-link { display: inline-block; margin-top: .15rem; text-decoration: none; }
+.partner-slot .sub { color: var(--muted); font-size: .78rem; margin: .35rem 0 0; line-height: 1.45; }
+
+/* Fußzeile: Verweise auf die Inhaltsseiten und die Rechtstexte */
+footer .content-links { margin: 0 0 .8rem; color: var(--text-2); font-size: .86rem; }
+footer .content-links a { color: var(--link); }
+footer .legal-links { margin: .5rem 0 0; color: var(--text-2); font-size: .8rem; }
+footer .legal-links a { color: var(--link); }
+
 .building { padding: 1rem; }
 .build-card { max-width: 760px; margin: 4vh auto; padding: 1.6rem 1.7rem; }
 .build-card .lead { color: var(--text-2); margin: .1rem 0 1.1rem; font-size: .94rem; }
