@@ -1,9 +1,9 @@
 /* Mein perfektes Klima – Europa
    Karte + Bedienung (Vanilla JS, Leaflet).
 
-   OpenStreetMap liefert dynamische Kartendetails als Browser-Kacheln; das
-   Klimaraster und die GeoNames-Marker kommen weiterhin aus der eigenen API.
-   Die sichtbare Leaflet-Attribution erfüllt die OSM-Namensnennung.
+   CARTO liefert OSM-basierte Basiskacheln; transparente Kartenbeschriftungen
+   liegen separat über dem Klimaraster. Klima und GeoNames-Marker kommen aus
+   der eigenen API. Die sichtbare Attribution nennt OSM und CARTO.
 */
 "use strict";
 
@@ -25,13 +25,14 @@ let META = null;             // /api/meta
 let WQ_BOUNDS = {};          // META.winterquarters (Sommerfenster, Saisonlänge)
 let GRID = null;             // letzte /api/map-Antwort
 let map = null, overlay = null, borderLayer = null;
-let osmLayer = null, layerControl = null;
+let osmLayer = null, osmLabelLayer = null, layerControl = null;
 let cityLayer = null, cityData = [], markerIndex = new Map();
 let wqLayer = null;          // Wohnort + vorgeschlagene Ziele auf der Karte
 const CLIMATE_OVERLAY_OPACITY = 0.78;
 // Ab dieser Zoomstufe zeigt die OSM-Karte genauere Grenzen als unsere Linien.
 const BORDER_MAX_ZOOM = 9;
 let hoverTip = null, marker = null;
+let pendingShareSelection = null;
 let seq = 0, hoverQueued = false, refreshTimer = null;
 
 const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni",
@@ -106,6 +107,114 @@ function fmtDelta(v, digits = 1) {
 }
 const escapeHtml = (s) => String(s ?? "").replace(/[&<>"']/g,
   ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+
+function encodeShareState(payload) {
+  const encoded = encodeURIComponent(JSON.stringify(payload)).replace(/%([0-9A-F]{2})/g,
+    (_match, byte) => String.fromCharCode(parseInt(byte, 16)));
+  return btoa(encoded).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function currentSharePayload() {
+  const selected = state.selected;
+  if (!selected || !selected.report) return null;
+  const city = selected.cityInfo || selected.report.city || {};
+  const nearbyCity = Number(city.dist_km) < 40;
+  return {
+    v: 1,
+    mode: state.mode,
+    period: state.period,
+    month: state.month,
+    params: { ...state.params },
+    selected: {
+      lat: selected.lat,
+      lon: selected.lon,
+      name: selected.name || (nearbyCity ? city.name : "") || "",
+      country: selected.country || (nearbyCity ? city.name_de : "") || "",
+    },
+  };
+}
+
+function currentShareUrl() {
+  const payload = currentSharePayload();
+  if (!payload) return null;
+  const url = new URL("/share", location.origin);
+  url.searchParams.set("state", encodeShareState(payload));
+  return url.toString();
+}
+
+function currentShareCardUrl() {
+  const link = currentShareUrl();
+  if (!link) return null;
+  const url = new URL(link);
+  url.pathname = "/share/card.png";
+  return url.toString();
+}
+
+function readSharedState() {
+  const token = new URLSearchParams(location.search).get("state");
+  if (!token) return;
+  try {
+    const binary = atob(token.replace(/-/g, "+").replace(/_/g, "/"));
+    const encoded = Array.from(binary, char => `%${char.charCodeAt(0).toString(16).padStart(2, "0")}`).join("");
+    const shared = JSON.parse(decodeURIComponent(encoded));
+    if (shared.v !== 1 || !["year", "month", "wq"].includes(shared.mode)) throw new Error("ungültiger Modus");
+    const period = periodInfo(shared.period);
+    if (period && period.available) state.period = period.id;
+    if (shared.mode === "month" && Number.isInteger(Number(shared.month))
+        && Number(shared.month) >= 1 && Number(shared.month) <= 12) state.month = Number(shared.month);
+    const limits = {
+      tmax_min: [-40, 45], tmax_max: [-40, 45], tmin_min: [-45, 40], tmin_max: [-45, 40],
+      tdew_max: [-20, 30], sun_min: [0, 16], prec_max: [0, 99],
+    };
+    for (const [key, [min, max]] of Object.entries(limits)) {
+      const value = Number(shared.params && shared.params[key]);
+      if (Number.isFinite(value) && value >= min && value <= max) state.params[key] = value;
+    }
+    const place = shared.selected || {};
+    const lat = Number(place.lat), lon = Number(place.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+      throw new Error("ungültiger Ort");
+    }
+    state.mode = shared.mode;
+    pendingShareSelection = {
+      lat, lon,
+      name: String(place.name || "").slice(0, 100),
+      country: String(place.country || "").slice(0, 100),
+    };
+  } catch {
+    pendingShareSelection = null;
+    setTimeout(() => toast("Dieser Ergebnis-Link ist leider ungültig."), 0);
+  }
+}
+
+function trackPageView() {
+  const path = location.pathname === "/share" ? "/share" : "/";
+  fetch(`/api/analytics/pageview?path=${encodeURIComponent(path)}`, {
+    method: "POST", credentials: "omit", cache: "no-store", keepalive: true, referrerPolicy: "no-referrer",
+  }).catch(() => {});
+}
+
+async function shareCurrentResult() {
+  const url = currentShareUrl();
+  const selected = state.selected;
+  if (!url || !selected) return;
+  const place = selected.name || selected.cityInfo?.name || selected.report?.city?.name || "Europa";
+  const monthMode = state.mode === "month";
+  const days = monthMode ? selected.report.days_per_month[state.month - 1] : selected.report.days_per_year;
+  const unit = monthMode ? `im ${monthNames[state.month - 1]}` : "pro Jahr";
+  const title = `${fmtDays(days)} schöne Tage ${unit} in ${place}`;
+  const text = `Mein Wohlfühlwetter gibt es in ${place} an ${fmtDays(days)} Tagen ${unit}.`;
+  if (typeof navigator.share === "function") {
+    try { await navigator.share({ title, text, url }); return; }
+    catch (error) { if (error && error.name === "AbortError") return; }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    toast("Ergebnis-Link kopiert – mit Vorschau für Social Media.");
+  } catch {
+    toast(url, 6500);
+  }
+}
 
 /* ------------------------------------------------------------ Klimazeitraum */
 // Drei sprechende Wege statt SSP-Kürzeln; die Kürzel stehen nur noch klein dabei.
@@ -372,21 +481,26 @@ function initMap() {
     maxBoundsViscosity: 0.7,
   }).setView([52.5, 11], 4);
 
-  // OSM-Kacheln werden direkt vom Browser geladen; Render liefert weiterhin
-  // nur App/API und Klimaraster. Maximalzoom gibt der Grundkarte Straßendetails.
-  osmLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap-Mitwirkende</a>',
-    updateWhenIdle: true,
-    keepBuffer: 2,
+  // Die Kartenbeschriftungen liegen in einer eigenen transparenten Kachelebene.
+  // So bleiben Orts- und Straßennamen immer über der halbtransparenten Klimafläche
+  // statt im Wetter-Layer zu verschwinden. Beide CARTO-Stile basieren auf OSM.
+  const borderPane = map.createPane("borders"); borderPane.style.zIndex = 450;
+  map.createPane("osmLabels").style.zIndex = 500;
+  map.createPane("cities").style.zIndex = 550;
+  const osmAttribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap-Mitwirkende</a>'
+    + ' &copy; <a href="https://carto.com/attributions">CARTO</a>';
+  osmLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png", {
+    maxZoom: 19, attribution: osmAttribution,
+    updateWhenIdle: true, keepBuffer: 2,
+  }).addTo(map);
+  osmLabelLayer = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png", {
+    pane: "osmLabels", maxZoom: 19, attribution: osmAttribution,
+    updateWhenIdle: true, keepBuffer: 2,
   }).addTo(map);
   layerControl = L.control.layers({ "OpenStreetMap": osmLayer }, {}, {
     collapsed: true, position: "topleft",
   }).addTo(map);
-
-  // Ebenen-Reihenfolge: OSM-Kacheln < Klimafläche < Landgrenzen < Städtemarker.
-  const borderPane = map.createPane("borders"); borderPane.style.zIndex = 450;
-  map.createPane("cities").style.zIndex = 550;
+  layerControl.addOverlay(osmLabelLayer, "OSM-Beschriftungen");
 
   // Nur Landgrenzen als Linien (Küsten zeigt die Grundkarte). Früher kamen hier
   // Länderflächen, deren Schnittkanten am Kartenrand als gerade Striche auftauchten.
@@ -723,6 +837,9 @@ function renderDetail(opts = {}) {
     climateFacts(clim),
     moreClimate(clim),
     projectionDetails(rep),
+    el("div", { class: "share-actions" },
+      el("button", { type: "button", class: "ghost", onclick: shareCurrentResult }, "Ergebnis teilen"),
+      el("a", { class: "ghost", href: currentShareCardUrl(), download: "mein-perfektes-klima-ergebnis.png" }, "Bild speichern")),
     el("p", { class: "sub", style: "margin-top:.6rem", text: cityLine }),
   );
 }
@@ -1039,7 +1156,7 @@ function queueRefresh(ms = 220) {
 }
 
 async function refresh(immediate = false) {
-  if (immediate) { clearTimeout(refreshTimer); refresh(); return; }
+  if (immediate) { clearTimeout(refreshTimer); return refresh(); }
   const mySeq = ++seq;
   document.body.classList.add("loading");
   const bar = $("#progress");
@@ -1606,6 +1723,7 @@ async function showStatusScreen(payload) {
 
 /* ------------------------------------------------------------------- Start */
 async function boot() {
+  trackPageView();
   try {
     META = await getJSON("/api/meta");
   } catch (err) {
@@ -1617,6 +1735,7 @@ async function boot() {
     return;
   }
   readHash();
+  readSharedState();
   state.params = { ...META.defaults, ...state.params };
   WQ_BOUNDS = META.winterquarters || {};
   showDataStatus();
@@ -1680,13 +1799,21 @@ async function boot() {
     }
   });
   $("#btn-link").addEventListener("click", async () => {
-    try { await navigator.clipboard.writeText(location.href); toast("Link kopiert"); }
-    catch { toast(location.href); }
+    const resultLink = currentShareUrl();
+    const link = resultLink || location.href;
+    try { await navigator.clipboard.writeText(link); toast(resultLink ? "Ergebnis-Link kopiert" : "Link kopiert"); }
+    catch { toast(link, 6500); }
   });
   setMode(state.mode, true);
 
   initMap();
   await refresh(true);
+  if (pendingShareSelection) {
+    const selected = pendingShareSelection;
+    pendingShareSelection = null;
+    map.setView([selected.lat, selected.lon], Math.max(map.getZoom(), 6), { animate: false });
+    await selectPlace(selected.lat, selected.lon, selected.name, selected.country);
+  }
 }
 
 const MODE_HINTS = {

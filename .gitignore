@@ -9,6 +9,8 @@ node_modules/
 # Test-/Dev-Ausgaben
 /tmp/
 *.test.npz
+*.sqlite3
+*.sqlite3-*
 
 # Arbeitsdateien des Datenabrufs
 fetch.log

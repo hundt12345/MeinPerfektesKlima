@@ -15,8 +15,8 @@ const failures = [];
 const ok = (cond, msg) => { console.log(`${cond ? "  ✓" : "  ✗"} ${msg}`); if (!cond) failures.push(msg); };
 
 /* Leaflet-Stub: merkt sich Aufrufe und Ereignis-Handler */
-const calls = { tileLayer: 0, markers: 0, circles: 0, geoJSON: 0, overlay: 0, layers: 0, mapOptions: null,
-  tileUrl: "", tileAttribution: "" };
+const calls = { tileLayer: 0, tileUrls: [], markers: 0, circles: 0, geoJSON: 0, overlay: 0, layers: 0, mapOptions: null,
+  tileUrl: "", tileAttribution: "", clipboardText: "" };
 const handlers = {};
 const markerClicks = [];
 
@@ -54,6 +54,7 @@ function makeLeafletStub() {
     tileLayer: (url, options = {}) => {
       calls.tileLayer++;
       calls.tileUrl = url;
+      calls.tileUrls.push({ url, pane: options.pane || "tilePane", attribution: options.attribution || "" });
       calls.tileAttribution = options.attribution || "";
       return chain();
     },
@@ -82,7 +83,7 @@ const { window } = dom;
 window.fetch = (url, opts) => fetch(new URL(url, BASE), opts);
 window.requestAnimationFrame = (cb) => setTimeout(() => cb(0), 0);
 window.L = makeLeafletStub();
-window.navigator.clipboard = { writeText: async () => {} };
+window.navigator.clipboard = { writeText: async (text) => { calls.clipboardText = String(text); } };
 window.history.replaceState = (_state, _title, url) => { calls.lastHash = String(url); };
 Object.defineProperty(window.HTMLElement.prototype, "clientWidth", { value: 1100, configurable: true });
 
@@ -134,10 +135,12 @@ ok(!doc.querySelector("#city-data").open, "Große Städtetabelle standardmäßig
 ok(handlers.click && handlers.click.length > 0, "Kartenklick-Handler registriert");
 
 console.log("\nOSM-Grundkarte und Klimadaten:");
-ok(calls.tileLayer === 1 && calls.tileUrl.includes("tile.openstreetmap.org"),
-  `dynamische OSM-Kacheln eingebunden (${calls.tileUrl})`);
-ok(calls.mapOptions && calls.mapOptions.maxZoom >= 18 && calls.tileAttribution.includes("OpenStreetMap"),
-  "hoher Zoom und sichtbare OSM-Attribution konfiguriert");
+ok(calls.tileLayer === 2 && calls.tileUrls.some(layer => layer.url.includes("light_nolabels"))
+  && calls.tileUrls.some(layer => layer.url.includes("light_only_labels") && layer.pane === "osmLabels"),
+  "OSM-Grundkarte und transparente Beschriftungsebene sind getrennt");
+ok(calls.mapOptions && calls.mapOptions.maxZoom >= 18 && calls.tileAttribution.includes("OpenStreetMap")
+  && calls.tileAttribution.includes("CARTO"),
+  "hoher Zoom sowie OSM- und CARTO-Attribution konfiguriert");
 ok(calls.layers >= 1, "Layer-Steuerung für Grundkarte/Klimadaten eingebunden");
 ok(calls.geoJSON >= 1, `Ländergrenzen als zusätzliche Vektorebene (${calls.geoJSON})`);
 ok(calls.overlay >= 1, `Daten-Overlay eingebunden (${calls.overlay})`);
@@ -158,6 +161,14 @@ ok(!!doc.querySelector("#detail .climsvg"), "Klimadiagramm (SVG) vorhanden");
 ok(doc.querySelectorAll("#detail .facts div").length === 6 && /Tagsüber/.test(detailText) && /Frosttage/.test(detailText),
   "sechs verständliche Klimawerte: " + [...doc.querySelectorAll("#detail .facts div")].map(d => d.textContent).join(" | "));
 ok(/° N/.test(detailText) || /km/.test(detailText), "Angabe zum Gitterpunkt/Entfernung");
+ok(!!doc.querySelector("#detail .share-actions button") && !!doc.querySelector("#detail .share-actions a[href*='/share/card.png']"),
+  "Ergebnis lässt sich teilen und als Social-Karte speichern");
+doc.querySelector("#detail .share-actions button").click();
+await new Promise(r => setTimeout(r, 0));
+ok(calls.clipboardText.includes("/share?state="), "Teilen kopiert einen reproduzierbaren Ergebnis-Link");
+const sharedPage = await fetch(calls.clipboardText);
+ok(sharedPage.status === 200 && (await sharedPage.text()).includes('property="og:image"'),
+  "kopierter Ergebnis-Link liefert Social-Media-Vorschau-Metadaten");
 
 console.log("\nInteraktion – Klick auf eine Stadt (Top-Orte-Liste):");
 const firstCity = doc.querySelector("#ranking li button");
@@ -168,6 +179,11 @@ while (Date.now() < d3 && !(doc.querySelector("#detail .title") || {}).textConte
 await new Promise((r) => setTimeout(r, 800));
 const title = (doc.querySelector("#detail .title") || {}).textContent || "";
 ok(title.includes(cityName) || title.length > 2, `Detailbox trägt den Ortsnamen („${title}“, erwartet „${cityName}“)`);
+doc.querySelector("#detail .share-actions button").click();
+await new Promise(r => setTimeout(r, 0));
+const unicodeShare = await fetch(calls.clipboardText);
+ok(unicodeShare.status === 200 && (await unicodeShare.text()).includes(cityName),
+  "Umlaute/Sonderzeichen im Ergebnis-Link werden korrekt übertragen");
 
 console.log("\nInteraktion – Ortssuche:");
 const search = doc.querySelector("#city-search");
