@@ -7,6 +7,11 @@
   GET /api/map          Statistik + Rasterwerte für die aktuellen Parameter
   GET /api/map.png      Kartenbild (Web-Mercator-PNG)
   GET /api/point        Auswertung für einen Ort (Monatsaufschlüsselung)
+  GET /share            Ergebnis-Link mit Social-Media-Metadaten
+  GET /share/card.png   generierte 1200×630-Teilen-Grafik
+  POST /api/analytics/pageview  aggregierter First-Party-Tageszähler
+  GET /api/analytics/summary   geschützte Seitenaufruf-Zusammenfassung
+  GET /analytics        Betreiber-Dashboard für Seitenaufrufe
   GET /api/ranking      Beste Orte (Städte) für die aktuellen Parameter
   GET /api/cities       Städteliste für die Suche
   GET /api/cities/climate  vollständige Städteliste mit Jahres-Klimakenngrößen
@@ -22,20 +27,27 @@ Wetterprofil und einem festen ``sfrom``/``sto``-Fenster.
 """
 from __future__ import annotations
 
+import html
+import hmac
 import json
+import logging
 import os
+import re
 import threading
 from collections import OrderedDict
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import quote, urlsplit, urlunsplit
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Response
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 
 from .ads import select_ad
+from .analytics import is_enabled as analytics_enabled, pageview_summary, record_pageview
 from .build_progress import DEFAULT_REPO, build_status
+from .sharing import decode_share_state, render_share_card, share_headline
 from .climate import (CITY_DAY_INDICATORS, DEFAULT_SUMMER_MONTHS, FIELD_WIDTH, MONTH_NAMES,
                       WINTER_DEFAULTS, ClimateData, Filter, Params, cyclic_months,
                       months_label, norm_months)
@@ -777,6 +789,132 @@ def api_cities_search(q: str = Query("", min_length=1), limit: int = 8,
         "name": c["name"], "country": c.get("name_de", ""), "lat": c["lat"], "lon": c["lon"],
         "pop": c.get("pop", 0), "alias": matched_alias(c, q), "exact": rank == 0,
     } for c, rank in hits]}
+
+
+def share_result(token: str) -> tuple[dict, dict, str, str, str]:
+    """Validate a public share payload and calculate its live, reproducible result."""
+    try:
+        state = decode_share_state(token)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    cd = ready_dataset()
+    period = parse_period_id(state["period"])
+    selected = state["selected"]
+    # A user can click just outside the data rectangle on the visual map, so
+    # keep the API's global coordinate range and let point_index select its
+    # nearest valid grid cell, just as /api/point does.
+    params = Params(**state["params"])
+    month = state["month"] - 1 if state["mode"] == "month" else None
+    report = cd.point_report(selected["lat"], selected["lon"], params, month, period)
+    city = report.get("city") or {}
+    name = selected["name"] or (city.get("name") if city.get("dist_km", 999) < 40 else "") or "Europa"
+    country = selected["country"] or (city.get("name_de") if city.get("dist_km", 999) < 40 else "") or ""
+    location = f"{name}, {country}" if country and country.lower() not in name.lower() else name
+    state["period"] = period
+    return state, report, name, country, location
+
+
+def public_origin(request: Request) -> str:
+    """Use a configured canonical URL, or the external request scheme/host."""
+    configured = os.environ.get("KLIMA_PUBLIC_URL", "").strip()
+    if configured:
+        parts = urlsplit(configured)
+        if (parts.scheme not in {"http", "https"} or not parts.netloc
+                or parts.username or parts.password or parts.path not in {"", "/"}
+                or parts.query or parts.fragment):
+            raise HTTPException(500, "KLIMA_PUBLIC_URL muss eine URL ohne Pfad oder Query sein")
+        return urlunsplit((parts.scheme, parts.netloc, "", "", "")).rstrip("/")
+    parts = urlsplit(str(request.base_url))
+    forwarded_scheme = request.headers.get("x-forwarded-proto", "").split(",", 1)[0].strip().lower()
+    scheme = forwarded_scheme if forwarded_scheme in {"http", "https"} else parts.scheme
+    return urlunsplit((scheme, parts.netloc, "", "", "")).rstrip("/")
+
+
+@app.get("/share", response_class=HTMLResponse, include_in_schema=False)
+def share_page(request: Request, state: str = Query(..., min_length=1, max_length=4096)):
+    """App page with crawler-readable Open Graph metadata for one result."""
+    shared, report, _name, _country, location = share_result(state)
+    title, description, _days = share_headline(report, shared, location)
+    encoded = quote(state, safe="")
+    origin = public_origin(request)
+    canonical = f"{origin}/share?state={encoded}"
+    image_url = f"{origin}/share/card.png?state={encoded}"
+    tags = "\n".join((
+        f'<link rel="canonical" href="{html.escape(canonical, quote=True)}">',
+        '<meta property="og:type" content="website">',
+        '<meta property="og:site_name" content="Mein perfektes Klima">',
+        f'<meta property="og:title" content="{html.escape(title, quote=True)}">',
+        f'<meta property="og:description" content="{html.escape(description, quote=True)}">',
+        f'<meta property="og:url" content="{html.escape(canonical, quote=True)}">',
+        f'<meta property="og:image" content="{html.escape(image_url, quote=True)}">',
+        '<meta property="og:image:width" content="1200">',
+        '<meta property="og:image:height" content="630">',
+        '<meta property="og:image:type" content="image/png">',
+        f'<meta property="og:image:alt" content="{html.escape(title, quote=True)}">',
+        '<meta name="twitter:card" content="summary_large_image">',
+        f'<meta name="twitter:title" content="{html.escape(title, quote=True)}">',
+        f'<meta name="twitter:description" content="{html.escape(description, quote=True)}">',
+        f'<meta name="twitter:image" content="{html.escape(image_url, quote=True)}">',
+    ))
+    index_path = STATIC_DIR / "index.html"
+    if not index_path.exists():
+        raise HTTPException(500, "index.html fehlt")
+    document = index_path.read_text(encoding="utf-8")
+    description_tag = f'<meta name="description" content="{html.escape(description, quote=True)}">'
+    document, replaced = re.subn(r'<meta\s+name="description"\s+content="[^"]*"\s*/?>',
+                                 description_tag, document, count=1)
+    if not replaced:
+        tags = f"{description_tag}\n{tags}"
+    document = re.sub(r"<title>.*?</title>", f"<title>{html.escape(title)}</title>",
+                      document, count=1, flags=re.IGNORECASE | re.DOTALL)
+    document = document.replace("</head>", f"{tags}\n</head>", 1)
+    return HTMLResponse(document, headers={"Cache-Control": "public, max-age=300"})
+
+
+@app.get("/share/card.png", include_in_schema=False)
+def share_card(state: str = Query(..., min_length=1, max_length=4096)):
+    """A 1200×630 first-party PNG preview for social platforms and downloads."""
+    shared, report, _name, _country, location = share_result(state)
+    png = render_share_card(report, shared, location)
+    return Response(content=png, media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.post("/api/analytics/pageview", status_code=204, include_in_schema=False)
+def api_analytics_pageview(path: str = Query("/", max_length=64)):
+    """Record only a coarse page label; this endpoint stores no request metadata."""
+    if analytics_enabled():
+        try:
+            record_pageview(path)
+        except Exception:  # Analytics must never prevent the app from working.
+            logging.getLogger(__name__).exception("Could not record aggregate page view")
+    return Response(status_code=204, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/api/analytics/summary", include_in_schema=False)
+def api_analytics_summary(request: Request, days: int = Query(30, ge=1, le=365)):
+    """Private aggregate counters, visible only with an operator-set bearer token."""
+    secret = os.environ.get("KLIMA_ANALYTICS_TOKEN", "")
+    if not analytics_enabled() or not secret:
+        raise HTTPException(404, "Analytics ist nicht aktiviert oder nicht konfiguriert")
+    auth = request.headers.get("authorization", "")
+    supplied = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    if not hmac.compare_digest(supplied.encode("utf-8"), secret.encode("utf-8")):
+        raise HTTPException(401, "Ungültiger Schlüssel", headers={"WWW-Authenticate": "Bearer"})
+    try:
+        summary = pageview_summary(days)
+    except Exception as exc:  # Do not expose local paths or database internals.
+        logging.getLogger(__name__).exception("Could not read aggregate page views")
+        raise HTTPException(503, "Analytics-Daten sind gerade nicht verfügbar") from exc
+    return JSONResponse(summary, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/analytics", include_in_schema=False)
+def analytics_dashboard():
+    path = STATIC_DIR / "analytics.html"
+    if not path.exists():
+        raise HTTPException(404, "Analytics-Dashboard fehlt")
+    return FileResponse(path, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/")

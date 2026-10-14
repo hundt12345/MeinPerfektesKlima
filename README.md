@@ -23,7 +23,10 @@ Dazu:
   je Monat, der Einordnung („besser als 87 % aller Rasterpunkte“, Bestwert in Europa) und dem
   Klimaprofil des Ortes (Ø min/max, Taupunkt, Sonnenstunden, Niederschlag, Sommer-/Frosttage).
 * **Ortssuche** über der Karte (Name tippen, z. B. „Sev…“), Top-Orte-Liste für die aktuelle
-  Einstellung, teilbare Links (alle Parameter stecken im URL-Hash). Die Suche ist tolerant:
+  Einstellung und teilbare Links (alle Filter stecken im URL-Hash). In der Orts-Detailkarte gibt es
+  **„Ergebnis teilen“** (native Teilen-Funktion oder Link kopieren) plus **„Bild speichern“**:
+  Der Link öffnet genau den Ort mit Wetterfiltern und Zeitraum; Social Media erhält eine fertige
+  1200×630-Vorschau mit Wohlfühltagen und Monatsprofil. Die Suche ist tolerant:
   Akzente und Umlaute sind egal (`malaga`, `muenchen`, `koeln`), deutsche und landessprachliche
   Namen funktionieren beide (`Mailand`/`Milano`, `Kopenhagen`/`København`, `Genf`/`Genève`),
   ebenso Inseln für den Hauptort (`Mallorca` → Palma, `Kreta` → Heraklion). Städte heißen
@@ -31,10 +34,11 @@ Dazu:
 * **Vollständige Städtedaten**: die eingeklappte Tabelle unter der Karte listet alle Städte mit
   Klimamitteln, Hitze-/Sommer-/Winter-/Eistagen, Schwüle, Regen, Sonne und weiteren Kennzahlen.
   Sie lässt sich durchsuchen und sortieren; der CSV-Export folgt dem aktuellen Suchfilter.
-* **Detaillierte OSM-Grundkarte**: Straßen, Orte und weitere Kartendetails werden dynamisch aus
-  OpenStreetMap-Kacheln geladen; eine Ebenensteuerung schaltet die Klimafläche ein/aus. Die OSM-
-  Attribution bleibt sichtbar. Beim Reinzoomen werden die Straßen detaillierter, die Klimadaten
-  bleiben aber auf ihrem 0,75°-Raster (grob 50–80 km) – Zoom erzeugt keine neuen Messwerte.
+* **Detaillierte OSM-Grundkarte**: Die CARTO-Basiskarte verwendet OpenStreetMap-Daten; Straßen- und
+  Ortsbeschriftungen liegen als eigene transparente Kachelebene über der Wetterfläche. So kann die
+  Klimafläche Labels nicht mehr abwechselnd überdecken. Die Ebenensteuerung schaltet Wetter und
+  Beschriftungen; OSM- und CARTO-Attribution bleiben sichtbar. Beim Reinzoomen werden Straßen
+  detaillierter, die Klimadaten bleiben aber auf ihrem 0,75°-Raster (grob 50–80 km).
 
 ## Wie funktioniert die Auswertung?
 
@@ -107,6 +111,36 @@ Ein kontextueller First-Party-Werbeplatz ist implementiert, standardmäßig ausg
 ohne Cookies/Ad-Tracking. Aktivierung erfolgt nur über geprüfte Betreiber-Kampagnen in
 `app/data/ad_campaigns.json` oder `KLIMA_AD_CAMPAIGNS_FILE`. Kein Netzwerk-Konto, Budget oder
 Sponsor wurde angelegt, keine AdSense-Tags/CMP integriert.
+
+## Ergebnisse teilen und Reichweite messen
+
+Die Orts-Detailkarte bietet **„Ergebnis teilen“** und **„Bild speichern“**. Auf Geräten mit nativer
+Teilen-Funktion öffnet sich das Teilen-Menü; sonst wird der Link kopiert. Social-Crawler bekommen
+serverseitige Open-Graph-/Twitter-Metadaten und eine generierte **1200×630-PNG-Karte** mit Ort,
+Wohlfühltagen, Monatsprofil und Wetterfiltern. Die Links enthalten nur den ausdrücklich geteilten
+Ort und die Filter – keinen Winterquartier-Wohnort. Der Server berechnet das Ergebnis beim Öffnen
+neu; es ist kein unveränderlicher Snapshot der Daten. Hinter einem Reverse-Proxy oder mit eigener
+Domain kann `KLIMA_PUBLIC_URL` (nur `https://host`, ohne Pfad) für die Social-Preview-URLs gesetzt werden.
+
+Für einfache Seitenaufrufe ist **kein Google Analytics und kein externer Tracking-Dienst** nötig.
+Die App zählt beim Laden einmal pro Seite (`/` oder `/share`) und speichert in SQLite nur UTC-Tag,
+grobe Seite und Aufrufzahl. Sie legt keine Cookies oder Nutzer-IDs an und speichert selbst weder
+IP-Adresse noch User-Agent, Referrer, Suchtext, URL-Query oder Hash. Das sind Seitenaufrufe, keine
+eindeutigen Besucher; Browser, die JavaScript/Anfragen blockieren, werden nicht mitgezählt.
+Technische Zugriffslogs des Hosters sind separat und unterliegen dessen Einstellungen.
+
+* **Dashboard:** `KLIMA_ANALYTICS_TOKEN` als zufälligen Betreiber-Schlüssel in den Umgebungsvariablen
+  setzen und `/analytics` öffnen. Der Schlüssel wird nur im Tab gehalten; die Statistik-API
+  akzeptiert ihn als `Authorization: Bearer …`.
+* **Speicher:** Standard ist `/tmp/klima-analytics.sqlite3`; mit `KLIMA_ANALYTICS_DB` lässt sich ein
+  anderer Pfad setzen. Für dauerhafte Werte muss dieser auf ein persistentes Volume zeigen. Ohne
+  persistenten Datenträger können Deployments/Neustarts Zähler zurücksetzen (insbesondere beim
+  Render-Free-Service). Nach 400 Tagen werden alte Tageszähler gelöscht.
+* **Abschalten:** `KLIMA_ANALYTICS_ENABLED=0` schaltet das Zählen und Dashboard ab.
+
+Die Reichweitenmessung ist bewusst klein und first-party; sie ist keine rechtliche Bewertung.
+Betreiber sollten sie in der eigenen Datenschutzerklärung beschreiben und Hosting-Logs separat
+prüfen.
 
 ## Der Winterquartier-Modus
 
