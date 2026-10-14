@@ -92,12 +92,11 @@ def _city_post(view: seo.DatasetView, day: date, theme: str, base: str, ok: bool
     guide = _guide_for(theme)
     # Bewusst nur Orte mit eigener Profilseite: Jeder Beitrag hat damit ein
     # dauerhaftes Ziel, statt auf die Startseite zurückzufallen.
-    counts = view.counts(guide.counts_key)
-    ranked = sorted(view.entries, key=lambda item: -float(counts[item.point]))
-    if not ranked:
+    rows = seo.ranked_places(view, guide.counts_key, index + 1, countries=guide.countries)
+    if not rows:
         raise SystemExit("Der Datensatz liefert keine Ortsprofile.")
-    entry = ranked[min(index, len(ranked) - 1)]
-    row = {"name": entry.name, "country": entry.country, "days": view.days(entry, guide.counts_key)}
+    row = rows[-1]
+    entry = view.by_slug[row["slug"]]
     slug = entry.slug
     winter = theme in {"winterquartier", "winter-endspurt", "winter-vorbereiten"}
     profile = seo.PROFILE_WINTER_TEXT if winter else (

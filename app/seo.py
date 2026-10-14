@@ -216,6 +216,49 @@ def view_for(cd: ClimateData) -> DatasetView:
     return view
 
 
+# Zielländer für die Sommer-Liste: EU/EWR, Schweiz, Vereinigtes Königreich,
+# EU-Beitrittskandidaten und die Türkei. Russland und Belarus bleiben außen vor
+# (Einreise-/Flugrealität für die Zielgruppe), der Kaukasus ebenso. Das ist eine
+# redaktionelle Einschränkung, keine Aussage über das Klima dort – sie steht als
+# Hinweis unter der Tabelle.
+REACHABLE_COUNTRIES = (
+    "Albania", "Austria", "Belgium", "Bosnia and Herzegovina", "Bulgaria", "Croatia",
+    "Cyprus", "Czechia", "Denmark", "Estonia", "Finland", "France", "Germany", "Greece",
+    "Hungary", "Iceland", "Ireland", "Italy", "Kosovo", "Latvia", "Lithuania", "Luxembourg",
+    "Malta", "Moldova", "Montenegro", "Netherlands", "North Macedonia", "Norway", "Poland",
+    "Portugal", "Romania", "Serbia", "Slovakia", "Slovenia", "Spain", "Sweden", "Switzerland",
+    "Turkey", "Ukraine", "United Kingdom",
+)
+
+
+def ranked_places(view: "DatasetView", counts_key: str, limit: int, *,
+                  distinct: bool = True,
+                  countries: Sequence[str] = ()) -> list[dict[str, Any]]:
+    """Ortsrangliste zu einem Profil – optional mit eindeutigen Tagessprüngen.
+
+    Ein Rasterfeld von 0,75° umfasst viele Orte mit **identischen** Werten. In
+    Listen und Grafiken wirkt das wie ein Fehler („viermal 152,9“). Mit
+    ``distinct`` steht je Tagessprung nur der größte Ort; die Seite nennt den
+    Grund im Kleingedruckten.
+    """
+    counts = view.counts(counts_key)
+    allowed = set(countries)
+    pool = [item for item in view.entries if not allowed or item.country_en in allowed]
+    ordered = sorted(pool, key=lambda item: (-float(counts[item.point]), -item.pop))
+    out: list[dict[str, Any]] = []
+    seen: set[float] = set()
+    for entry in ordered:
+        value = round(float(counts[entry.point]), 1)
+        if distinct and value in seen:
+            continue
+        seen.add(value)
+        out.append({"name": entry.name, "country": entry.country, "days": value,
+                    "lat": entry.lat, "lon": entry.lon, "pop": entry.pop, "slug": entry.slug})
+        if len(out) >= max(1, limit):
+            break
+    return out
+
+
 def _distance_km(a: Entry, b: Entry) -> float:
     return 111.0 * math.hypot(a.lat - b.lat, (a.lon - b.lon) * math.cos(math.radians(a.lat)))
 
@@ -755,6 +798,7 @@ class Guide:
     profile_text: str
     months: tuple[int, ...]
     counts_key: str
+    countries: tuple[str, ...]
     second_key: str
     second_label: str
     column_label: str
@@ -788,6 +832,7 @@ GUIDES: dict[str, Guide] = {
         profile_text=PROFILE_WINTER_TEXT,
         months=WINTER_MONTHS,
         counts_key="winter",
+        countries=(),
         second_key="winter_warm",
         second_label=PROFILE_WINTER_WARM_NAME,
         column_label="Tage im Winterfenster",
@@ -837,6 +882,7 @@ GUIDES: dict[str, Guide] = {
                       "mindestens 4 h Sonne"),
         months=SUMMER_MONTHS,
         counts_key="summer_mild",
+        countries=REACHABLE_COUNTRIES,
         second_key="summer",
         second_label=PROFILE_SUMMER_NAME,
         column_label="Tage im Juli/August",
@@ -876,19 +922,14 @@ def guide_page(view: DatasetView, origin: str, slug: str) -> tuple[str, dict] | 
 
 def render_guide(view: DatasetView, origin: str, guide: Guide) -> str:
     cd = view.cd
-    counts = view.counts(guide.counts_key)
-    rows = cd.ranking_counts(counts, guide.limit)
-    by_slug: dict[str, str] = {}
-    for entry in view.entries:
-        by_slug.setdefault(entry.name, entry.slug)
+    rows = ranked_places(view, guide.counts_key, guide.limit, countries=guide.countries)
     limit = cd.month_limit(guide.months, "all")
     table_rows = []
     for row in rows:
-        slug = by_slug.get(row["name"])
-        place = (f'<a href="{e(_abs(origin, f"/klima/{slug}"))}">{e(row["name"])}</a>'
-                 if slug else e(row["name"]))
-        entry = view.by_slug.get(slug) if slug else None
-        second = de(view.days(entry, guide.second_key)) if entry else "–"
+        entry = view.by_slug.get(row["slug"])
+        href = e(_abs(origin, f"/klima/{row['slug']}"))
+        place = f'<a href="{href}">{e(row["name"])}</a>' if entry else e(row["name"])
+        second = de(view.days(entry, guide.second_key), 1) if entry else "–"
         table_rows.append([place, e(row["country"]), de(row["days"], 1), second])
     references = []
     for name in REFERENCE_CITIES:
@@ -1189,23 +1230,24 @@ def render_home_card(view: DatasetView) -> bytes:
         draw.text((72, y), line, font=title_font, fill=(238, 243, 249))
         y += 58
 
-    winter = view.cd.ranking_counts(view.counts("winter"), 3)
-    summer = view.cd.ranking_counts(view.counts("summer_mild"), 3)
+    winter = ranked_places(view, "winter", 3)
+    summer = ranked_places(view, "summer_mild", 3)
+    start_year = str(view.cd.meta.get("start_date") or "")[:4]
+    end_year = str(view.cd.meta.get("end_date") or "")[:4]
+    years = f"{start_year}–{end_year}" if start_year and end_year else ""
     rows = [
-        (f"{de(view.cd.n_points)} Rasterpunkte · {de(view.cd.years)} Jahre ERA5-Tage",
-         f"{str(view.cd.meta.get('start_date'))[:4]}–{str(view.cd.meta.get('end_date'))[:4]}"),
-        (f"Milder Winter: {', '.join(row['name'] for row in winter)}",
-         "Tage im Winterfenster"),
-        (f"Hitze entfliehen: {', '.join(row['name'] for row in summer)}",
-         "Tage im Juli/August"),
-        ("Winterquartier-Suche", "Wohnort fest, Saison wechseln"),
+        (f"{de(view.cd.n_points)} Rasterpunkte · {de(view.cd.years)} Jahre ERA5-Tage", years),
+        (f"Milder Winter: {', '.join(row['name'] for row in winter)}", "Tage Okt–Apr"),
+        (f"Hitze entfliehen: {', '.join(row['name'] for row in summer)}", "Tage Jul/Aug"),
+        ("Winterquartier-Suche", "Wohnort + Saison"),
     ]
     y = max(y + 24, 300)
     for index, (left, right) in enumerate(rows):
         line_y = y + index * 46
-        draw.text((74, line_y), left[:48], font=body_bold if index == 0 else body_font,
+        text = left if len(left) <= 46 else left[:45] + "…"
+        draw.text((74, line_y), text, font=body_bold if index == 0 else body_font,
                   fill=(238, 243, 249) if index == 0 else (215, 226, 238))
-        draw.text((860, line_y), right, font=body_font, fill=(152, 169, 190))
+        draw.text((1128, line_y), right[:26], font=body_font, fill=(152, 169, 190), anchor="ra")
     _card_footer(draw, "Quelle: ERA5 · Copernicus / ECMWF · Raster 0,75° (50–80 km) · kostenlos")
     output = io.BytesIO()
     image.save(output, format="PNG", optimize=True)
@@ -1246,8 +1288,7 @@ def render_guide_card(view: DatasetView, guide: Guide) -> bytes:
     draw.text((74, y + 6), f"{guide.profile_name} · {months_label(guide.months)}",
               font=small, fill=(255, 190, 105))
 
-    counts = view.counts(guide.counts_key)
-    rows = view.cd.ranking_counts(counts, 5)
+    rows = ranked_places(view, guide.counts_key, 5, countries=guide.countries)
     by_name = {entry.name: entry for entry in view.entries}
     y = max(y + 60, 330)
     draw.text((74, y - 34), "Aktuell vorn (Tage im Zeitfenster)", font=small, fill=(152, 169, 190))

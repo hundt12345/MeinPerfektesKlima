@@ -167,7 +167,9 @@ ERA5-Daten** (`app/seo.py`), ohne Fremdskripte und ohne Tracking:
 
 Ortsprofile entstehen nur für Orte im Klimaraster mit mindestens `KLIMA_LANDING_MIN_POP`
 Einwohnern (Standard 100.000) plus einer kuratierten Liste kleiner Winter- und Küstenorte –
-bewusst keine beliebig vielen, austauschbaren Stadtseiten. Jede Seite trägt eigene
+bewusst keine beliebig vielen, austauschbaren Stadtseiten. Die Sommerliste berücksichtigt nur
+erreichbare Zielländer (Liste `REACHABLE_COUNTRIES` in `app/seo.py`); Ratgeberüberschriften,
+Profile und Listen stehen dort an einer Stelle und lassen sich ohne Umbau ändern. Jede Seite trägt eigene
 Canonical-URL, Open-Graph-Daten, strukturierte Daten (Breadcrumb, FAQ, Place/Article) und
 verlinkt auf ihre Nachbarorte. Wie die Karte antworten alle diese Seiten mit **HTTP 503**,
 solange keine echten, geprüften Daten vorliegen.
