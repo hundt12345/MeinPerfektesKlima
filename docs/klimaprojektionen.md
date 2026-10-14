@@ -5,7 +5,7 @@ Stand: **14.10.2026**. Die App bietet jetzt **modellbasierte regionale Delta-Nä
 ## Tatsächliche Datengrundlage
 
 - [1 – Regional aggregierte CMIP6-Daten des IPCC AR6 Atlas](https://github.com/SantanderMetGroup/ATLAS/tree/a1687c6db5590eb9b618fd4e1ebba4b842084031/datasets-aggregated-regionally): monatliche, flächengewichtete Landmittel von `tas` (°C) und `pr` (mm/Tag), ein Lauf je Modell. Verwendet werden **31 vollständige Modelle**, die beide Variablen in allen drei Szenarien abdecken.
-- Szenarien: **SSP1-2.6, SSP2-4.5, SSP5-8.5**. Standard ist SSP2-4.5; kein Szenario wird als Eintrittswahrscheinlichkeit ausgegeben.
+- Szenarien: **SSP1-2.6, SSP2-4.5, SSP5-8.5** – in der Oberfläche als **„Viel Klimaschutz“**, **„Mittlerer Weg“** und **„Wenig Klimaschutz“** mit je einem Satz Erklärung und der mittleren Erwärmung Europas gegenüber 2016–2025 (`warming_c`, Mittel der Monatsdeltas über alle Rasterpunkte; 2050: +0,5 / +1,1 / +1,6 °C). Standard ist der mittlere Weg (SSP2-4.5); kein Szenario wird als Eintrittswahrscheinlichkeit ausgegeben. Zur Einordnung nennt die Methodenbox die globale Erwärmung 2081–2100 gegenüber 1850–1900 aus IPCC AR6 WG I, SPM, Tabelle SPM.1 (beste Schätzung 1,8 / 2,7 / 4,4 °C).
 - Regionen: GIC (Grönland/Island), NEU (Nordeuropa), WCE (West-/Mitteleuropa), EEU (Osteuropa), MED (Mittelmeer), RAR (russische Arktis), WCA (West-/Zentralasien). Die [IPCC-Referenzpolygone](https://github.com/SantanderMetGroup/ATLAS/blob/a1687c6db5590eb9b618fd4e1ebba4b842084031/reference-regions/IPCC-WGI-reference-regions-v4.geojson) ordnen die vorhandenen ERA5-Punkte zu. Alle 2.250 Punkte unseres aktuellen Rasters liegen in den verwendeten Polygonen. Für abweichende Raster wird ein nächstgelegenes Polygon als explizit gezählte Randzuordnung verwendet (`nearest_region_points`).
 - **2030 = 2021–2040**, **2050 = 2041–2060**. Vergleichsbasis: **2016–2025** im jeweils selben Modelllauf und Szenario. Diese aktuellen 10 Jahre entsprechen der ERA5-Basis; sie sind keine offizielle 30-jährige Klimanormalperiode. Das 2030-Fenster überlappt bewusst mit der jüngsten Vergangenheit.
 - Festgeschriebener Quellenstand: Git-Commit `a1687c6db5590eb9b618fd4e1ebba4b842084031`. Der Quellbestand unterstützt den IPCC-Atlas von 2021; dies ist nicht das neue GERICS-Ensemble von 2026.
@@ -43,8 +43,8 @@ Die Wohlfühltage werden aus der gemeinsamen historischen Wetterabfolge mit dies
 
 ## Transparenz und Datentor
 
-- Jede Zukunftsoption heißt **„Projektion … (Näherung)“** und trägt ein Szenario.
-- Die sichtbare Warnung nennt geschätzten Taupunkt, unveränderte Sonne und fehlende neue Extremvariabilität.
+- Jede Zukunftsoption trägt Jahr, sprechenden Namen und Szenario-Kürzel, z. B. **„2050 · Mittlerer Weg (SSP2-4.5)“**; API und CSV kennzeichnen sie weiterhin als `approximation` bzw. „Modell-basierte Näherung“.
+- Die sichtbare Kurzwarnung („Modellrechnung, keine Vorhersage …“) nennt die übertragene Erwärmung, unveränderte Sonne und geschätzte Schwüle; die eingeklappte Methodenbox erklärt das Verfahren in drei Sätzen.
 - Ortsdetails zeigen die Monatsänderungen und **P10–P90 der regionalen Temperaturänderung**. Das ist ausdrücklich **kein Unsicherheitsintervall der Wohlfühltage**. Eine nicht monotone Veränderung der Wohlfühltage ist möglich: Erwärmung kann je nach Profil sowohl nützen als auch schaden.
 - API-Antworten enthalten `projection`, `approximation`, `method`, `baseline`, `analog_sample_years`, `model_count`, `scenario`, Quelle, Lizenz und Annahmen. Der Zukunfts-CSV ergänzt Kennzeichnungs-/Methodik-/Quellspalten.
 - Fehlendes oder ungültiges Manifest, falsche ERA5-Basis, unvollständige Monatsfelder, ungeordnete Perzentile oder unplausible Änderungen deaktivieren die Zukunftsauswahl. Die historische ERA5-Qualitätsprüfung bleibt bestehen. Wenn die Basis später aktualisiert wird, müssen die Projektionsdeltas passend neu gebaut werden.

@@ -9,12 +9,12 @@
 
 const state = {
   mode: "year",              // "year" | "month" | "wq" (Winterquartier)
-  period: "all",             // "all" (gesamter Datensatz) | "recent5" (jüngste fünf Jahre)
+  period: "all",             // "all" | "recent5" | "2030" | "2050" (+ "-ssp126"/"-ssp585")
   month: 7,                  // 1..12
   params: { tmax_min: 18, tmax_max: 30, tmin_min: 5, tmin_max: 20, tdew_max: 18, sun_min: 3, prec_max: 99 },
-  wq: {                      // feste Aufteilung für die Zwei-Orte-Suche
-    season: "winter", home: null, // fester Wohnort, gewünschte Ausweichsaison
-    sfrom: 5, sto: 9,        // Sommerfenster (1..12); Winter = die übrigen Monate
+  wq: {                      // Winterquartier: fester Wohnort + Ziel für die andere Jahreszeit
+    season: "winter", home: null, // Wohnort {name, country, lat, lon}; Ausweichsaison
+    sfrom: 5, sto: 9,        // Sommermonate (1..12); Winter = die übrigen Monate
   },
   fixedScale: false,
   showCities: true,
@@ -27,7 +27,10 @@ let GRID = null;             // letzte /api/map-Antwort
 let map = null, overlay = null, borderLayer = null;
 let osmLayer = null, layerControl = null;
 let cityLayer = null, cityData = [], markerIndex = new Map();
+let wqLayer = null;          // Wohnort + vorgeschlagene Ziele auf der Karte
 const CLIMATE_OVERLAY_OPACITY = 0.78;
+// Ab dieser Zoomstufe zeigt die OSM-Karte genauere Grenzen als unsere Linien.
+const BORDER_MAX_ZOOM = 9;
 let hoverTip = null, marker = null;
 let seq = 0, hoverQueued = false, refreshTimer = null;
 
@@ -87,13 +90,27 @@ const num = (v, digits = 0) => Number(v).toLocaleString("de-DE", {
   minimumFractionDigits: digits, maximumFractionDigits: digits,
 });
 function fmtDays(v) { return num(Math.round(v)); }
-function fmtTemp(v, digits = 1) {
-  const r = Math.round(v * (digits === 0 ? 1 : 2)) / (digits === 0 ? 1 : 2);
-  return `${r > 0 ? "" : r < 0 ? "−" : ""}${Math.abs(r).toLocaleString("de-DE", {
-    minimumFractionDigits: digits, maximumFractionDigits: digits })} °C`;
-}
 function activeMonth() { return state.mode === "month" ? state.month : null; }
 function isWinterquarters() { return state.mode === "wq"; }
+
+/** Zahl ohne überflüssige Nachkommastelle: 18 → „18“, 18,5 → „18,5“. */
+function fmtNumber(v, digits = 1) {
+  const r = Math.round(Number(v) * 10 ** digits) / 10 ** digits;
+  return `${r < 0 ? "−" : ""}${Math.abs(r).toLocaleString("de-DE", { maximumFractionDigits: digits })}`;
+}
+function fmtTempRange(lo, hi) {
+  return lo < 0 || hi < 0 ? `${fmtNumber(lo)} bis ${fmtNumber(hi)} °C` : `${fmtNumber(lo)}–${fmtNumber(hi)} °C`;
+}
+function fmtDelta(v, digits = 1) {
+  return `${v >= 0 ? "+" : "−"}${num(Math.abs(v), digits)} °C`;
+}
+const escapeHtml = (s) => String(s ?? "").replace(/[&<>"']/g,
+  ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+
+/* ------------------------------------------------------------ Klimazeitraum */
+// Drei sprechende Wege statt SSP-Kürzeln; die Kürzel stehen nur noch klein dabei.
+const SCENARIOS = ["ssp126", "ssp245", "ssp585"];
+let lastScenario = "ssp245";
 
 function periodInfo(id = state.period) {
   return ((META && META.periods) || []).find(period => period.id === id) || null;
@@ -101,39 +118,106 @@ function periodInfo(id = state.period) {
 
 function currentPeriodLabel() {
   const info = periodInfo();
-  return info ? info.label : "Gesamter Zeitraum";
+  return info ? info.label : "Heute";
+}
+
+/** „now“ (gemessene Jahre) oder das Projektionsjahr „2030“/„2050“. */
+function periodWhen(id = state.period) {
+  const info = periodInfo(id);
+  if (info && info.group) return info.group;
+  return /^20[0-9]{2}/.test(id) ? id.slice(0, 4) : "now";
+}
+
+function scenarioOf(id) {
+  const match = /-(ssp\d+)$/.exec(id || "");
+  return match ? match[1] : "ssp245";
+}
+
+function periodIdFor(when, scenario) {
+  if (when === "now") return $("#period-recent5")?.checked ? "recent5" : "all";
+  return scenario === "ssp245" ? when : `${when}-${scenario}`;
 }
 
 function updatePeriodHelp() {
   const info = periodInfo();
   const help = $("#period-help");
-  if (help) help.textContent = info ? info.description : "Klimadaten-Zeitraum auswählen.";
+  if (help) help.textContent = info && periodWhen() === "now" ? (info.summary || info.description || "") : "";
   const years = $("#about-years");
-  if (years && info && info.years != null) years.textContent = num(info.analog_sample_years ?? info.years, 1);
+  if (years && info && info.years != null) years.textContent = num(info.analog_sample_years ?? info.years, 0);
   const warning = $("#projection-warning");
   warning.hidden = !info?.projection;
   warning.textContent = info?.projection
-    ? "Näherung: regionale CMIP6-Änderungen + historische ERA5-Tage. Taupunkt geschätzt, Sonne unverändert. Keine neuen Extremwetterverteilungen; Wohlfühltage sind keine direkte Klimamodell-Ausgabe." : "";
+    ? "Modellrechnung, keine Vorhersage: das Wetter von heute plus die erwartete Erwärmung. "
+      + "Sonne unverändert, Schwüle geschätzt." : "";
   $("#city-data-method").textContent = info?.projection
-    ? "Modell-basierte Näherung, keine zukünftigen Messwerte: Taupunkt geschätzt, Sonnenstunden und Tagesvariabilität unverändert aus ERA5."
-    : "Klimamittel für den oben gewählten Bezugszeitraum.";
+    ? "Modellrechnung für die Zukunft, keine Messwerte: Taupunkt geschätzt, Sonnenstunden unverändert."
+    : "Klimamittel für den oben gewählten Zeitraum.";
 }
 
 function setupPeriodSelector() {
-  const select = $("#period-select");
-  if (!select) return;
-  select.replaceChildren();
-  for (const period of META.periods || []) {
-    const option = el("option", {
-      value: period.id, text: period.label,
-      title: period.description || "",
-      disabled: period.available ? null : "disabled",
-    });
-    select.append(option);
+  const periods = (META && META.periods) || [];
+  for (const button of document.querySelectorAll("#period-when button")) {
+    const when = button.getAttribute("data-when");
+    const available = when === "now" || periods.some(p => p.group === when && p.available);
+    button.disabled = !available;
+    if (!available) button.title = "Klimamodell-Daten sind gerade nicht verfügbar";
+    button.addEventListener("click", () => chooseWhen(when));
   }
-  const available = (META.periods || []).filter(period => period.available).map(period => period.id);
-  if (!available.includes(state.period)) state.period = META.default_period || "all";
-  select.value = state.period;
+  const recent = periodInfo("recent5");
+  if (recent && recent.start_date) {
+    $("#period-recent-label").textContent =
+      `Nur die letzten 5 Jahre (${recent.start_date.slice(0, 4)}–${recent.end_date.slice(0, 4)})`;
+  }
+  $("#period-recent5").addEventListener("change", (event) => selectPeriod(event.target.checked ? "recent5" : "all"));
+  if (!periodInfo(state.period)?.available) state.period = META.default_period || "all";
+  if (periodWhen() !== "now") lastScenario = scenarioOf(state.period);
+  renderPeriodControls();
+}
+
+function chooseWhen(when) {
+  if (when === periodWhen()) return;
+  selectPeriod(periodIdFor(when, lastScenario));
+}
+
+/** Zeitraum-Knöpfe, „letzte 5 Jahre“ und die drei Klimaschutz-Wege aus dem Zustand zeichnen. */
+function renderPeriodControls() {
+  const id = state.period, when = periodWhen(id);
+  document.querySelectorAll("#period-when button").forEach(button => {
+    button.setAttribute("aria-checked", String(button.getAttribute("data-when") === when));
+  });
+  const recent = periodInfo("recent5");
+  $("#period-recent-wrap").hidden = when !== "now" || !(recent && recent.available);
+  $("#period-recent5").checked = id === "recent5";
+  const list = $("#scenario-list"), host = $("#scenario-options");
+  list.hidden = when === "now";
+  host.replaceChildren();
+  if (when !== "now") {
+    let sample = null;
+    for (const scenario of SCENARIOS) {
+      const pid = periodIdFor(when, scenario);
+      const info = periodInfo(pid);
+      if (!info || !info.available) continue;
+      sample = info;
+      const input = el("input", { type: "radio", name: "scenario", value: scenario });
+      input.checked = pid === id;
+      input.addEventListener("change", () => {
+        if (!input.checked) return;
+        lastScenario = scenario;
+        selectPeriod(pid);
+      });
+      host.append(el("label", { class: "scenario", title: `${info.scenario_code}: ${info.description || ""}` },
+        input,
+        el("span", { class: "sc-name", text: info.scenario_name || info.label }),
+        el("span", { class: "sc-delta", text: info.warming_c != null ? fmtDelta(info.warming_c) : "" }),
+        el("span", { class: "sc-text", text: info.scenario_summary || "" })));
+    }
+    if (sample) {
+      const base = sample.baseline ? `${sample.baseline.start_year}–${sample.baseline.end_year}` : "heute";
+      host.append(el("p", { class: "scenario-caption",
+        text: `Zahl rechts: so viel wärmer als ${base} ist es ${sample.start_date.slice(0, 4)}–`
+          + `${sample.end_date.slice(0, 4)} im Mittel über Europa.` }));
+    }
+  }
   updatePeriodHelp();
 }
 
@@ -141,9 +225,8 @@ function selectPeriod(period) {
   const option = periodInfo(period);
   if (!option || !option.available || period === state.period) return;
   state.period = period;
-  const select = $("#period-select");
-  if (select) select.value = period;
-  updatePeriodHelp();
+  if (periodWhen(period) !== "now") lastScenario = scenarioOf(period);
+  renderPeriodControls();
   invalidateCombination();
   updateHash();
   refresh(true);
@@ -157,7 +240,7 @@ function selectPeriod(period) {
 
 /** Einheit der Kartenwerte – am liebsten die des Servers (Legende/Hover). */
 function monthUnit() {
-  if (isWinterquarters()) return "Wohlfühltage/Jahr an einem Ort";
+  if (isWinterquarters()) return "Tage pro Jahr an einem Ort";
   if (GRID && GRID.unit_label) return GRID.unit_label;
   return state.mode === "month" ? `Tage im ${monthNames[state.month - 1]}` : "Tage pro Jahr";
 }
@@ -301,17 +384,18 @@ function initMap() {
     collapsed: true, position: "topleft",
   }).addTo(map);
 
-  // Ebenen-Reihenfolge: OSM-Kacheln < Klimafläche < Ländergrenzen < Städtemarker.
-  // Keine opake Eigenfläche mehr über den OSM-Kacheln: so bleiben Straßen und
-  // Ortsnamen durch das leicht transparente Klimaraster sichtbar.
+  // Ebenen-Reihenfolge: OSM-Kacheln < Klimafläche < Landgrenzen < Städtemarker.
   const borderPane = map.createPane("borders"); borderPane.style.zIndex = 450;
   map.createPane("cities").style.zIndex = 550;
 
+  // Nur Landgrenzen als Linien (Küsten zeigt die Grundkarte). Früher kamen hier
+  // Länderflächen, deren Schnittkanten am Kartenrand als gerade Striche auftauchten.
   fetch("/api/countries").then(r => r.json()).then(geo => {
     borderLayer = L.geoJSON(geo, {
       pane: "borders", interactive: false,
-      style: { color: "#23374e", weight: 0.8, opacity: 0.7, fill: false },
-    }).addTo(map);
+      style: { color: "#33415a", weight: 0.9, opacity: 0.6, fill: false },
+    });
+    if (map.getZoom() <= BORDER_MAX_ZOOM) borderLayer.addTo(map);
   }).catch(() => {});
 
   cityLayer = L.layerGroup([], { pane: "cities" }).addTo(map);
@@ -322,7 +406,12 @@ function initMap() {
   map.on("mousemove", onHover);
   map.on("mouseout", () => { hoverTip.style.display = "none"; });
   map.on("click", (e) => selectPlace(e.latlng.lat, e.latlng.lng));
-  map.on("zoomend", () => paintCities());
+  map.on("zoomend", () => {
+    paintCities();
+    if (!borderLayer) return;
+    if (map.getZoom() > BORDER_MAX_ZOOM) map.removeLayer(borderLayer);
+    else map.addLayer(borderLayer);
+  });
   map.on("moveend zoomend", () => {
     const w = currentWidth();
     if (overlay && GRID && GRID.width && Math.abs(w - GRID.width) > 160) refresh();
@@ -394,16 +483,14 @@ function paintCities() {
   const vmax = Math.max(1, (GRID && GRID.vmax) || 1);
   const limit = cityZoomLimit();
   const zoom = map.getZoom();
-  const unitBase = isWinterquarters() ? "Wohlfühltage/Jahr an einem Ort"
-    : (state.mode === "month" ? `Tage im ${monthNames[state.month - 1]}` : "Tage/Jahr");
-  const unit = `${unitBase} · ${currentPeriodLabel()}`;
+  const unit = monthUnit();
   let added = 0;
   for (const c of cityData) {
     if (c.pop < limit || added >= 420) continue;
     added++;
     const dot = L.circleMarker([c.lat, c.lon], {
       pane: "cities", radius: c.pop > 1_000_000 ? 5.4 : 3.9,
-      color: "rgba(255,255,255,.8)", weight: 1.1,
+      color: "rgba(255,255,255,.85)", weight: 1.1,
       fillColor: colorFor(c.days / vmax), fillOpacity: 1,
       className: "city-marker",
     });
@@ -412,7 +499,8 @@ function paintCities() {
       selectPlace(c.lat, c.lon, c.name, c.country);
     });
     dot.bindTooltip(
-      `<strong>${c.name}</strong>${c.country ? ` · ${c.country}` : ""}<br>${fmtDays(c.days)} ${unit}`,
+      `<strong>${fmtDays(c.days)}</strong> ${escapeHtml(unit)}<br>`
+      + `<span class="sub">${escapeHtml(c.name)}${c.country ? ` · ${escapeHtml(c.country)}` : ""}</span>`,
       { direction: "top", offset: [0, -4], className: "klima city-tip", opacity: 1 });
     cityLayer.addLayer(dot);
 
@@ -421,7 +509,7 @@ function paintCities() {
     if (wantLabel) {
       cityLayer.addLayer(L.marker([c.lat, c.lon], {
         pane: "cities", interactive: false, keyboard: false,
-        icon: L.divIcon({ className: "city-label", html: `<span>${c.name}</span>`, iconSize: null }),
+        icon: L.divIcon({ className: "city-label", html: `<span>${escapeHtml(c.name)}</span>`, iconSize: null }),
       }));
     }
   }
@@ -465,10 +553,10 @@ function onHover(e) {
     const days = GRID.values[idx];
     const city = nearestCityCached(e.latlng.lat, e.latlng.lng);
     const label = city && city.km < 60
-      ? `${city.name}${city.country ? " · " + city.country : ""}`
-      : `${e.latlng.lat.toFixed(2)}° N ${e.latlng.lng.toFixed(2)}° E · Datenpunkt ${Math.round(distKm)} km`;
-    hoverTip.innerHTML = `<strong>${fmtDays(days)}</strong> ${monthUnit()}<br>`
-      + `<span style="opacity:.75">${currentPeriodLabel()} · ${label}</span>`;
+      ? `bei ${city.name}${city.country ? " · " + city.country : ""}`
+      : `${e.latlng.lat.toFixed(1)}° N, ${e.latlng.lng.toFixed(1)}° O · Rasterpunkt ${Math.round(distKm)} km entfernt`;
+    hoverTip.innerHTML = `<strong>${fmtDays(days)}</strong> ${escapeHtml(monthUnit())}<br>`
+      + `<span class="sub">${escapeHtml(label)}</span>`;
     hoverTip.style.display = "block";
     hoverTip.style.left = (e.containerPoint.x + 14) + "px";
     hoverTip.style.top = (e.containerPoint.y - 6) + "px";
@@ -507,61 +595,87 @@ function monthBars(rep) {
   const maxBar = Math.max(1, ...rep.days_per_month);
   const wrap = el("div", { class: "bars" });
   rep.days_per_month.forEach((v, i) => {
-    const bar = el("div", {
-      class: "bar" + (state.mode !== "wq" && i === state.month - 1 ? " sel" : ""),
+    wrap.append(el("div", {
+      class: "bar" + (state.mode === "month" && i === state.month - 1 ? " sel" : ""),
       style: `height:${Math.max(2, (v / maxBar) * 100)}%`,
-      title: `${monthNames[i]}: ${fmtDays(v)} Tage`,
+      title: `${monthNames[i]}: ${fmtDays(v)} Tage – Klick zeigt diesen Monat auf der Karte`,
       onclick: () => { state.month = i + 1; setMode("month"); },
-    });
-    wrap.append(bar);
+    }));
   });
-  const labels = el("div", { class: "bar-labels" },
-    monthLetters.map(t => el("span", { text: t })));
+  const labels = el("div", { class: "bar-labels" }, monthLetters.map(t => el("span", { text: t })));
   return [wrap, labels];
 }
 
 function climateDiagram(rep) {
   const c = (rep.climate && rep.climate.months) || null;
   if (!c) return null;
-  const W = 306, H = 104, padL = 3, padR = 3, padT = 8, padB = 22;
+  const W = 306, H = 100, padL = 3, padR = 3, padT = 8, padB = 20;
   const lo = Math.floor(Math.min(0, ...c.tmin) / 5) * 5;
   const hi = Math.max(10, Math.ceil(Math.max(...c.tmax) / 5) * 5);
   const sunMax = Math.max(12, ...c.sun);
   const y = (t) => padT + (hi - t) / (hi - lo) * (H - padT - padB);
   const ys = (s) => padT + (1 - s / sunMax) * (H - padT - padB);
   const bw = (W - padL - padR) / 12;
-  let parts = [`<svg viewBox="0 0 ${W} ${H}" class="climsvg" role="img" aria-label="Klimadiagramm">`,
-    `<defs><linearGradient id="klima-sun-area" x1="0" y1="0" x2="0" y2="1">`
-    + `<stop offset="0%" stop-color="#ffd479" stop-opacity=".38"/>`
-    + `<stop offset="100%" stop-color="#ffd479" stop-opacity="0"/></linearGradient></defs>`];
-  // Waagerechte Hilfslinien als ruhiger Hintergrund
-  for (let t = Math.ceil(lo / 10) * 10; t <= hi; t += 10) {
-    parts.push(`<line x1="${padL}" x2="${W - padR}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}" class="grid"/>`);
-  }
-  // Null-Grad-Linie
+  const parts = [`<svg viewBox="0 0 ${W} ${H}" class="climsvg" role="img" aria-label="Klimadiagramm">`];
   if (lo < 0) parts.push(`<line x1="${padL}" x2="${W - padR}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}" class="zero"/>`);
   for (let i = 0; i < 12; i++) {
     const x = padL + i * bw;
     const yTop = y(c.tmax[i]), yBot = y(c.tmin[i]);
-    const sel = i === state.month - 1 ? " sel" : "";
+    const sel = state.mode === "month" && i === state.month - 1 ? " sel" : "";
     parts.push(
-      `<g class="mcol${sel}"><title>${monthNames[i]}: Ø max ${num(c.tmax[i], 1)} °C, Ø min ${num(c.tmin[i], 1)} °C, `
-      + `Taupunkt ${num(c.tdew[i], 1)} °C, Sonne ${num(c.sun[i], 1)} h/Tag, Regen ${num(c.prec[i], 0)} mm</title>`
+      `<g class="mcol${sel}"><title>${monthNames[i]}: tagsüber ${num(c.tmax[i], 1)} °C, nachts ${num(c.tmin[i], 1)} °C, `
+      + `Sonne ${num(c.sun[i], 1)} h/Tag, Regen ${num(c.prec[i], 0)} mm</title>`
       + `<rect x="${(x + 1).toFixed(1)}" y="${Math.min(yTop, yBot).toFixed(1)}" width="${(bw - 2).toFixed(1)}" `
       + `height="${Math.max(2, Math.abs(yBot - yTop)).toFixed(1)}" rx="2" fill="${tempColor((c.tmax[i] + c.tmin[i]) / 2)}"/>`
-      + `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 8}" class="mlab">${monthLetters[i]}</text></g>`);
+      + `<text x="${(x + bw / 2).toFixed(1)}" y="${H - 6}" class="mlab">${monthLetters[i]}</text></g>`);
   }
   const sunPath = c.sun.map((s, i) =>
     `${i === 0 ? "M" : "L"}${(padL + i * bw + bw / 2).toFixed(1)},${ys(s).toFixed(1)}`).join(" ");
-  // Fläche unter der Sonnenkurve macht die Linie auch klein gut lesbar.
-  const areaPath = `${sunPath} L${(padL + 11 * bw + bw / 2).toFixed(1)},${(H - padB).toFixed(1)}`
-    + ` L${(padL + bw / 2).toFixed(1)},${(H - padB).toFixed(1)} Z`;
-  parts.push(`<path d="${areaPath}" class="sunarea" fill="url(#klima-sun-area)"/>`);
   parts.push(`<path d="${sunPath}" class="sunline"/>`);
   c.sun.forEach((s, i) => parts.push(
     `<circle cx="${(padL + i * bw + bw / 2).toFixed(1)}" cy="${ys(s).toFixed(1)}" r="1.7" class="sundot"/>`));
   parts.push(`</svg>`);
   return el("div", { class: "climwrap", html: parts.join("") });
+}
+
+/** Sechs Kennzahlen, die man sofort versteht – der Rest steht eingeklappt darunter. */
+function climateFacts(clim) {
+  const year = clim.year || {};
+  const fact = (label, value, title) => el("div", { title }, el("span", { text: label }), el("b", { text: value }));
+  return el("div", { class: "facts" },
+    fact("Tagsüber", `${num(year.tmax, 1)} °C`, "Mittlere Tageshöchsttemperatur im Jahr"),
+    fact("Nachts", `${num(year.tmin, 1)} °C`, "Mittlere Tagestiefsttemperatur im Jahr"),
+    fact("Sonne", `${num(year.sun, 1)} h/Tag`, "Mittlere Sonnenscheindauer pro Tag"),
+    fact("Regen", `${num(year.prec, 0)} mm`, "Niederschlag pro Jahr"),
+    fact("Sommertage", fmtDays(clim.summer_days || 0), "Tage mit mindestens 25 °C"),
+    fact("Frosttage", fmtDays(clim.frost_days || 0), "Nächte mit 0 °C oder kälter"));
+}
+
+function moreClimate(clim) {
+  const year = clim.year || {};
+  const row = (label, value) => el("li", {}, el("span", { text: label }), el("b", { text: value }));
+  return el("details", { class: "more-climate" },
+    el("summary", { text: "Mehr Klimawerte" }),
+    el("ul", { class: "more-facts" },
+      row("Hitzetage (über 30 °C)", fmtDays(clim.hot_days || 0)),
+      row("Tropennächte (nachts ab 20 °C)", fmtDays(clim.tropical_nights || 0)),
+      row("Schwüle Tage (Taupunkt über 15 °C)", fmtDays(clim.sultry_days || 0)),
+      row("Regentage (ab 1 mm)", fmtDays(clim.wet_days || 0)),
+      row("Sonnentage (über 4 h Sonne)", fmtDays(clim.sunny_days || 0)),
+      row("Eistage (ganztags unter 0 °C)", fmtDays(clim.ice_days || 0)),
+      row("Taupunkt im Mittel", `${num(year.tdew, 1)} °C`)));
+}
+
+/** Ein Satz zur Zukunft: so viel wärmer wird es hier im Jahresmittel. */
+function projectionNote(rep) {
+  const data = rep.climate?.projection;
+  if (!rep.period?.projection) return null;
+  if (!data) return el("p", { class: "note period-basis", text: rep.period.label });
+  const deltas = data.temperature_delta_c || [];
+  const mean = deltas.reduce((a, b) => a + b, 0) / Math.max(1, deltas.length);
+  const base = rep.period.baseline ? `${rep.period.baseline.start_year}–${rep.period.baseline.end_year}` : "heute";
+  return el("p", { class: "note period-basis", text: `${rep.period.label}: `
+    + `hier im Jahresmittel etwa ${fmtDelta(mean)} wärmer als ${base}.` });
 }
 
 function renderDetail(opts = {}) {
@@ -570,16 +684,13 @@ function renderDetail(opts = {}) {
   if (!sel) { box.hidden = true; return; }
   box.hidden = false;
   if (opts.loading) {
-    box.innerHTML = "";
-    box.append(el("h3", {}, el("span", { text: "Auswertung …" }), closeBtn()),
-      el("p", { class: "muted", text: "Tagesdaten werden gezählt." }),
+    box.replaceChildren(el("h3", {}, el("span", { text: "Einen Moment …" }), closeBtn()),
       el("div", { class: "skeleton" }, el("span"), el("span"), el("span")));
     return;
   }
   if (opts.error) {
-    box.innerHTML = "";
-    box.append(el("h3", {}, el("span", { text: "Fehler" }), closeBtn()),
-      el("p", { class: "muted", text: opts.error }));
+    box.replaceChildren(el("h3", {}, el("span", { text: "Das hat nicht geklappt" }), closeBtn()),
+      el("p", { class: "sub", text: opts.error }));
     return;
   }
 
@@ -587,58 +698,32 @@ function renderDetail(opts = {}) {
   const mIdx = state.month - 1;
   const isMonth = state.mode === "month";
   const headline = isMonth ? rep.days_per_month[mIdx] : rep.days_per_year;
-  const headlineLabel = isMonth ? `Tage im ${monthNames[mIdx]}` : "Tage pro Jahr";
-  const isWqAfter = isWinterquarters();
+  const unit = isMonth ? `Tage im ${monthNames[mIdx]}` : "Tage pro Jahr";
   const clim = rep.climate || {};
-  const year = clim.year || {};
-  const cityLine = sel.cityInfo && sel.cityInfo.dist_km > 1.5
-    ? `nächster Ort: ${sel.cityInfo.name} (${num(sel.cityInfo.dist_km, 1)} km)`
-    : `ERA5-Gitterpunkt ${num(rep.lat, 2)}° N ${num(rep.lon, 2)}° E`
-      + (rep.grid_distance_km > 1 ? ` · ${Math.round(rep.grid_distance_km)} km vom Klick` : "");
+  const place = sel.cityInfo && sel.cityInfo.dist_km > 1.5
+    ? `nächster Ort: ${sel.cityInfo.name} (${num(sel.cityInfo.dist_km, 0)} km)`
+    : `Rasterpunkt ${num(rep.lat, 2)}° N, ${num(rep.lon, 2)}° O`;
+  const cityLine = place + (rep.grid_distance_km > 1 ? ` · Rasterpunkt ${Math.round(rep.grid_distance_km)} km entfernt` : "");
 
   const [bars, barLabels] = monthBars(rep);
-  box.innerHTML = "";
-  box.append(
+  box.replaceChildren(
     el("h3", {},
-      el("span", {
-        text: (sel.name || "Ausgewählter Punkt") + (sel.country ? ", " + sel.country : ""),
-        class: "title",
-      }), closeBtn()),
-    el("div", { class: "big", text: `${fmtDays(headline)} ${headlineLabel}` }),
-    el("div", { class: "sub period-basis", text: rep.period?.label || currentPeriodLabel() }),
-    el("div", { class: "sub", text: isWqAfter
-      ? `Jahreswerte an einem Ort mit dem gemeinsamen Profil · besser als ${num(rep.percentile, 0)} % aller Rasterpunkte`
-      : `mit deiner Einstellung · besser als ${num(rep.percentile, 0)} % aller Rasterpunkte` }),
-    el("div", { class: "sub best", text: (!isWqAfter && rep.europe_best)
-      ? `Bestwert in Europa: ${fmtDays(rep.europe_best.days)} Tage${rep.europe_best.place ? ` (${rep.europe_best.place})` : ""}`
-      : "" }),
-    el("div", { class: "bars-head", text: `Wohlfühl-Tage je Monat · Ø ${fmtDays(rep.days_per_year)}/Jahr` }),
+      el("span", { text: (sel.name || "Ausgewählter Ort") + (sel.country ? ", " + sel.country : ""), class: "title" }),
+      closeBtn()),
+    el("div", { class: "big" }, fmtDays(headline), " ", el("small", { text: unit })),
+    el("p", { class: "sub", text: isWinterquarters()
+      ? `wenn du das ganze Jahr hier bist · mehr als an ${num(rep.percentile, 0)} % der Orte`
+      : `mit deinem Wetter · mehr als an ${num(rep.percentile, 0)} % der Orte` }),
+    rep.period?.projection ? projectionNote(rep)
+      : el("p", { class: "sub period-basis", text: rep.period?.label || currentPeriodLabel() }),
+    el("h4", { text: "Schöne Tage je Monat" }),
     bars, barLabels,
-    el("div", { class: "detail-sep" }),
-    el("div", { class: "bars-head", html: `Klima hier <span class="muted">Ø min/max °C, gelb: Sonnenstunden</span>` }),
-    climateDiagram(rep) || el("p", { class: "muted", text: "keine Klimadaten" }),
-    el("div", {
-      class: "climnums",
-      html: `Jahr: Ø max <b>${num(year.tmax, 1)} °C</b> · Ø min <b>${num(year.tmin, 1)} °C</b> · `
-        + `Taupunkt <b>${num(year.tdew, 1)} °C</b> · Sonne <b>${num(year.sun, 1)} h/Tag</b> · `
-        + `Regen <b>${num(year.prec, 0)} mm</b>`,
-    }),
-    el("div", {
-      class: "climnums",
-      html: `<b>${fmtDays(clim.summer_days || 0)}</b> Sommertage (Tmax ≥ 25 °C) · `
-        + `<b>${fmtDays(clim.hot_days || 0)}</b> Hitzetage (Tmax > 30 °C) · `
-        + `<b>${fmtDays(clim.winter_days || 0)}</b> Wintertage (Tmin < 0 °C) · `
-        + `<b>${fmtDays(clim.ice_days || 0)}</b> Eistage (Tmax < 0 °C)`,
-    }),
-    el("div", {
-      class: "climnums",
-      html: `<b>${fmtDays(clim.sultry_days || 0)}</b> schwüle Tage (Taupunkt > 15 °C) · `
-        + `<b>${fmtDays(clim.wet_days || 0)}</b> Regentage (≥ 1 mm) · `
-        + `<b>${fmtDays(clim.sunny_days || 0)}</b> Sonnentage (> 4 h) · `
-        + `<b>${fmtDays(clim.frost_days || 0)}</b> Frosttage (Tmin ≤ 0 °C)`,
-    }),
+    el("h4", { html: `Klima hier <span class="muted">· Balken: nachts bis tagsüber (°C) · gelb: Sonne</span>` }),
+    climateDiagram(rep) || el("p", { class: "sub", text: "keine Klimadaten" }),
+    climateFacts(clim),
+    moreClimate(clim),
     projectionDetails(rep),
-    el("div", { class: "sub", style: "margin-top:.35rem", text: cityLine }),
+    el("p", { class: "sub", style: "margin-top:.6rem", text: cityLine }),
   );
 }
 
@@ -646,21 +731,22 @@ function projectionDetails(rep) {
   if (!rep.period?.projection) return null;
   const data = rep.climate?.projection;
   const box = el("details", { class: "projection-detail" },
-    el("summary", { text: "Näherung · Annahmen und Modellstreuung" }),
-    el("p", { text: "Taupunkt geschätzt bei konstanter relativer Feuchte; Sonne und Wetterabfolge aus ERA5 unverändert. Temperaturänderungen sind großräumige Monatsmittel, keine lokalen Tagesprojektionen." }));
+    el("summary", { text: "Zukunft: Annahmen und Modellstreuung" }),
+    el("p", { text: "Taupunkt geschätzt bei gleicher relativer Feuchte; Sonne und Wetterabfolge wie 2016–2025. "
+      + "Die Temperaturänderung gilt für die ganze Region, nicht für einzelne Tage." }));
   if (!data) return box;
-  box.append(el("p", { text: `Region: ${data.region_name} (${data.region}) · ${rep.period.model_count} Modelle. `
-    + "10.–90. Perzentil der Temperaturänderung, kein Intervall der Wohlfühltage. Regenfaktor skaliert Intensität, nicht Häufigkeit." }));
+  box.append(el("p", { text: `Region: ${data.region_name_de || data.region_name} · ${rep.period.model_count} Klimamodelle (${rep.period.scenario_code}). `
+    + "Spanne: 10.–90. Perzentil der Temperaturänderung, kein Intervall der Wohlfühltage. Regenfaktor skaliert die Menge, nicht die Zahl der Regentage." }));
   const table = el("table", { class: "projection-table" },
-    el("caption", { text: `Änderung relativ zu ${rep.period.baseline.start_year}–${rep.period.baseline.end_year}` }),
-    el("thead", {}, el("tr", {}, ["Monat", "ΔT °C", "P10–P90 °C", "Regen ×"].map(text => el("th", { scope: "col", text })))),
+    el("caption", { text: `Änderung gegenüber ${rep.period.baseline.start_year}–${rep.period.baseline.end_year}` }),
+    el("thead", {}, el("tr", {}, ["Monat", "Wärmer", "Spanne", "Regen ×"].map(text => el("th", { scope: "col", text })))),
     el("tbody", {}, monthNames.map((month, i) => el("tr", {},
       el("th", { scope: "row", text: month }),
-      el("td", { text: num(data.temperature_delta_c[i], 2) }),
-      el("td", { text: `${num(data.temperature_delta_p10_c[i], 2)} – ${num(data.temperature_delta_p90_c[i], 2)}` }),
+      el("td", { text: fmtDelta(data.temperature_delta_c[i]) }),
+      el("td", { text: `${num(data.temperature_delta_p10_c[i], 1)} bis ${num(data.temperature_delta_p90_c[i], 1)}` }),
       el("td", { text: num(data.precipitation_ratio[i], 2) })))));
   box.append(el("div", { class: "projection-table-wrap" }, table),
-    el("a", { href: rep.period.source_url, target: "_blank", rel: "noopener", text: "Datenquelle und Methodik des IPCC-Atlas" }));
+    el("a", { href: rep.period.source_url, target: "_blank", rel: "noopener", text: "Datenquelle: IPCC-Atlas (CMIP6)" }));
   return box;
 }
 
@@ -676,92 +762,136 @@ function closeBtn() {
 }
 
 /* ---------------------------------------------------------------- Ortssuche */
-let searchTimer = null;
+/**
+ * Ortsfeld mit Vorschlagsliste – für die Kartensuche und den Wohnort.
+ * Tastatur: ↑/↓ wählen, Enter übernimmt (auch bevor die Liste da ist), Esc schließt.
+ * Die Suche selbst ist tolerant (Akzente, ae/oe/ue, deutsche und lokale Namen).
+ */
+function citySuggest({ input, list, area = "all", limit = 8, onPick, onType, onEnter }) {
+  let timer = null, request = 0, items = [], active = -1, lastQuery = "";
+  const options = () => [...list.querySelectorAll(".option")];
+  const close = () => { list.hidden = true; input.setAttribute("aria-expanded", "false"); active = -1; };
+  const open = () => { list.hidden = false; input.setAttribute("aria-expanded", "true"); };
+  const highlight = (i) => {
+    active = i;
+    options().forEach((node, j) => {
+      node.classList.toggle("active", j === i);
+      node.setAttribute("aria-selected", String(j === i));
+    });
+  };
+  const pick = (city) => { request++; clearTimeout(timer); close(); onPick(city); };
+  async function fetchCities(query) {
+    const q = new URLSearchParams({ q: query, limit: String(limit), area });
+    const data = await getJSON("/api/cities/search?" + q.toString());
+    return data.cities || [];
+  }
+  function render(cities, query) {
+    items = cities;
+    list.replaceChildren();
+    if (!cities.length) list.append(el("div", { class: "nohit", text: `Keine Stadt „${query}“ gefunden.` }));
+    cities.forEach((city) => {
+      const extra = [city.alias ? `(${city.alias})` : null, city.country].filter(Boolean).join(" · ");
+      list.append(el("button", {
+        type: "button", class: "option", role: "option", "aria-selected": "false",
+        onmousedown: (event) => event.preventDefault(),   // Fokus bleibt im Feld
+        onclick: () => pick(city),
+      }, el("span", { class: "place", text: city.name }), el("span", { class: "region", text: extra })));
+    });
+    open();
+    highlight(cities.length ? 0 : -1);
+  }
+  /** Freitext → Stadt: der beste Treffer (der Server sortiert genaue Treffer nach vorn). */
+  async function resolve() {
+    const query = input.value.trim();
+    clearTimeout(timer);
+    request++;                       // eine noch ausstehende Vorschlagsliste verwerfen
+    close();
+    if (query.length < 2) return null;
+    if (query === lastQuery && items.length) return items[0];
+    const cities = await fetchCities(query);
+    return cities[0] || null;
+  }
+
+  input.addEventListener("input", () => {
+    clearTimeout(timer);
+    const query = input.value.trim();
+    const current = ++request;
+    if (onType) onType(query);
+    if (query.length < 2) { items = []; lastQuery = ""; close(); return; }
+    timer = setTimeout(async () => {
+      try {
+        const cities = await fetchCities(query);
+        if (current !== request) return;
+        lastQuery = query;
+        render(cities, query);
+      } catch { if (current === request) close(); }
+    }, 150);
+  });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown" && items.length) {
+      event.preventDefault(); open(); highlight((active + 1) % items.length);
+    } else if (event.key === "ArrowUp" && items.length) {
+      event.preventDefault(); open(); highlight((active - 1 + items.length) % items.length);
+    } else if (event.key === "Escape") {
+      close();
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      const chosen = !list.hidden && items[active] ? items[active] : null;
+      if (chosen) pick(chosen);
+      if (onEnter) onEnter();
+      else if (!chosen) resolve().then(city => { if (city) pick(city); }).catch(() => {});
+    }
+  });
+  input.addEventListener("blur", () => setTimeout(close, 150));
+  return { resolve, close };
+}
+
 function initSearch() {
   const input = $("#city-search"), results = $("#search-results");
   if (!input) return;
-  const close = () => { results.hidden = true; };
-  input.addEventListener("input", () => {
-    clearTimeout(searchTimer);
-    const q = input.value.trim();
-    if (q.length < 2) { close(); return; }
-    searchTimer = setTimeout(async () => {
-      try {
-        const data = await getJSON("/api/cities/search?q=" + encodeURIComponent(q) + "&limit=8");
-        results.innerHTML = "";
-        if (!data.cities.length) { results.append(el("button", { class: "nohit", text: "kein Treffer" })); }
-        for (const c of data.cities) {
-          results.append(el("button", {
-            onclick: () => {
-              close(); input.value = c.name;
-              map.flyTo([c.lat, c.lon], Math.max(map.getZoom(), 6), { duration: 0.7 });
-              selectPlace(c.lat, c.lon, c.name, c.country);
-            },
-          }, el("span", { class: "place", text: c.name }),
-            el("span", { class: "region", text: ` ${c.country}${c.pop ? " · " + num(c.pop) : ""}` })));
-        }
-        results.hidden = false;
-      } catch { close(); }
-    }, 180);
-  });
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") close();
-    if (e.key === "Enter") { const first = results.querySelector("button:not(.nohit)"); if (first) first.click(); }
-  });
-  document.addEventListener("click", (e) => {
-    if (!$("#searchbox").contains(e.target)) close();
+  citySuggest({
+    input, list: results, area: "all",
+    onPick: (city) => {
+      input.value = city.name;
+      input.blur();
+      map.flyTo([city.lat, city.lon], Math.max(map.getZoom(), 6), { duration: 0.7 });
+      selectPlace(city.lat, city.lon, city.name, city.country);
+    },
   });
 }
 
-/** Eigenständige Wohnortsuche; freier Text ist noch keine gültige Auswahl. */
+/* Wohnort fürs Winterquartier: Tippen genügt – „Ziele finden“ nimmt den besten Treffer. */
+let homeSuggest = null;
 function initHomeSearch() {
-  const input = $("#wq-home"), results = $("#wq-home-results"), status = $("#wq-home-status");
-  let timer, request = 0;
-  input.addEventListener("input", () => {
-    clearTimeout(timer);
-    const current = ++request;
-    state.wq.home = null;
-    invalidateCombination(); updateHash();
-    status.textContent = "Bitte eine Stadt aus den Suchtreffern wählen.";
-    results.replaceChildren(); results.hidden = true;
-    const query = input.value.trim();
-    if (query.length < 2) return;
-    timer = setTimeout(async () => {
-      try {
-        const data = await getJSON("/api/cities/search?q=" + encodeURIComponent(query) + "&limit=8");
-        if (current !== request) return;
-        const cities = data.cities.filter(city => city.lat >= 34 && city.lat <= 72 && city.lon >= -25 && city.lon <= 45);
-        for (const city of cities) results.append(el("button", {
-          type: "button", text: [city.name, city.country].filter(Boolean).join(", "),
-          onclick: () => {
-            ++request;
-            state.wq.home = city;
-            input.value = city.name;
-            status.textContent = `Fester Wohnort: ${city.name}`;
-            results.hidden = true;
-            invalidateCombination(); syncWqInputs(); updateHash();
-          },
-        }));
-        results.hidden = !cities.length;
-        status.textContent = cities.length ? "Wähle deinen Wohnort aus der Liste." : "Keine Stadt im erfassten Europagebiet gefunden.";
-      } catch {
-        if (current === request) status.textContent = "Stadtsuche fehlgeschlagen. Bitte erneut versuchen.";
-      }
-    }, 180);
+  const input = $("#wq-home");
+  homeSuggest = citySuggest({
+    input, list: $("#wq-home-results"), area: "data",
+    onType: (query) => {
+      if (state.wq.home && query === state.wq.home.name) return;
+      if (state.wq.home) { state.wq.home = null; updateHash(); }
+      $("#wq-home-status").textContent = "";
+      invalidateCombination();
+    },
+    onPick: setHome,
+    // Enter = Stadt übernehmen und gleich suchen (ohne Auswahl nimmt die Suche den besten Treffer).
+    onEnter: () => { if (!$("#btn-wq-search").disabled) searchCombination(); },
   });
-  input.addEventListener("keydown", event => {
-    if (event.key === "Escape") { ++request; clearTimeout(timer); results.hidden = true; }
-    if (event.key === "Enter" && !results.hidden) {
-      event.preventDefault(); results.querySelector("button")?.click();
-    }
-  });
+}
+
+function setHome(city, keepSearch = false) {
+  state.wq.home = { name: city.name, country: city.country || "", lat: city.lat, lon: city.lon };
+  $("#wq-home").value = city.name;
+  if (homeSuggest) homeSuggest.close();
+  if (!keepSearch) invalidateCombination();     // eine laufende Suche nicht abbrechen
+  syncWqInputs();
+  updateHash();
 }
 
 /* ------------------------------------------------------------------ Steuerung */
 function rangeControl(cfg) {
   const wrap = el("div", { class: "ctrl" });
   const out = el("output");
-  const head = el("div", { class: "ctrl-head" }, el("label", { text: cfg.label }), out);
+  const head = el("div", { class: "ctrl-head" }, el("label", { text: cfg.label, title: cfg.help || "" }), out);
   const track = el("div", { class: "track" }, el("div", { class: "fill" }));
   const lo = el("input", { type: "range", min: cfg.min, max: cfg.max, step: cfg.step, value: cfg.lo, "aria-label": `${cfg.label} von` });
   const hi = el("input", { type: "range", min: cfg.min, max: cfg.max, step: cfg.step, value: cfg.hi, "aria-label": `${cfg.label} bis` });
@@ -774,7 +904,7 @@ function rangeControl(cfg) {
     const b = ((hi.value - cfg.min) / span) * 100;
     track.firstChild.style.left = Math.min(a, b) + "%";
     track.firstChild.style.width = Math.abs(b - a) + "%";
-    out.textContent = `${cfg.format(Number(lo.value))} bis ${cfg.format(Number(hi.value))}`;
+    out.textContent = cfg.format(Number(lo.value), Number(hi.value));
   }
   lo.addEventListener("input", () => { if (Number(lo.value) > Number(hi.value)) lo.value = hi.value; paint(); queueRefresh(); });
   hi.addEventListener("input", () => { if (Number(hi.value) < Number(lo.value)) hi.value = lo.value; paint(); queueRefresh(); });
@@ -790,7 +920,7 @@ function singleControl(cfg) {
   const track = el("div", { class: "track" }, el("div", { class: "fill" }));
   const input = el("input", { type: "range", min: cfg.min, max: cfg.max, step: cfg.step, value: cfg.value, "aria-label": cfg.label });
   const box = el("div", { class: "single" }, track, input);
-  wrap.append(el("div", { class: "ctrl-head" }, el("label", { text: cfg.label }), out), box);
+  wrap.append(el("div", { class: "ctrl-head" }, el("label", { text: cfg.label, title: cfg.help || "" }), out), box);
   function paint() {
     const pct = ((input.value - cfg.min) / (cfg.max - cfg.min)) * 100;
     track.firstChild.style.width = pct + "%";
@@ -803,30 +933,33 @@ function singleControl(cfg) {
   return wrap;
 }
 
-const controls = {};         // das eine Traumwetter-Profil in allen Modi
+const controls = {};         // das eine Wohlfühlwetter-Profil in allen Modi
 
 /** Fünf Regler für ein Wetterprofil in ``host`` aufbauen. */
 function buildProfile(host, values, target) {
   const set = {};
   set.tmax = rangeControl({
-    label: "Höchsttemperatur", unit: "°C", min: -20, max: 45, step: 0.5,
-    lo: values.tmax_min, hi: values.tmax_max, format: (v) => fmtTemp(v),
+    label: "Tagsüber (Höchstwert)", min: -20, max: 45, step: 0.5,
+    help: "Höchsttemperatur des Tages",
+    lo: values.tmax_min, hi: values.tmax_max, format: (a, b) => fmtTempRange(a, b),
   });
   set.tmin = rangeControl({
-    label: "Tiefsttemperatur (nachts)", unit: "°C", min: -30, max: 30, step: 0.5,
-    lo: values.tmin_min, hi: values.tmin_max, format: (v) => fmtTemp(v),
+    label: "Nachts (Tiefstwert)", min: -30, max: 30, step: 0.5,
+    help: "Tiefsttemperatur der Nacht",
+    lo: values.tmin_min, hi: values.tmin_max, format: (a, b) => fmtTempRange(a, b),
   });
   set.tdew = singleControl({
-    label: "Taupunkt höchstens", unit: "°C", min: 0, max: 26, step: 0.5,
-    value: values.tdew_max, format: (v) => (v >= 26 ? "egal" : fmtTemp(v)),
+    label: "Schwüle: Taupunkt bis", min: 0, max: 26, step: 0.5,
+    help: "Der Taupunkt misst die Luftfeuchte: unter 16 °C fühlt es sich angenehm an, ab etwa 18 °C schwül.",
+    value: values.tdew_max, format: (v) => (v >= 26 ? "egal" : `${fmtNumber(v)} °C`),
   });
   set.sun = singleControl({
-    label: "Sonne mindestens", unit: "h/Tag", min: 0, max: 12, step: 0.5,
-    value: values.sun_min, format: (v) => (v <= 0 ? "egal" : `${num(v, 1)} h/Tag`),
+    label: "Sonne mindestens", min: 0, max: 12, step: 0.5,
+    value: values.sun_min, format: (v) => (v <= 0 ? "egal" : `${fmtNumber(v)} h am Tag`),
   });
   set.prec = singleControl({
-    label: "Niederschlag höchstens", unit: "mm/Tag", min: 0, max: 20, step: 0.5,
-    value: Math.min(values.prec_max, 20), format: (v) => (v >= 20 ? "egal" : `${num(v, 1)} mm`),
+    label: "Regen höchstens", min: 0, max: 20, step: 0.5,
+    value: Math.min(values.prec_max, 20), format: (v) => (v >= 20 ? "egal" : `${fmtNumber(v)} mm am Tag`),
   });
   host.append(set.tmax, set.tmin, set.tdew, set.sun, set.prec);
   set._target = target;
@@ -900,6 +1033,7 @@ function buildAllPresets() {
 function queueRefresh(ms = 220) {
   syncParams();
   invalidateCombination();
+  document.querySelectorAll("#presets .preset").forEach(b => b.classList.remove("active"));
   clearTimeout(refreshTimer);
   refreshTimer = setTimeout(() => refresh(), ms);
 }
@@ -928,25 +1062,22 @@ async function refresh(immediate = false) {
   }
   if (mySeq !== seq) return;
   loadCities();                                  // Markerwerte aktuell halten
-  loadRanking();
+  if (!isWinterquarters()) loadRanking();
   if (state.selected) selectPlace(state.selected.lat, state.selected.lon, state.selected.name, state.selected.country);
 }
 
 async function loadRanking() {
-  const q = filterQuery(new URLSearchParams({ limit: 12 }));
+  const q = filterQuery(new URLSearchParams({ limit: 10 }));
+  const host = $("#ranking");
   try {
     const data = await getJSON("/api/ranking?" + q);
-    const host = $("#ranking");
-    host.innerHTML = "";
-    if (!data.cities.length) { host.append(el("li", { class: "muted", text: "keine Treffer" })); return; }
-    const best = Math.max(1, ...data.cities.map(c => c.days));
+    host.replaceChildren();
+    if (!data.cities.length) { host.append(el("li", { class: "muted", text: "Kein Ort passt – lockere die Einstellungen etwas." })); return; }
     data.cities.forEach((c, i) => {
-      // Anteil am Spitzenwert als feiner Balken hinter der Zeile
-      const share = Math.max(6, Math.round((c.days / best) * 100));
       host.append(el("li", {},
         el("button", {
-          title: `${c.name} – Datenpunkt ${c.dist_km} km entfernt`,
-          style: `--w:${share}%`,
+          type: "button",
+          title: `${c.name}: ${fmtDays(c.days)} ${monthUnit()} (Rasterpunkt ${c.dist_km} km entfernt)`,
           onclick: () => {
             map.flyTo([c.lat, c.lon], Math.max(map.getZoom(), 6), { duration: 0.7 });
             selectPlace(c.lat, c.lon, c.name, c.country);
@@ -955,11 +1086,11 @@ async function loadRanking() {
           el("span", { class: "rank", text: String(i + 1) }),
           el("span", { class: "who" },
             el("span", { class: "place", text: c.name }),
-            el("span", { class: "region", text: c.country ? " · " + c.country : "" })),
+            el("span", { class: "region", text: c.country || "" })),
           el("span", { class: "days", text: fmtDays(c.days) }))));
     });
   } catch (err) {
-    $("#ranking").innerHTML = `<li class="muted">Fehler: ${err.message || err}</li>`;
+    host.replaceChildren(el("li", { class: "muted", text: `Fehler: ${err.message || err}` }));
   }
 }
 
@@ -968,9 +1099,10 @@ function renderLegend(info) {
   legend.hidden = false;
   const stops = META.color_stops.map(([f, r, g, b]) => `rgb(${r},${g},${b}) ${Math.round(f * 100)}%`).join(", ");
   $("#legend-bar").style.background = `linear-gradient(90deg, ${stops})`;
-  $("#legend-ticks").innerHTML = info.legend_ticks.map(t => `<span>${fmtDays(t)}</span>`).join("");
-  $("#legend-title").textContent =
-    `${monthUnit()} · ${currentPeriodLabel()} (Skala bis ${fmtDays(info.vmax)}${info.fixed_scale ? ", fix" : ", auto"})`;
+  $("#legend-ticks").replaceChildren(...info.legend_ticks.map(t => el("span", { text: fmtDays(t) })));
+  $("#legend-title").replaceChildren(
+    document.createTextNode(`${monthUnit()} mit deinem Wetter`),
+    el("small", { text: currentPeriodLabel() + (info.fixed_scale ? " · feste Skala" : "") }));
 }
 
 /* ------------------------------------------------------- Alle Städte / Tabelle */
@@ -1263,7 +1395,8 @@ function showDataStatus() {
 
   badge.textContent = META.synthetic
     ? `⚠ Testdaten · ${ds.n_points} Punkte · ${period}`
-    : `${ds.n_points} Rasterpunkte · ERA5 ${period} · ${ds.n_days} Tage`;
+    : `Wetterdaten ${period} · ERA5 (Copernicus)`;
+  badge.title = `${ds.n_points} Rasterpunkte · ${ds.n_days} Tage · Raster ${String(ds.grid_step_deg).replace(".", ",")}°`;
   badge.classList.toggle("warn", Boolean(problems.length));
 
   const banner = $("#banner");
@@ -1494,7 +1627,7 @@ async function boot() {
   monthNames.forEach((m, i) => sel.append(el("option", { value: i + 1, text: m })));
   sel.value = state.month;
 
-  // Monatsauswahl des Sommerfensters (Winterquartier-Modus)
+  // Sommermonate fürs Winterquartier
   for (const id of ["#wq-sfrom", "#wq-sto"]) {
     const box = $(id);
     if (box) monthNames.forEach((m, i) => box.append(el("option", { value: i + 1, text: m })));
@@ -1510,14 +1643,15 @@ async function boot() {
   $("#mode-year").addEventListener("click", () => setMode("year"));
   $("#mode-month").addEventListener("click", () => setMode("month"));
   $("#mode-wq").addEventListener("click", () => setMode("wq"));
-  $("#period-select").addEventListener("change", (event) => selectPeriod(event.target.value));
   sel.addEventListener("change", () => { state.month = Number(sel.value); refresh(true); });
   $("#wq-sfrom").addEventListener("change", setSummerWindow);
   $("#wq-sto").addEventListener("change", setSummerWindow);
-  $("#wq-season").addEventListener("change", event => {
-    state.wq.season = event.target.value;
+  document.querySelectorAll("#wq-season button").forEach(button => button.addEventListener("click", () => {
+    const season = button.getAttribute("data-season");
+    if (season === state.wq.season) return;
+    state.wq.season = season;
     invalidateCombination(); syncWqInputs(); updateHash();
-  });
+  }));
   $("#btn-wq-search").addEventListener("click", searchCombination);
   $("#fixed-scale").checked = state.fixedScale;
   $("#fixed-scale").addEventListener("change", (e) => { state.fixedScale = e.target.checked; refresh(true); });
@@ -1525,14 +1659,13 @@ async function boot() {
   $("#btn-reset").addEventListener("click", () => {
     state.params = { ...META.defaults };
     state.period = META.default_period || "all";
-    $("#period-select").value = state.period;
-    updatePeriodHelp();
+    lastScenario = "ssp245";
+    renderPeriodControls();
     const summer = WQ_BOUNDS.summer_months || [5, 6, 7, 8, 9];
     state.wq.home = null;
     state.wq.season = "winter";
     $("#wq-home").value = "";
-    $("#wq-home").dispatchEvent(new Event("input"));
-    $("#wq-home-status").textContent = "Bitte eine Stadt aus den Suchtreffern wählen.";
+    $("#wq-home-status").textContent = "";
     state.wq.sfrom = summer[0];
     state.wq.sto = summer[summer.length - 1];
     invalidateCombination();
@@ -1550,29 +1683,33 @@ async function boot() {
     try { await navigator.clipboard.writeText(location.href); toast("Link kopiert"); }
     catch { toast(location.href); }
   });
-  $("#btn-rank-refresh").addEventListener("click", loadRanking);
   setMode(state.mode, true);
 
   initMap();
   await refresh(true);
 }
 
+const MODE_HINTS = {
+  year: "Wo gibt es übers Jahr die meisten Tage mit deinem Wetter?",
+  month: "Wo ist dein Wetter im gewählten Monat am häufigsten?",
+  wq: "Bleib zu Hause, wenn es dort schön ist – und finde für den Rest des Jahres ein Ziel mit mehr schönen Tagen.",
+};
+
 function setMode(mode, initial = false) {
   state.mode = mode;
   $("#mode-year").setAttribute("aria-selected", String(mode === "year"));
   $("#mode-month").setAttribute("aria-selected", String(mode === "month"));
   $("#mode-wq").setAttribute("aria-selected", String(mode === "wq"));
-  // Die Monatsauswahl gehört ausschließlich zum Urlaubsmonat.
+  $("#mode-hint").textContent = MODE_HINTS[mode] || "";
+  // Die Monatsauswahl gehört ausschließlich zum Reisemonat.
   $("#month-picker").hidden = mode !== "month";
-  // Winterquartier-Karten erscheinen nur in diesem Modus.
+  // Winterquartier-Karte nur in diesem Modus; die Rangliste dafür nur außerhalb.
   document.querySelectorAll("[data-wq-only]").forEach(node => { node.hidden = mode !== "wq"; });
-  $("#feel-title").textContent = mode === "wq" ? "Dein Traumwetterprofil" : "Dein Wohlfühlwetter";
-  $("#presets-title").textContent = "Voreinstellungen";
-  const rankTitle = $("#rank-title");
-  if (rankTitle) rankTitle.textContent = mode === "wq"
-    ? "Beste Einzelorte für dein Profil" : "Top-Orte für diese Einstellung";
+  $("#rank-card").hidden = mode === "wq";
+  $("#rank-title").textContent = mode === "month" ? `Die besten Orte im ${monthNames[state.month - 1]}` : "Die besten Orte";
   if (mode === "month") $("#month-select").value = state.month;
   if (mode === "wq") syncWqInputs();
+  else clearWqMarkers();
   loadSponsor();
   if (!initial) refresh(true);
   else if (state.selected) renderDetail();
@@ -1601,42 +1738,55 @@ async function loadSponsor() {
 /* ------------------------------------------------------- Winterquartier-Modus */
 let combinationSeq = 0;
 
+function updateWqButton() {
+  const button = $("#btn-wq-search");
+  if (!button) return;
+  const typed = ($("#wq-home")?.value || "").trim().length >= 2;
+  button.disabled = (!state.wq.home && !typed) || summerMonths().length >= 12;
+}
+
+function clearWqMarkers() {
+  if (wqLayer) wqLayer.clearLayers();
+}
+
 function invalidateCombination() {
   combinationSeq++;
   const out = $("#wq-result"), alternatives = $("#wq-alternatives");
-  if (out) { out.hidden = true; out.textContent = ""; }
-  if (alternatives) { alternatives.hidden = true; alternatives.innerHTML = ""; }
+  if (out) { out.hidden = true; out.replaceChildren(); }
+  if (alternatives) { alternatives.hidden = true; alternatives.replaceChildren(); }
+  clearWqMarkers();
   const button = $("#btn-wq-search");
-  if (button) {
-    button.disabled = !state.wq.home || summerMonths().length >= 12;
-    button.textContent = "Passendes Ausweichquartier finden";
-  }
+  if (button) button.textContent = "Ziele finden";
+  updateWqButton();
 }
 
-/** Synchronisiert die festen Monatsgrenzen und erklärt, welche Monate wohin fallen. */
+/** Monatsgrenzen anzeigen und in einem Satz sagen, wann man wo ist. */
 function syncWqInputs() {
-  $("#wq-season").value = state.wq.season;
+  document.querySelectorAll("#wq-season button").forEach(button => {
+    button.setAttribute("aria-checked", String(button.getAttribute("data-season") === state.wq.season));
+  });
   if (state.wq.home) {
     $("#wq-home").value = state.wq.home.name;
-    $("#wq-home-status").textContent = `Fester Wohnort: ${state.wq.home.name}`;
+    $("#wq-home-status").textContent = `Wohnort: ${state.wq.home.name}${state.wq.home.country ? ", " + state.wq.home.country : ""}`;
   }
   const sfrom = $("#wq-sfrom"), sto = $("#wq-sto");
   if (sfrom) sfrom.value = state.wq.sfrom;
   if (sto) sto.value = state.wq.sto;
-  const summer = summerMonths();
-  const winter = winterMonths();
+  const summer = summerMonths(), winter = winterMonths();
   const hint = $("#wq-window");
   if (hint) {
-    hint.textContent = summer.length >= 12
-      ? "Das Sommerfenster umfasst das ganze Jahr. Wähle höchstens 11 Monate, damit ein Winterort übrig bleibt."
-      : `Sommerort: ${monthsLabel(summer)} (${summer.length} Monate) · `
-        + `Winterort: ${monthsLabel(winter)} (${winter.length} Monate)`;
+    hint.replaceChildren();
+    if (summer.length >= 12) {
+      hint.textContent = "Bitte höchstens 11 Monate wählen – sonst bleibt keine Zeit fürs Quartier.";
+    } else if (state.wq.season === "winter") {
+      hint.append(el("b", { text: monthsLabel(summer) }), " zu Hause, ",
+        el("b", { text: monthsLabel(winter) }), ` im Winterquartier (${winter.length} Monate).`);
+    } else {
+      hint.append(el("b", { text: monthsLabel(winter) }), " zu Hause, ",
+        el("b", { text: monthsLabel(summer) }), ` im Sommerquartier (${summer.length} Monate).`);
+    }
   }
-  const button = $("#btn-wq-search");
-  if (hint && summer.length < 12) hint.textContent += state.wq.season === "winter"
-    ? " · Zu Hause im Sommer, unterwegs im Winter."
-    : " · Zu Hause im Winter, unterwegs im Sommer.";
-  if (button) button.disabled = !state.wq.home || summer.length >= 12;
+  updateWqButton();
 }
 
 function setSummerWindow() {
@@ -1648,33 +1798,69 @@ function setSummerWindow() {
   refresh(true);
 }
 
-/** Sucht Ausweichorte zu einem festen Wohnort; das Monatsfenster bleibt fest. */
+/** Wohnort und vorgeschlagene Ziele als nummerierte Punkte auf der Karte. */
+function showWqMarkers(home, destinations) {
+  if (!map || !L.layerGroup) return;
+  if (!wqLayer) wqLayer = L.layerGroup([], { pane: "cities" }).addTo(map);
+  wqLayer.clearLayers();
+  const points = [[home.lat, home.lon]];
+  wqLayer.addLayer(L.marker([home.lat, home.lon], {
+    pane: "cities", interactive: false, keyboard: false,
+    icon: L.divIcon({ className: "wq-pin home", html: `<span>${escapeHtml(home.name)}</span>`, iconSize: null }),
+  }));
+  destinations.forEach((city, i) => {
+    points.push([city.lat, city.lon]);
+    const pin = L.marker([city.lat, city.lon], {
+      pane: "cities", keyboard: false,
+      icon: L.divIcon({ className: "wq-pin", html: `<span>${i + 1}</span>`, iconSize: [22, 22] }),
+    });
+    pin.on("click", () => selectPlace(city.lat, city.lon, city.name, city.country));
+    pin.bindTooltip(`${i + 1}. ${escapeHtml(city.name)}`, { direction: "top", className: "klima", offset: [0, -10] });
+    wqLayer.addLayer(pin);
+  });
+  // Platz lassen für Suchfeld (oben) und Legende (unten rechts).
+  if (points.length > 1) {
+    map.fitBounds(L.latLngBounds(points), { maxZoom: 6, paddingTopLeft: [30, 70], paddingBottomRight: [30, 120] });
+  }
+}
+
+/** Sucht Ziele zu einem festen Wohnort; das Monatsfenster bleibt, wie es ist. */
 async function searchCombination() {
   syncParams();
   const button = $("#btn-wq-search");
   const out = $("#wq-result"), alternatives = $("#wq-alternatives");
   const summer = summerMonths();
-  out.hidden = false;
-  out.textContent = "";
-  alternatives.hidden = true;
-  alternatives.innerHTML = "";
-  if (!state.wq.home) {
-    out.textContent = "Bitte zuerst deinen Wohnort aus den Suchtreffern wählen.";
-    return;
-  }
-  if (summer.length >= 12) {
-    out.textContent = "Bitte wähle ein Sommerfenster von höchstens 11 Monaten, damit die übrigen Monate einem Winterort zugeordnet werden können.";
-    button.disabled = true;
-    return;
-  }
-
   const request = ++combinationSeq;
+  const say = (text, cls) => {
+    out.hidden = false;
+    out.replaceChildren(el("p", { class: cls || "", text }));
+  };
+  alternatives.hidden = true;
+  alternatives.replaceChildren();
+  if (summer.length >= 12) {
+    say("Bitte höchstens 11 Sommermonate wählen.", "error");
+    return;
+  }
   button.disabled = true;
   button.textContent = "Suche läuft …";
-  out.append(
-    el("strong", { text: "Passendes Ausweichquartier wird gesucht …" }),
-    el("span", { text: "Ein Moment bitte – das gewählte Sommerfenster bleibt unverändert." }));
   try {
+    // Getippt, aber nicht aus der Liste gewählt? Dann den besten Treffer nehmen.
+    if (!state.wq.home) {
+      const typed = $("#wq-home").value.trim();
+      if (typed.length < 2) {
+        say("Bitte gib zuerst ein, wo du wohnst.", "error");
+        $("#wq-home").focus();
+        return;
+      }
+      const city = homeSuggest ? await homeSuggest.resolve() : null;
+      if (request !== combinationSeq) return;
+      if (!city) {
+        say(`Keine Stadt „${typed}“ im Kartengebiet gefunden. Tipp: deutscher oder örtlicher Name, z. B. „München“ oder „Milano“.`, "error");
+        return;
+      }
+      setHome(city, true);
+    }
+    say("Ziele werden gesucht …");
     const query = new URLSearchParams();
     for (const [key, value] of Object.entries(state.params)) query.set(key, value);
     query.set("period", state.period);
@@ -1689,49 +1875,53 @@ async function searchCombination() {
 
     const best = data.best;
     if (!best) {
-      out.textContent = "Für dieses Profil und Zeitfenster wurde keine passende Zwei-Orte-Kombination gefunden.";
+      say("Für dein Wetter und diese Monate wurde kein passendes Ziel gefunden.");
       return;
     }
-    // Die vom Nutzer gewählte Stadt bleibt in der Anzeige der feste Wohnort.
-    const homeKey = state.wq.season === "winter" ? "summer_city" : "winter_city";
-    for (const candidate of [...(data.candidates || []), best]) {
-      candidate[homeKey].name = state.wq.home.name;
-      candidate[homeKey].country = state.wq.home.country || candidate[homeKey].country;
-    }
-    const gainLabel = value => `${value >= 0 ? "+" : "−"}${num(Math.abs(value), 1)} Tage gegenüber ganzjährig zu Hause`;
-    const destination = candidate => candidate[state.wq.season + "_city"];
-    const cityLabel = city => [city.name, city.country].filter(Boolean).join(", ");
-    out.innerHTML = "";
-    out.append(
-      el("strong", { text: `${cityLabel(best[homeKey])} → ${cityLabel(destination(best))} · ${fmtDays(best.total_days)} Wohlfühltage/Jahr` }),
-      el("span", { text: `${data.summer_label}: ${fmtDays(best.summer_days)} Tage am Sommerort · `
-        + `${data.winter_label}: ${fmtDays(best.winter_days)} Tage am Winterort · `
-        + `${num(best.distance_km, 0)} km Luftlinie · ${gainLabel(best.gain_days)} (zu Hause: ${fmtDays(data.baseline_days)} Tage/Jahr). ${data.period.label}` }));
+    const awayKey = state.wq.season + "_city";
+    const quarter = state.wq.season === "winter" ? "Winterquartier" : "Sommerquartier";
+    const awayLabel = state.wq.season === "winter" ? data.winter_label : data.summer_label;
+    const home = state.wq.home;
+    out.hidden = false;
+    out.replaceChildren(
+      el("p", { class: "home-days" }, el("b", { text: home.name }), " allein: ",
+        el("b", { text: fmtDays(data.baseline_days) }), " schöne Tage pro Jahr."),
+      el("p", { text: `Mit einem ${quarter} (${awayLabel}) bis zu ${fmtDays(best.total_days)} Tage. `
+        + "Die grüne Zahl zeigt, wie viele Tage du gewinnst:" }));
 
+    const destinations = [];
     (data.candidates || []).forEach((candidate, index) => {
+      const city = candidate[awayKey];
+      destinations.push(city);
+      const gain = candidate.gain_days;
       alternatives.append(el("li", { class: "combo-item" },
-        el("span", { class: "combo-rank", text: `${index + 1}.` }),
-        el("span", { class: "combo-main" },
-          el("button", { class: "combo-place ghost", type: "button",
-            text: `${cityLabel(candidate[homeKey])} → ${cityLabel(destination(candidate))}`,
-            onclick: () => {
-              const city = destination(candidate);
-              map.flyTo([city.lat, city.lon], 6);
-              selectPlace(city.lat, city.lon, city.name, city.country);
-            } }),
-          el("span", { class: "combo-details", text: `${data.summer_label}: ${fmtDays(candidate.summer_days)} Tage · `
-            + `${data.winter_label}: ${fmtDays(candidate.winter_days)} Tage · `
-            + `${num(candidate.distance_km, 0)} km Luftlinie · ${gainLabel(candidate.gain_days)}` })),
-        el("span", { class: "days", text: fmtDays(candidate.total_days) })));
+        el("button", {
+          type: "button", class: "combo-place",
+          title: `${home.name} + ${city.name}: ${fmtDays(candidate.total_days)} schöne Tage pro Jahr`,
+          onclick: (event) => {
+            alternatives.querySelectorAll("button").forEach(b => b.classList.remove("active"));
+            event.currentTarget.classList.add("active");
+            map.flyTo([city.lat, city.lon], Math.max(map.getZoom(), 6), { duration: 0.7 });
+            selectPlace(city.lat, city.lon, city.name, city.country);
+          },
+        },
+          el("span", { class: "rank", text: String(index + 1) }),
+          el("span", { class: "who" },
+            el("span", { class: "place", text: city.name }),
+            el("span", { class: "region", text: `${city.country ? city.country + " · " : ""}${num(candidate.distance_km, 0)} km` })),
+          el("span", { class: "gain" + (gain < 0 ? " neg" : "") },
+            `${gain >= 0 ? "+" : "−"}${fmtDays(Math.abs(gain))}`,
+            el("small", { text: `${fmtDays(candidate.total_days)} im Jahr` })))));
     });
-    alternatives.hidden = !(data.candidates || []).length;
+    alternatives.hidden = !destinations.length;
+    showWqMarkers(home, destinations);
   } catch (err) {
     if (request !== combinationSeq) return;
-    out.textContent = "Suche fehlgeschlagen: " + (err.message || err);
+    say("Suche fehlgeschlagen: " + (err.message || err), "error");
   } finally {
     if (request === combinationSeq) {
-      button.disabled = !state.wq.home || summerMonths().length >= 12;
-      button.textContent = "Passendes Ausweichquartier finden";
+      button.textContent = "Ziele finden";
+      updateWqButton();
     }
   }
 }

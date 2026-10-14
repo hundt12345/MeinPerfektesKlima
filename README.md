@@ -8,10 +8,14 @@ wo erreicht wird – von Blau (wenige Tage) bis Rot (viele Tage).
 Drei Modi:
 
 1. **Ganzes Jahr** – „Wo ist es übers Jahr gerechnet am häufigsten genau so, wie ich es mag?“
-2. **Urlaubsmonat** – „Ich will im Juli Urlaub machen: Wo gibt es dann die meisten Tage mit
+2. **Reisemonat** – „Ich will im Juli Urlaub machen: Wo gibt es dann die meisten Tage mit
    meinem Wunschwetter?“ (Die Monatsauswahl erscheint nur in diesem Modus.)
 3. **Winterquartier** – „Ich lebe in dieser Stadt – wohin kann ich im Winter oder Sommer ausweichen?“
    Dein Wohnort bleibt fest, die App sucht ein passendes saisonales Reiseziel (siehe [unten](#der-winterquartier-modus)).
+
+Über **„Welches Klima?“** wählst du das Klima von heute oder eine Modellrechnung für
+2030/2050 mit drei verständlich benannten Wegen der Klimapolitik
+(siehe [unten](#welches-klima-heute-2030-und-2050)).
 
 Dazu:
 
@@ -19,7 +23,11 @@ Dazu:
   je Monat, der Einordnung („besser als 87 % aller Rasterpunkte“, Bestwert in Europa) und dem
   Klimaprofil des Ortes (Ø min/max, Taupunkt, Sonnenstunden, Niederschlag, Sommer-/Frosttage).
 * **Ortssuche** über der Karte (Name tippen, z. B. „Sev…“), Top-Orte-Liste für die aktuelle
-  Einstellung, teilbare Links (alle Parameter stecken im URL-Hash).
+  Einstellung, teilbare Links (alle Parameter stecken im URL-Hash). Die Suche ist tolerant:
+  Akzente und Umlaute sind egal (`malaga`, `muenchen`, `koeln`), deutsche und landessprachliche
+  Namen funktionieren beide (`Mailand`/`Milano`, `Kopenhagen`/`København`, `Genf`/`Genève`),
+  ebenso Inseln für den Hauptort (`Mallorca` → Palma, `Kreta` → Heraklion). Städte heißen
+  in der Oberfläche so, wie man sie auf Deutsch kennt (München, Rom, Moskau, Kiew …).
 * **Vollständige Städtedaten**: die eingeklappte Tabelle unter der Karte listet alle Städte mit
   Klimamitteln, Hitze-/Sommer-/Winter-/Eistagen, Schwüle, Regen, Sonne und weiteren Kennzahlen.
   Sie lässt sich durchsuchen und sortieren; der CSV-Export folgt dem aktuellen Suchfilter.
@@ -51,14 +59,26 @@ Jahreszeiten auf die Karte legen – die Zahlen sind weiterhin exakte Zählungen
 denn die Monatszählungen sind additiv: „Tage im Mai – September“ = Summe der
 Tageszählungen dieser fünf Monate.
 
-## Klimazeitraum und Zukunftsprojektionen
+## Welches Klima? Heute, 2030 und 2050
 
-Über **Klimazeitraum** kann die Auswertung zwischen zwei Ausschnitten derselben
-ERA5-Tagesdaten wechseln:
+Die Karte **„Welches Klima?“** hat drei Knöpfe: **Heute | 2030 | 2050**.
 
-* **Gesamter Zeitraum (2016–2025):** Mittel über zehn Jahre.
-* **Letzte 5 Jahre (2021–2025):** jüngerer Vergleichszeitraum, der die jüngsten
-  Jahre stärker berücksichtigt und deshalb stärker schwanken kann.
+* **Heute (2016–2025):** Mittel über zehn Jahre ERA5-Tagesdaten. Ein Häkchen
+  **„Nur die letzten 5 Jahre (2021–2025)“** wählt den jüngeren Ausschnitt, der stärker schwankt.
+* **2030 / 2050:** Darunter erscheinen drei Wege der Klimapolitik – sprechend benannt statt
+  als SSP-Kürzel, jeweils mit einem Satz Erklärung und der mittleren Erwärmung Europas
+  gegenüber 2016–2025 (berechnet aus `app/data/projections.json`):
+
+| In der App | Szenario | Erklärung | Europa 2030 | Europa 2050 | Welt 2100* |
+|---|---|---|---|---|---|
+| **Viel Klimaschutz** | SSP1-2.6 | Die Welt senkt ihre Emissionen schnell. | +0,2 °C | +0,5 °C | ≈ +1,8 °C |
+| **Mittlerer Weg** (Standard) | SSP2-4.5 | Klimaschutz etwa wie bisher, die Emissionen sinken langsam. | +0,4 °C | +1,1 °C | ≈ +2,7 °C |
+| **Wenig Klimaschutz** | SSP5-8.5 | Die Emissionen steigen weiter stark. | +0,5 °C | +1,6 °C | ≈ +4,4 °C |
+
+\* globale Erwärmung 2081–2100 gegenüber 1850–1900, beste Schätzung aus IPCC AR6 WG I
+(SPM, Tabelle SPM.1). Die Europa-Werte sind Jahresmittel über alle Rasterpunkte; die
+Ortsdetails nennen den Wert für den angeklickten Ort („hier etwa +1,0 °C wärmer als 2016–2025“).
+Die Kürzel (SSP…) stehen weiterhin klein in Legende, Tooltips, API und CSV.
 
 Der Zeitraum gilt einheitlich für Karte, Legende, Punktdetails, Ranking,
 Städtemarker, Winterquartier-Suche und die vollständige Städtetabelle/CSV.
@@ -66,7 +86,7 @@ Beide Varianten verwenden bereits gespeicherte Daten; es wird keine externe
 Klimaschnittstelle pro Klick aufgerufen. Der gesamte Datensatz umfasst nur zehn
 Jahre und ist **keine offizielle 30-jährige Klimanormalperiode**.
 
-**2030 und 2050 sind jetzt auswählbar – ausdrücklich als modellbasierte Näherungen.**
+**2030 und 2050 sind ausdrücklich modellbasierte Näherungen.**
 31 CMIP6-Modelle aus dem regional aggregierten IPCC-Atlas liefern monatliche Temperaturänderungen
 und Niederschlagsfaktoren für SSP1-2.6, SSP2-4.5 und SSP5-8.5. Sie werden auf die historischen
 ERA5-Tage übertragen. 2030 = 2021–2040, 2050 = 2041–2060, Änderungsbasis = 2016–2025.
@@ -90,23 +110,34 @@ Sponsor wurde angelegt, keine AdSense-Tags/CMP integriert.
 
 ## Der Winterquartier-Modus
 
-Im Winterquartier-Modus wählst du zuerst **deine Heimatstadt** aus den Suchtreffern.
-Dann legst du ein gemeinsames Wohlfühlprofil, die festen Sommermonate und die gewünschte
-Ausweichsaison (Winter oder Sommer) fest. Der Wohnort bleibt in allen Vorschlägen unverändert.
-Im Winter ausweichen bedeutet: im Sommer zu Hause, in den übrigen Monaten am Reiseziel.
-Im Sommer ausweichen bedeutet das Gegenteil. Zwischen den Städten liegen mindestens 50 km Luftlinie.
+Die Karte **„Dein Winterquartier“** steht in diesem Modus ganz oben:
 
-Das Sommerfenster wird **nicht automatisch verändert** und darf 1 bis 11 Monate umfassen.
-Alle erfassten Zielstädte werden geprüft. Die Ergebnisse zeigen die Jahressumme der beiden
-Orte, den Zugewinn gegenüber ganzjährigem Verbleib zu Hause (auch wenn er negativ ist),
-Monatsaufteilung und Entfernung. Ein Klick auf ein Ziel öffnet die Klimaauswertung auf der Karte.
+1. **Wo wohnst du?** – Stadt eintippen. Vorschläge erscheinen sofort (↑/↓ und Enter gehen
+   auch); auswählen muss man aber nichts: **„Ziele finden“ nimmt den besten Treffer** der
+   Eingabe. Früher blieb der Knopf gesperrt, bis ein Vorschlag angeklickt war – wer nur
+   tippte und klickte, bekam keine Reaktion.
+2. **Wann willst du weg?** – im Winter oder im Sommer.
+3. **Sommer ist für dich** von … bis … – ein Satz darunter sagt, wann du wo bist
+   („Mai – September zu Hause, Oktober – April im Winterquartier“).
+
+Dasselbe Wohlfühlwetter gilt an beiden Orten. Zwischen Wohnort und Ziel liegen mindestens
+50 km Luftlinie. Das Sommerfenster wird **nicht automatisch verändert** und darf 1 bis 11
+Monate umfassen. Alle erfassten Zielstädte werden geprüft.
+
+Das Ergebnis nennt die schönen Tage pro Jahr, wenn man ganzjährig zu Hause bleibt, und listet
+bis zu acht Ziele mit dem **Zugewinn in Tagen** (auch negativ), dem Land und der Entfernung.
+Die Ziele liegen **mindestens 120 km auseinander** (`spread_km`): Früher füllten oft sieben
+Nachbarorte desselben Rasterpunkts die Liste (Murcia, Molina de Segura, Alcantarilla …).
+Haben mehrere Orte dieselben Werte, steht die größte Stadt in der Liste. Wohnort und Ziele
+erscheinen als nummerierte Punkte auf der Karte; ein Klick öffnet die Ortsauswertung.
 Wohnort, Saison und Filter bleiben in teilbaren URL-Hashes erhalten.
 
-Die Karte und die Top-Orte-Liste zeigen ergänzend die Jahreszahl an einem **Einzelort**,
-nicht die Wohnort-/Reiseziel-Summe.
+Die Karte zeigt ergänzend die Jahreszahl an einem **Einzelort**, nicht die Summe aus Wohnort
+und Ziel; die Einzelort-Rangliste ist in diesem Modus ausgeblendet.
 
-Die Oberfläche verwendet `GET /api/winterquarters/escape` mit `lat`, `lon`,
-`season=winter|summer`, Wetterparametern, `sfrom`, `sto`, `period` und `limit`.
+Die Oberfläche verwendet `GET /api/cities/search?area=data` (nur Orte im Klimaraster) und
+`GET /api/winterquarters/escape` mit `lat`, `lon`, `season=winter|summer`, Wetterparametern,
+`sfrom`, `sto`, `period`, `limit` und `spread_km` (Standard 120, `0` = ohne Streuung).
 Die globale Suche `/api/winterquarters/combination` und die älteren Endpunkte
 `/api/winterquarters/optimize` und `/api/winterquarters/pair` bleiben für bestehende
 API-Clients verfügbar, werden aber von der aktuellen Oberfläche nicht mehr verwendet.
@@ -114,6 +145,36 @@ API-Clients verfügbar, werden aber von der aktuellen Oberfläche nicht mehr ver
 Grenzen: ERA5-Mittel über zehn Jahre glätten einzelne Extremjahre; die
 Auswertung ist eine Optimierung der Tageszahlen, keine Empfehlung zu Miete,
 Visum oder Anreise.
+
+## Kartenbild: keine „Striche“ mehr
+
+Auf der Karte waren gerade Linien zu sehen, die nicht zur Landschaft gehörten. Es gab drei
+unabhängige Ursachen; alle drei sind behoben und durch Tests abgesichert
+(`tests/test_search_and_geo.py`, `tests/ui_smoketest.mjs`):
+
+1. **Ländergrenzen-Daten.** `countries.geojson` enthielt Länder*flächen*, die auf den
+   Kartenausschnitt zugeschnitten waren. Jede Schnittkante wurde als Grenze gezeichnet:
+   gerade Linien bei 29° N (quer durch Nordafrika), 50° O (Russland/Kasachstan/Iran),
+   74° N und 30° W (Grönland). Dazu kreuzt Russland in world-atlas die Datumsgrenze; planar
+   gelesen entstanden Bänder quer über die Welt – sichtbar als Linien bei 65°, 69° und 71° N
+   (Karelien, Kola, Barentssee). `scripts/build_geo.py` macht solche Ringe jetzt stetig
+   (`fix_antimeridian`) und schreibt nur noch **Landgrenzen als Linien** (`topojson.mesh`,
+   jede Grenze einmal, zugeschnitten ohne künstliche Kanten; Küsten zeigt die Grundkarte).
+   Ab Zoomstufe 10 übernimmt die genauere OSM-Grenze. Die Datei schrumpft von 331 auf 87 KB.
+2. **Kachelnähte.** Bei 125 % oder 150 % Bildschirmskalierung (unter Windows üblich) zeichnet
+   Chrome zwischen den 256-px-Kacheln haarfeine Lücken – ein Gitter aus Strichen, das durch die
+   halbtransparente Klimafläche scheint. Die Kacheln überlappen jetzt um 1 px
+   (`mix-blend-mode: normal`, 257 px), der Kartenhintergrund hat den Farbton der OSM-Karte.
+   Gemessen in Headless-Chrome: vorher 90–120 Nahtlinien bei 125–150 %, jetzt keine.
+3. **Harte Datenkante.** Das Klimaraster endet bei 45° O und 34° N mitten über Land; die Fläche
+   brach dort mit einer geraden Kante ab. Sie läuft jetzt über 0,75° weich aus
+   (`EDGE_FEATHER_DEG` in `app/climate.py`).
+
+Nebenbei behoben (gleiche Ursache wie 1. bzw. Namensabgleich): In der Städteliste fehlten
+u. a. **Kopenhagen, Sarajevo, Skopje, Split, Nikosia und Murmansk**, weil Küstenpunkte knapp
+außerhalb der vereinfachten Landfläche lagen, Natural Earth Kurznamen verwendet
+(„Bosnia and Herz.“, „Macedonia“) und Russland zwischen 65° und 69° N fehlte. „City of London“
+(Doppeleintrag von London) ist entfernt; Malta und Andorra sind mit ihrem größten Ort vertreten.
 
 ## Datenqualität: das Qualitätstor
 
@@ -154,8 +215,8 @@ Nachbarpunkten ergänzt und als `coverage` in den Metadaten ausgewiesen.
 |---|---|---|
 | Temperatur, Taupunkt, Sonnenschein, Niederschlag | **ERA5**-Reanalyse (Copernicus/ECMWF), offene Kopie [ARCO ERA5](https://github.com/google-research/arco-era5) auf Google Cloud (`gs://gcp-public-data-arco-era5/ar/full_37-1h-0p25deg-chunk-1.zarr-v3`) | stündlich gelesen → täglich abgeleitet, 2016–2025, Raster 0,75° über 34°–72° N / 25° W–45° O (~2.250 Landpunkte) |
 | Landmaske fürs Ausblenden der Meeresflächen | [global-land-mask](https://pypi.org/project/global-land-mask/) (Natural Earth/OSM-basiert) | 0,05° |
-| Ländergrenzen (zusätzliche Vektorebene) | [world-atlas](https://www.npmjs.com/package/world-atlas) (Natural Earth 1:10m) | Vektor, selbst gerendert; Kartendetails kommen aus OSM |
-| Städteliste für Suche/Marker/Top-Orte | [GeoNames cities15000](https://www.geonames.org/) | 4.099 Orte ≥ 25.000 Einwohner in Europa |
+| Landgrenzen (zusätzliche Linienebene) | [world-atlas](https://www.npmjs.com/package/world-atlas) (Natural Earth 1:10m) | nur Grenzen zwischen Ländern, als Linien; Küsten und Details kommen aus OSM |
+| Städteliste für Suche/Marker/Top-Orte | [GeoNames cities15000](https://www.geonames.org/) | 4.163 Orte ≥ 25.000 Einwohner in Europa (dazu der größte Ort kleiner Länder), bekannte Städte mit deutschem Namen |
 
 Lizenzen/Attribution: ERA5-Daten enthalten modifizierte Copernicus-Klimadaten
 (2026); bereitgestellt von ECMWF, gespiegelt als offene, analysis-ready Kopie durch
@@ -177,6 +238,7 @@ Datensatz oder nur 2021–2025; einzelne Extremjahre werden im längeren Mittel 
 app/
   main.py            FastAPI: Seiten + JSON-/PNG-Endpunkte, Vorwärmen im Hintergrund
   climate.py         Datenzugriff, Tageszählung, Web-Mercator-Rendering (PIL/scipy)
+  names.py           deutsche Städtenamen, Suchnamen und tolerante Ortssuche
   data/              Datensätze (Klimaraster, Ländergrenzen, Städte, Qualitätsbericht)
   static/            Startseite (index.html), Styles, Leaflet (vendored)
 scripts/
@@ -185,7 +247,8 @@ scripts/
   fetch_climate_grid.py   alternativer Abruf über die Open-Meteo-API (nur mit Kontingent)
   make_dev_grid.py        plausibles synthetisches Raster für Offline-Entwicklung/Demo
   check_grid.py           Qualitätstor: Vergleich mit Klimanormalwerten (22 Städte)
-  build_geo.py            Ländergrenzen + Städteliste bauen
+  build_countries.mjs     world-atlas → Länderflächen + Landgrenzen (GeoJSON)
+  build_geo.py            Landgrenzen-Linien + Städteliste bauen (Datumsgrenze, Küsten, Namen)
   download_sources.sh     Rohquellen (world-atlas, Leaflet, GeoNames) laden
 app/build_progress.py     liest den Fortschritt (Datei/GitHub) und bewertet ihn für die UI
 .github/workflows/
@@ -196,7 +259,11 @@ render.yaml          Render-Blueprint (Web-Service, Free-Plan)
 
 ### Oberfläche und Gestaltung
 
-Die Oberfläche ist bewusst dunkel („Nachtkarte“), damit die Datenfläche leuchtet.
+Die Oberfläche ist dunkel und **bewusst schlicht**: ruhige Flächen, eine Akzentfarbe, keine
+Zierlinien, Leuchteffekte oder Verläufe. Jede Karte hat eine kurze Überschrift in normaler
+Schreibweise und höchstens einen Satz Hilfe; Details (Methode, Modellstreuung, weitere
+Klimawerte) sind eingeklappt. Reihenfolge der Bedienleiste: Modus → (Winterquartier) →
+Welches Klima? → Dein Wohlfühlwetter (mit Schnellauswahl) → beste Orte → Ansicht.
 Die App-Logik und statischen Assets kommen vom eigenen Dienst; für die Grundkarte
 werden OSM-Kacheln direkt im Browser nachgeladen:
 
@@ -213,9 +280,8 @@ werden OSM-Kacheln direkt im Browser nachgeladen:
 * **Farbskala der Karte:** `COLOR_STOPS` in `app/climate.py` ist die eine Quelle für
   Karte, Legende (`/api/meta`) und Städtepunkte; die Stützstellen sind so gewählt,
   dass die Stufen auf dunklem Grund klar getrennt wirken.
-* **Kleine Details:** weiches Ein- und Ausblenden des Kartenbilds, gleitender
-  Modusregler (`:has()`, mit Rückfall ohne `:has()`), Anteilsbalken hinter der
-  Top-Orte-Liste, Skelett-Zeilen beim Laden der Detailkarte,
+* **Detailkarte:** große Zahl, Balken je Monat, Klimadiagramm und sechs Kennzahlen
+  (tagsüber, nachts, Sonne, Regen, Sommer- und Frosttage); alles Weitere eingeklappt.
   `prefers-reduced-motion` schaltet alle Animationen ab.
 
 Für den Free-Plan auf Render bleibt der Serverbedarf praktisch unverändert:
@@ -391,8 +457,8 @@ Hinweise:
 | `GET /api/ranking` | beste Städte für die aktuellen Parameter |
 | `GET /api/cities/map` | größte Orte mit Tageszahl (für anklickbare Marker) |
 | `GET /api/cities/climate` | vollständige Städteliste mit Jahresmitteln, Tageskennzahlen und Grenzwerten |
-| `GET /api/cities/search?q=` | Ortssuche (schlankes JSON) |
-| `GET /api/winterquarters/escape` | fester Wohnort (`lat`, `lon`), Ausweichsaison (`season=winter|summer`), Ziele und Zugewinn |
+| `GET /api/cities/search?q=&area=all|data` | tolerante Ortssuche; Treffer mit `alias` (eingegebener Zweitname) und `exact`; `area=data` nur im Klimaraster |
+| `GET /api/winterquarters/escape` | fester Wohnort (`lat`, `lon`), Ausweichsaison (`season=winter|summer`), Ziele (≥ `spread_km` auseinander) und Zugewinn |
 | `GET /api/winterquarters/combination` | globale Zwei-Orte-Suche: ein Profil, festes Sommerfenster, beste Paare |
 | `GET /api/winterquarters/optimize` | Legacy-Endpunkt: automatische Saisonaufteilung mit zwei Profilen |
 | `GET /api/winterquarters/pair` | Legacy-Endpunkt: Gegenstück-Suche zu einem festen Ort (`lat, lon, role=summer|winter`) |
@@ -409,6 +475,7 @@ wählt historische Daten oder Zukunftsnäherungen (Standard SSP2-4.5). Alternati
 | `lat`, `lon`, `season` | Wohnort im Europagebiet und Ausweichsaison (`winter` oder `summer`), nur `/escape` |
 | `sfrom`, `sto` | festes, zusammenhängendes Sommerfenster (Monat 1–12); der Winterort übernimmt die übrigen Monate |
 | `limit` | maximale Zahl der zurückgegebenen Kombinationen |
+| `spread_km` | Mindestabstand der vorgeschlagenen Ziele untereinander (Standard 120, `0` = aus), nur `/escape` |
 
 Für bestehende Clients bleiben die historischen Kartenfilter und getrennten
 Profilparameter weiterhin verfügbar:
@@ -422,11 +489,14 @@ Profilparameter weiterhin verfügbar:
 | `role`, `max_km` | Legacy: Rolle und optionale Distanzgrenze bei `/api/winterquarters/pair` |
 
 Die aktuelle Oberfläche verwendet diese Legacy-Parameter nicht: Im Winterquartier-
-Modus gilt ein gemeinsames Traumwetter-Profil für beide Städte und Zeiträume.
+Modus gilt ein gemeinsames Wohlfühlwetter-Profil für beide Städte und Zeiträume.
 
 ## Tests
 
-Zusätzlich prüfen `tests/test_projections.py` die Taupunktannahme, Monatsdeltas,
+`tests/test_search_and_geo.py` sichert die Ortssuche (Umlaute, ae/oe/ue, deutsche und lokale
+Namen, Füllwörter, Datengebiet), die gestreuten Ausweichziele, die sprechenden Szenarionamen,
+die Grenzlinien (keine Schnittkanten, keine Datumsgrenzen-Sprünge), die reparierte Städteliste
+und den weichen Kartenrand ab. Zusätzlich prüfen `tests/test_projections.py` die Taupunktannahme, Monatsdeltas,
 Filter ohne erneute int8-Quantisierung, Zuordnung der Regionen, API-Konsistenz und
 Fail-closed-Verhalten ungültiger Manifeste. `tests/test_ads.py` prüft Kontext, Laufzeit,
 Konfigurationswechsel, URL-Sicherheit und deaktivierte Werbung. Der UI-Smoketest prüft
@@ -460,7 +530,9 @@ Der UI-Smoketest prüft u. a., dass OSM-Kacheln mit Attribution und Layer-Steuer
 verwendet werden und dass Klicks auf Karte, Städtemarker und Top-Orte die Detailkarte
 mit Klimaprofil öffnen. Außerdem prüft er die Zeitraumauswahl (Fünfjahresansicht;
 2030/2050 in drei Szenarien als Näherungen aktiviert) und die Sichtbarkeitsregeln der Modi
-(Monatsauswahl nur im Urlaubsmonat, Zwei-Orte-Suche nur im Winterquartier-Modus –
+(Monatsauswahl nur im Reisemonat, Wohnortsuche nur im Winterquartier-Modus –
 inklusive der CSS-Regel
 `[hidden] { display: none !important; }`, ohne die `display:flex` die Monatsauswahl
-sichtbar ließe) sowie den festen Saisonzeitraum, die Wohnortsuche, den Saisonwechsel und deren Ergebnisse.
+sichtbar ließe) sowie den festen Saisonzeitraum, die Wohnortsuche (auch nur getippt, ohne
+Klick in die Liste), den Saisonwechsel, die sprechenden Szenarien, die überlappenden Kacheln
+gegen Nahtstriche und das Fehlen dekorativer Striche im CSS.

@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mein perfektes Klima – Europa</title>
-<meta name="description" content="Interaktive Europakarte: Wo gibt es im Jahr (oder im Urlaubsmonat) die meisten Tage mit deinem Wohlfühlwetter – Temperatur, Taupunkt und Sonnenschein frei einstellbar?">
-<meta name="theme-color" content="#060b14">
+<meta name="description" content="Interaktive Europakarte: Wo gibt es die meisten Tage mit deinem Lieblingswetter – heute, 2030 und 2050? Mit Suche nach einem Winterquartier.">
+<meta name="theme-color" content="#0b1220">
 <link rel="preload" as="font" type="font/woff2" href="/static/vendor/inter/inter-latin-wght-normal.woff2" crossorigin>
 <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='7' fill='%23ffb454'/%3E%3Cg stroke='%23ffb454' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M16 2v4M16 26v4M2 16h4M26 16h4M6 6l3 3M23 23l3 3M26 6l-3 3M9 23l-3 3'/%3E%3C/g%3E%3C/svg%3E">
@@ -15,10 +15,10 @@
 
 <header class="topbar">
   <div class="brand">
-    <span class="logo" aria-hidden="true">☀︎</span>
+    <span class="logo" aria-hidden="true"></span>
     <div>
       <h1>Mein perfektes Klima</h1>
-      <p>Wo in Europa gibt es wie viele Tage mit <em>deinem</em> Wohlfühlwetter?</p>
+      <p>Wo in Europa ist das Wetter so, wie du es magst?</p>
     </div>
   </div>
   <div class="badge" id="dataset-badge" title="Datenbasis">lädt …</div>
@@ -50,120 +50,112 @@
 
 <main>
   <aside class="panel" id="panel">
+    <!-- 1. Was möchtest du wissen? -->
     <section class="card">
-      <div class="segmented tri" role="tablist" aria-label="Modus">
+      <div class="segmented tri" role="tablist" aria-label="Was möchtest du wissen?">
         <button id="mode-year" role="tab" aria-selected="true">Ganzes Jahr</button>
-        <button id="mode-month" role="tab" aria-selected="false">Urlaubsmonat</button>
+        <button id="mode-month" role="tab" aria-selected="false">Reisemonat</button>
         <button id="mode-wq" role="tab" aria-selected="false">Winterquartier</button>
       </div>
-      <!-- Monatsauswahl gehört nur zum Urlaubsmonat -->
+      <p class="mode-hint" id="mode-hint">Wo gibt es übers Jahr die meisten Tage mit deinem Wetter?</p>
+      <!-- Monatsauswahl gehört nur zum Reisemonat -->
       <div class="month-picker" id="month-picker" hidden>
         <label for="month-select">Monat</label>
         <select id="month-select"></select>
       </div>
     </section>
 
-    <section class="card">
-      <h2>Klimazeitraum</h2>
-      <div class="row period-picker">
-        <label for="period-select">Datenbasis</label>
-        <select id="period-select" aria-describedby="period-help"></select>
+    <!-- Winterquartier: Wohnort bleibt fest, gesucht wird ein Ziel für die andere Jahreszeit. -->
+    <section class="card wq-setup" id="wq-setup" data-wq-only hidden>
+      <h2>Dein Winterquartier</h2>
+      <div class="field">
+        <label for="wq-home">Wo wohnst du?</label>
+        <div class="combo" id="wq-home-search">
+          <input type="search" id="wq-home" placeholder="Stadt eingeben, z. B. Duisburg" autocomplete="off"
+                 spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false"
+                 aria-controls="wq-home-results" aria-describedby="wq-home-status">
+          <div id="wq-home-results" class="suggest" role="listbox" aria-label="Passende Städte" hidden></div>
+        </div>
+        <p class="hint" id="wq-home-status" role="status" aria-live="polite"></p>
+      </div>
+      <div class="field">
+        <span class="label" id="wq-season-label">Wann willst du weg?</span>
+        <div class="segmented duo" id="wq-season" role="radiogroup" aria-labelledby="wq-season-label">
+          <button type="button" role="radio" data-season="winter" aria-checked="true">Im Winter</button>
+          <button type="button" role="radio" data-season="summer" aria-checked="false">Im Sommer</button>
+        </div>
+      </div>
+      <div class="field">
+        <span class="label">Sommer ist für dich</span>
+        <div class="season-selectors">
+          <label class="sr-only" for="wq-sfrom">Sommer von</label>
+          <select id="wq-sfrom"></select>
+          <span class="to">bis</span>
+          <label class="sr-only" for="wq-sto">Sommer bis</label>
+          <select id="wq-sto"></select>
+        </div>
+        <p class="season-summary" id="wq-window"></p>
+      </div>
+      <button class="primary" id="btn-wq-search" type="button">Ziele finden</button>
+      <div class="wq-result" id="wq-result" role="status" aria-live="polite" hidden></div>
+      <ol class="ranking combination-list" id="wq-alternatives" hidden></ol>
+    </section>
+
+    <!-- 2. Welches Klima: heute oder Zukunft? -->
+    <section class="card" id="period-card">
+      <h2>Welches Klima?</h2>
+      <div class="segmented tri" id="period-when" role="radiogroup" aria-label="Zeitraum">
+        <button type="button" role="radio" data-when="now" aria-checked="true">Heute</button>
+        <button type="button" role="radio" data-when="2030" aria-checked="false">2030</button>
+        <button type="button" role="radio" data-when="2050" aria-checked="false">2050</button>
+      </div>
+      <label class="check" id="period-recent-wrap">
+        <input type="checkbox" id="period-recent5"> <span id="period-recent-label">Nur die letzten 5 Jahre</span>
+      </label>
+      <div class="scenarios" id="scenario-list" role="radiogroup" aria-labelledby="scenario-title" hidden>
+        <span class="label" id="scenario-title">Wie viel Klimaschutz gibt es weltweit?</span>
+        <div id="scenario-options"></div>
       </div>
       <p class="hint" id="period-help"></p>
-      <p class="projection-warning" id="projection-warning" role="status" hidden></p>
-      <details class="projection-sources" id="period-projection-note">
-        <summary>2030 &amp; 2050 · Methode und Quellen</summary>
-        <p class="hint">Jetzt auswählbar: <strong>2030 (2021–2040)</strong> und <strong>2050 (2041–2060)</strong>,
-          jeweils SSP1-2.6, SSP2-4.5 oder SSP5-8.5. <strong>Modell-basierte Näherung</strong>, keine Vorhersage eines Einzeljahres.</p>
-        <p class="hint"><a href="https://github.com/SantanderMetGroup/ATLAS/tree/a1687c6db5590eb9b618fd4e1ebba4b842084031/datasets-aggregated-regionally" target="_blank" rel="noopener">CMIP6 / IPCC-Atlas · Datengrundlage</a>:
-          31 Modelle, regionale monatliche Änderungen von Temperatur und Niederschlag relativ zu 2016–2025,
-          übertragen auf unsere ERA5-Tage. Die Projektionsauflösung ist regional, nicht 0,75°.</p>
-        <p class="hint"><strong>Annahmen:</strong> Tmax und Tmin erhalten denselben Temperaturzuschlag;
-          Taupunkt aus angenommener gleichbleibender relativer Feuchte geschätzt; Sonnenstunden unverändert.
-          Regenintensität skaliert, aber Trocken-/Nassabfolge und Tagesvariabilität bleiben wie in ERA5.
-          Neue Extremwetterverteilungen werden nicht simuliert.</p>
-        <p class="hint">In den Ortsdetails zeigt die Monatstabelle die Modellstreuung der Temperaturänderung (10.–90. Perzentil).
-          Das ist kein Unsicherheitsintervall der Wohlfühltage.</p>
-        <p class="hint"><a href="https://www.climate-service-center.de/about/news_and_events/news/122448/index.php.de" target="_blank" rel="noopener">GERICS-Klimaausblicke (2026)</a>:
-          ergänzende Einordnung für deutsche Landkreise; nicht die Quelle unserer Taupunkt-Schätzung.</p>
-        <p class="hint"><a href="https://cds.climate.copernicus.eu/datasets/projections-cordex-domains-single-levels?tab=overview" target="_blank" rel="noopener">EURO-CORDEX / Copernicus</a>:
-          weiterführende regionale Projektionen. Recherche: 14.10.2026.</p>
+      <p class="note" id="projection-warning" role="status" hidden></p>
+      <details class="more" id="period-projection-note">
+        <summary>Wie rechnet ihr die Zukunft aus?</summary>
+        <p>Wir nehmen das Wetter von 2016–2025 und machen es so viel wärmer – und nasser oder
+          trockener –, wie 31 Klimamodelle es für die jeweilige Region erwarten. Sonne und
+          Wetterwechsel bleiben wie heute. Das ist eine Näherung, keine Wettervorhersage.</p>
+        <p>Die drei Wege stammen aus dem Weltklimabericht (IPCC):
+          <b>Viel Klimaschutz</b> = SSP1-2.6, weltweit bis 2100 etwa +1,8 °C gegenüber der Zeit vor der
+          Industrialisierung · <b>Mittlerer Weg</b> = SSP2-4.5, etwa +2,7 °C ·
+          <b>Wenig Klimaschutz</b> = SSP5-8.5, etwa +4,4 °C.</p>
+        <p>Quellen: <a href="https://github.com/SantanderMetGroup/ATLAS/tree/a1687c6db5590eb9b618fd4e1ebba4b842084031/datasets-aggregated-regionally" target="_blank" rel="noopener">CMIP6 / IPCC-Atlas (Daten)</a> ·
+          <a href="https://www.climate-service-center.de/about/news_and_events/news/122448/index.php.de" target="_blank" rel="noopener">GERICS-Klimaausblicke</a> ·
+          <a href="https://cds.climate.copernicus.eu/datasets/projections-cordex-domains-single-levels?tab=overview" target="_blank" rel="noopener">EURO-CORDEX / Copernicus</a></p>
       </details>
     </section>
 
+    <!-- 3. Das Wetter, das du magst -->
     <section class="card">
       <h2 id="feel-title">Dein Wohlfühlwetter</h2>
+      <div class="presets" id="presets" aria-label="Schnellauswahl"></div>
       <div id="controls"></div>
-      <p class="hint" id="feel-hint">Ein Tag zählt, wenn <strong>alle</strong> Kriterien gleichzeitig erfüllt sind.</p>
+      <p class="hint" id="feel-hint">Ein Tag zählt nur, wenn alles zusammen passt.</p>
     </section>
 
-    <section class="card">
-      <h2 id="presets-title">Voreinstellungen</h2>
-      <div class="presets" id="presets"></div>
+    <section class="card" id="rank-card">
+      <h2 id="rank-title">Die besten Orte</h2>
+      <ol class="ranking" id="ranking"><li class="muted">wird berechnet …</li></ol>
     </section>
 
-    <!-- Einfacher Ablauf: ein Traumwetter-Profil, ein festes Sommerfenster, zwei Städte. -->
-    <section class="card wq-setup" id="wq-setup" data-wq-only hidden>
-      <h2>Dein Wohnort + dein Ausweichquartier</h2>
-      <p class="hint">Du behältst deinen Wohnort und weichst nur saisonal aus.
-        An beiden Orten gilt dein Wohlfühlprofil. Die Reiseziele liegen mindestens 50 km entfernt.</p>
-      <div class="home-search" id="wq-home-search">
-        <label for="wq-home">Wo lebst du?</label>
-        <input type="search" id="wq-home" placeholder="Deine Stadt, z. B. Berlin …" autocomplete="off"
-               aria-describedby="wq-home-status" aria-controls="wq-home-results">
-        <div id="wq-home-results" class="home-results" hidden></div>
-        <p class="hint" id="wq-home-status" role="status" aria-live="polite">Bitte eine Stadt aus den Suchtreffern wählen.</p>
-      </div>
-      <div class="row">
-        <label for="wq-season">Ausweichen im</label>
-        <select id="wq-season"><option value="winter">Winter</option><option value="summer">Sommer</option></select>
-      </div>
-      <p class="hint">Lege die Sommermonate fest. Im Winter ausweichen = alle übrigen Monate;
-        im Sommer ausweichen = genau diese Monate. Die Aufteilung bleibt bei der Suche unverändert.</p>
-      <div class="season-selectors">
-        <div class="row">
-          <label for="wq-sfrom">Sommer von</label>
-          <select id="wq-sfrom"></select>
-        </div>
-        <div class="row">
-          <label for="wq-sto">Sommer bis</label>
-          <select id="wq-sto"></select>
-        </div>
-      </div>
-      <p class="season-summary" id="wq-window"></p>
-      <button class="ghost wq-search-button" id="btn-wq-search" type="button">
-        Passendes Ausweichquartier finden
-      </button>
-      <p class="combination-summary" id="wq-result" role="status" aria-live="polite" hidden></p>
-      <ol class="ranking combination-list" id="wq-alternatives" hidden></ol>
-      <p class="hint wq-map-hint">
-        Die Karte zeigt ergänzend die Wohlfühltage an einem einzelnen Ort. Die Ergebnisliste zeigt die
-        Kombination aus deinem festen Wohnort und einem saisonalen Reiseziel.
-      </p>
-    </section>
-
-    <section class="card">
-      <div class="row">
-        <label class="switch"><input type="checkbox" id="fixed-scale"><span>Farbskala fix (0 – Maximum)</span></label>
-      </div>
-      <div class="row">
-        <label class="switch"><input type="checkbox" id="show-cities" checked><span>Städte anzeigen (anklickbar)</span></label>
-      </div>
-      <div class="row buttons">
-        <button class="ghost" id="btn-reset">Zurücksetzen</button>
-        <button class="ghost" id="btn-link">Link kopieren</button>
+    <section class="card settings">
+      <label class="switch"><input type="checkbox" id="show-cities" checked><span>Städte auf der Karte</span></label>
+      <label class="switch"><input type="checkbox" id="fixed-scale"><span>Feste Farbskala</span></label>
+      <div class="buttons">
+        <button class="ghost" id="btn-reset" type="button">Zurücksetzen</button>
+        <button class="ghost" id="btn-link" type="button">Link kopieren</button>
       </div>
     </section>
 
     <section class="card sponsor-slot" id="sponsor-slot" aria-label="Werbung" hidden></section>
-
-    <section class="card">
-      <div class="card-head">
-        <h2 id="rank-title">Top-Orte für diese Einstellung</h2>
-        <button class="mini" id="btn-rank-refresh" title="Neu berechnen">↻</button>
-      </div>
-      <ol class="ranking" id="ranking"><li class="muted">wird berechnet …</li></ol>
-    </section>
   </aside>
 
   <section class="mapwrap">
@@ -171,39 +163,38 @@
 
     <div class="searchbox" id="searchbox">
       <input type="search" id="city-search" placeholder="Ort suchen …" autocomplete="off"
-             aria-label="Ort suchen" spellcheck="false">
-      <div class="results" id="search-results" hidden></div>
+             aria-label="Ort suchen" spellcheck="false" role="combobox" aria-autocomplete="list"
+             aria-expanded="false" aria-controls="search-results">
+      <div class="suggest results" id="search-results" role="listbox" aria-label="Suchtreffer" hidden></div>
     </div>
 
     <div class="legend" id="legend" hidden>
+      <div class="legend-title" id="legend-title">Tage</div>
       <div class="legend-bar" id="legend-bar"></div>
       <div class="legend-ticks" id="legend-ticks"></div>
-      <div class="legend-title" id="legend-title">Tage</div>
     </div>
 
     <div class="card detail" id="detail" hidden></div>
     <div class="progress" id="progress" hidden></div>
     <div class="toast" id="toast" hidden></div>
-    <p class="mapnote" id="mapnote">Zoome für Straßen und Orte · Klimaraster: 0,75° (ca. 50–80 km). Klick zeigt die Auswertung.</p>
+    <p class="mapnote" id="mapnote">Klick auf die Karte zeigt die Werte für diesen Ort.</p>
   </section>
 </main>
 
-<!-- Vollständige Kennzahlen bleiben eingeklappt, damit die Karte und das Layout
-     beim normalen Erkunden unverändert bleiben. Die Liste wird erst beim Öffnen geladen. -->
+<!-- Vollständige Kennzahlen bleiben eingeklappt; die Liste wird erst beim Öffnen geladen. -->
 <section class="full-data-section" id="city-data-section" hidden>
   <details class="card city-data-card" id="city-data">
     <summary>
       <span class="city-data-heading">
-        <strong>Alle Städte – vollständige Klimadaten</strong>
-        <span id="city-data-summary">Jahresmittel und Wettertage für jede erfasste Stadt im gewählten Zeitraum</span>
+        <strong>Alle Städte als Tabelle</strong>
+        <span id="city-data-summary">Klimawerte jeder Stadt im gewählten Zeitraum</span>
       </span>
       <span class="city-data-chevron" aria-hidden="true">⌄</span>
     </summary>
     <div class="city-data-body">
       <p class="city-data-intro">
-        <span id="city-data-method">Klimamittel für den oben gewählten Bezugszeitraum.</span> Ereignistage sind als durchschnittliche Tage pro Jahr angegeben;
-        Temperaturmittel, Sonnenschein und Niederschlag sind zusätzlich enthalten. Jede Stadt wird dem nächstgelegenen
-        ERA5-Rasterpunkt zugeordnet – die Rasterauflösung und der Abstand stehen in den Daten.
+        <span id="city-data-method">Klimamittel für den oben gewählten Zeitraum.</span>
+        Tage sind Durchschnittswerte pro Jahr. Jede Stadt bekommt die Werte des nächsten Rasterpunkts.
       </p>
       <div class="city-data-tools" id="city-data-tools" hidden>
         <label class="city-data-search" for="city-climate-search">
@@ -222,7 +213,7 @@
         <span class="city-data-count" id="city-data-count" aria-live="polite"></span>
       </div>
       <p class="city-data-status" id="city-data-status" role="status" aria-live="polite">
-        Die vollständige Liste wird beim Öffnen geladen.
+        Die Liste wird beim Öffnen geladen.
       </p>
       <button class="ghost" id="city-data-retry" type="button" hidden>Erneut versuchen</button>
       <div class="city-table-wrap" id="city-table-wrap" hidden>
@@ -239,10 +230,7 @@
           <button class="ghost" id="city-page-next" type="button">Weiter</button>
         </nav>
       </div>
-      <p class="hint city-data-footnote">
-        Die Tagesgrenzwerte stehen direkt in den Spaltenköpfen. Tippe oder klicke auf einen Städtenamen, um den Ort
-        auf der Karte auszuwählen. Die Tabelle lässt sich seitlich scrollen, durchsuchen und nach jeder Spalte sortieren.
-      </p>
+      <p class="hint city-data-footnote">Klick auf einen Namen zeigt die Stadt auf der Karte. Spalten lassen sich sortieren.</p>
     </div>
   </details>
 </section>
@@ -250,45 +238,26 @@
 <section class="about">
   <div class="about-grid">
     <div>
-      <h3>So funktioniert die Karte</h3>
-      <p>
-        Für rund 2.250 Rasterpunkte über Europa liegen <strong>tägliche</strong> ERA5-Daten der Jahre
-        <span id="about-period">2016–2025</span> vor. Über „Klimazeitraum“ wählst du den gesamten Datensatz
-        oder seine jüngsten fünf Jahre. Für jeden Punkt und Tag wird geprüft, ob Höchsttemperatur,
-        Tiefsttemperatur, Taupunkt und Sonnenscheindauer in deinem Wunschbereich liegen. Die Karte zeigt
-        die mittlere Zahl solcher Tage pro Jahr beziehungsweise im gewählten Monat. Zwischen den Rasterpunkten
-        wird interpoliert – die Anzeige wird glatt, die tatsächliche Klimadaten-Auflösung bleibt aber 0,75°.
-      </p>
-      <p>
-        <strong>Drei Modi:</strong> „Ganzes Jahr“ beantwortet die Frage, wo dein Wohlfühlwetter übers Jahr
-        gerechnet am häufigsten vorkommt. „Urlaubsmonat“ zählt nur die Tage eines Monats – ideal, um zu
-        prüfen, ob das Wunschziel im geplanten Reisemonat wirklich passt. Im Modus „Winterquartier“ gilt
-        dasselbe Traumwetter-Profil an beiden Orten: Du legst ein festes Sommerfenster fest; der Sommerort
-        zählt in diesen Monaten, der Winterort in allen übrigen.
-      </p>
-      <p>
-        <strong>Winterquartier:</strong> Wähle zuerst die Stadt, in der du lebst, dann Winter oder Sommer
-        als Ausweichsaison. „Passendes Ausweichquartier finden“ sucht Reiseziele bei unverändertem Wohnort
-        und Monatsfenster. Die Liste zeigt die Jahressumme beider Orte, den Zugewinn gegenüber einem ganzen
-        Jahr zu Hause und die Luftlinie. Auch ein negativer Zugewinn wird offen ausgewiesen.
-        Die Karte zeigt ergänzend die Jahreswerte an einem einzelnen Ort.
-      </p>
+      <h3>So funktioniert's</h3>
+      <ul>
+        <li>Für rund 2.250 Punkte in Europa kennen wir das Wetter <strong>jedes Tages</strong> von
+          <span id="about-period">2016–2025</span>.</li>
+        <li>Ein Tag zählt, wenn Temperatur, Schwüle, Sonne und Regen zu deinen Einstellungen passen.</li>
+        <li>Die Karte zeigt, an wie vielen Tagen im Jahr (oder im Reisemonat) das im Schnitt so ist.</li>
+        <li><strong>Winterquartier:</strong> Du bleibst in der einen Jahreszeit zu Hause und suchst für die
+          andere ein Ziel mit möglichst vielen schönen Tagen.</li>
+      </ul>
     </div>
     <div>
-      <h3>Daten &amp; Grenzen</h3>
-      <p>
-        Quelle: <span id="about-source">ERA5-Reanalyse (Copernicus/ECMWF)</span>. ERA5 ist ein
-        Reanalyse-Modell (ca. 0,25°) und damit kein Stationsmesswert – in Gebirgen und an Küsten sind
-        Abweichungen von mehreren Grad möglich. Die Auflösung dieses Datensatzes beträgt
-        <span id="about-grid">0,75°</span>, die historischen Werte sind auf 0,5 °C (Temperatur), 0,25 h (Sonne) und
-        0,5 mm (Regen) gerundet. Ein „Jahr“ entspricht hier dem Mittel über <span id="about-years">10</span>
-        Jahre des gewählten Zeitraums. Der gesamte ERA5-Datensatz umfasst nur zehn Jahre und ist daher keine
-        offizielle 30-jährige Klimanormalperiode; einzelne Extreme werden geglättet.
-      </p>
+      <h3>Gut zu wissen</h3>
+      <ul>
+        <li>Quelle: <span id="about-source">ERA5-Reanalyse (Copernicus/ECMWF)</span> – ein Wettermodell,
+          keine einzelne Messstation. In Bergen und an Küsten kann es um ein paar Grad abweichen.</li>
+        <li>Ein Rasterpunkt steht für ein Gebiet von etwa 50–80 km (<span id="about-grid">0,75°</span>).
+          „Pro Jahr“ heißt: Mittel über <span id="about-years">10</span> Jahre.</li>
+        <li>2030 und 2050 sind Modellrechnungen, keine Messwerte (siehe „Welches Klima?“).</li>
+      </ul>
       <p id="about-quality"></p>
-      <p>2030/2050 sind regionale CMIP6-Delta-Näherungen auf der ERA5-Tagesbasis, keine zukünftigen Messwerte.
-        Taupunkt wird geschätzt, Sonnenstunden und Tagesvariabilität bleiben unverändert.
-        Projektionsfenster und Methodik stehen unter „Klimazeitraum“.</p>
     </div>
   </div>
   <footer>
@@ -299,8 +268,7 @@
       Iturbide et al. (2021), DOI: 10.5281/zenodo.3691645, CC BY 4.0; WCRP und CMIP6-Modellgruppen;
       modifiziert durch regionale Delta-Übertragung auf ERA5 ·
       Ländergrenzen: Natural Earth (gemeinfrei) · Orte: <a href="https://www.geonames.org/" rel="noopener">GeoNames</a> (CC-BY 4.0) ·
-      Grundkarte: <a href="https://www.openstreetmap.org/copyright" rel="noopener">© OpenStreetMap-Mitwirkende</a>
-      (Kacheln direkt vom OSM-Kartendienst) ·
+      Grundkarte: <a href="https://www.openstreetmap.org/copyright" rel="noopener">© OpenStreetMap-Mitwirkende</a> ·
       Kartenbibliothek: <a href="https://leafletjs.com/" rel="noopener">Leaflet</a> (BSD-2) ·
       Schrift: <a href="https://rsms.me/inter/" rel="noopener">Inter</a> (SIL OFL 1.1, lokal ausgeliefert).
     </span>
