@@ -148,8 +148,13 @@
     </section>
 
     <section class="card settings">
-      <label class="switch"><input type="checkbox" id="show-cities" checked><span>Städte auf der Karte</span></label>
+      <label class="switch"><input type="checkbox" id="show-cities" checked><span>Klimapunkte der Städte</span></label>
       <label class="switch"><input type="checkbox" id="fixed-scale"><span>Feste Farbskala</span></label>
+      <div class="map-opacity">
+        <label for="climate-opacity">Deckkraft Klimafarben <output id="climate-opacity-value" for="climate-opacity">55 %</output></label>
+        <input id="climate-opacity" type="range" min="0" max="90" step="5" value="55" aria-describedby="climate-opacity-hint">
+        <p class="hint" id="climate-opacity-hint">Weniger Farbe für mehr Kartendetails. Zusätzliche Ortsnamen lassen sich im Karten-Ebenenmenü schalten.</p>
+      </div>
       <div class="buttons">
         <button class="ghost" id="btn-reset" type="button">Zurücksetzen</button>
         <button class="ghost" id="btn-link" type="button">Link kopieren</button>
@@ -270,7 +275,6 @@
       modifiziert durch regionale Delta-Übertragung auf ERA5 ·
       Ländergrenzen: Natural Earth (gemeinfrei) · Orte: <a href="https://www.geonames.org/" rel="noopener">GeoNames</a> (CC-BY 4.0) ·
       Grundkarte: <a href="https://www.openstreetmap.org/copyright" rel="noopener">© OpenStreetMap-Mitwirkende</a> ·
-      Kartenkacheln: <a href="https://carto.com/attributions" rel="noopener">CARTO</a> ·
       Kartenbibliothek: <a href="https://leafletjs.com/" rel="noopener">Leaflet</a> (BSD-2) ·
       Schrift: <a href="https://rsms.me/inter/" rel="noopener">Inter</a> (SIL OFL 1.1, lokal ausgeliefert).
     </span>

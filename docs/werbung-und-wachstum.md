@@ -2,6 +2,12 @@
 
 Stand: **14.10.2026**. Zwei verschiedene Ziele: **Reichweite einkaufen/aufbauen** (wir sind Werbetreibender) und **Werbeplätze monetarisieren** (wir sind Publisher). Die folgenden Budgets und Erlöse sind Testannahmen, keine Marktpreis- oder Umsatzversprechen.
 
+> **Aktuelle Priorität: wenig Betreuung, keine laufende Akquise.** Der verbindliche
+> Startplan steht in [monetarisierung.md](monetarisierung.md): ein Unterkunfts-Affiliate,
+> später ggf. automatische Netzwerkanzeigen. Die unten beschriebenen Sponsor-, PR- und
+> Reichweitenkampagnen sind optionale Möglichkeiten, **nicht** der empfohlene Start.
+> Bezahlten Traffic erst nach gemessenem Ertrag testen.
+
 ## 1. Wie wir die Seite bewerben sollten
 
 ### Zuerst: produktnahe Reichweite
@@ -80,11 +86,11 @@ AdSense ist prinzipiell ein möglicher Ausbau für programmatic Anzeigen; eine F
 5. `ads.txt` mit den tatsächlich zugewiesenen Publisher-Verkäuferdaten, falls vom Anbieter benötigt; keine erfundenen IDs. CSP, Performance, Layout-Verschiebungen, Adblocker und mobile Bedienbarkeit prüfen.
 6. Quellen-/Lizenzkennzeichnung sowie Projektion-Warnungen nie mit Werbung verdecken. Keine irreführenden Klickflächen oder Aufforderung, Anzeigen anzuklicken.
 
-**Bewertung:** Für eine kleine spezialisierte Seite sind direkte Sponsoren und passende Affiliate-Angebote zunächst besser steuerbar. AdSense erst testen, wenn echte Reichweite und ein tragfähiges Consent-Setup vorhanden sind. Die jetzt implementierte First-Party-Lösung ist kein AdSense-Adapter und keine CMP.
+**Bewertung:** Für das Ziel „wenig Betreuung“ zuerst passende Affiliate-Angebote, keine direkte Sponsorenakquise. AdSense erst testen, wenn echte Reichweite und ein tragfähiges Consent-Setup vorhanden sind. Die jetzt implementierte First-Party-Lösung ist kein AdSense-Adapter und keine CMP.
 
 Hypothetische Display-Rechnung: 20.000 Seitenaufrufe × 2–8 € angenommener Seiten-RPM / 1.000 = **40–160 €** monatlich. Diese Bandbreite ist **keine recherchierte marktübliche Vergütung**, sondern eine Sensitivitätsrechnung. Tatsächliche Erträge hängen vom Anbieter, Publikum, Consent, Adblockern und Werbedruck ab.
 
-## 4. Freigabecheck und nächster Schritt
+## 4. Optionaler Freigabecheck für einen direkt gewonnenen Sponsor
 
 - [ ] Betreiberangaben, Impressum und Datenschutzerklärung auf dem echten Deployment prüfen; Werbekennzeichnung und Vertrag abstimmen.
 - [ ] Einen tatsächlichen Sponsor gewinnen, keine unbestätigten Partnerschaften veröffentlichen.
@@ -92,4 +98,4 @@ Hypothetische Display-Rechnung: 20.000 Seitenaufrufe × 2–8 € angenommener S
 - [ ] Kleine Traffic-Kampagne mit Tagesbudget erst im Werbekonto des Betreibers anlegen; Zugangsdaten nicht ins Repository.
 - [ ] Kosten pro qualifiziertem Suchabschluss und Reportkauf erheben, bevor größere Budgets oder Netzwerkanzeigen starten.
 
-Weitere Angebotsideen und den Report-Pilot beschreibt [monetarisierung.md](monetarisierung.md). Die Anzeigenfunktion wird mit Kontext-/Zeitfilter-, Abschaltungs-, URL-/HTML-Sicherheits- und UI-Tests geprüft.
+Den priorisierten Startplan ohne manuelle Reports oder Sponsorenakquise beschreibt [monetarisierung.md](monetarisierung.md). Die Anzeigenfunktion wird mit Kontext-/Zeitfilter-, Abschaltungs-, URL-/HTML-Sicherheits- und UI-Tests geprüft.

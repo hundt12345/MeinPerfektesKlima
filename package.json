@@ -3,6 +3,7 @@
   "private": true,
   "description": "Werkzeuge und Tests fuer Mein perfektes Klima (Europa)",
   "scripts": {
+    "test:map": "node tests/ui_map.mjs",
     "smoke": "node tests/ui_smoketest.mjs",
     "build:countries": "node scripts/build_countries.mjs"
   },
