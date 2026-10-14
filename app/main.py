@@ -39,6 +39,7 @@ from .build_progress import DEFAULT_REPO, build_status
 from .climate import (CITY_DAY_INDICATORS, DEFAULT_SUMMER_MONTHS, FIELD_WIDTH, MONTH_NAMES,
                       WINTER_DEFAULTS, ClimateData, Filter, Params, cyclic_months,
                       months_label, norm_months)
+from .names import matched_alias, search as city_search
 
 BASE = Path(__file__).resolve().parent
 # Eigener Datenordner für Entwicklung/Tests (KLIMA_DATA_DIR=/tmp/devgrid)
@@ -103,6 +104,9 @@ WINTER_PRESETS = [
 # das vom Nutzer gesetzte Sommerfenster unverändert.
 WQ_MIN_MONTHS, WQ_MAX_MONTHS = 3, 9
 WQ_MIN_CITY_DISTANCE_KM = 50.0
+# Vorgeschlagene Ausweichziele liegen mindestens so weit auseinander: verschiedene
+# Regionen statt mehrerer Nachbarorte mit demselben Rasterpunkt.
+WQ_SPREAD_KM = 120.0
 
 from .climate import COLOR_STOPS as _COLOR_STOPS
 
@@ -623,11 +627,14 @@ def api_winterquarters_escape(
     sto: int = Query(9, ge=1, le=12),
     limit: int = Query(8, ge=1, le=40),
     period: str = Query("all"),
+    spread_km: float = Query(WQ_SPREAD_KM, ge=0, le=1000,
+                             description="Mindestabstand zwischen vorgeschlagenen Zielen"),
 ):
     """Saisonales Ausweichquartier zu einem unveränderlichen Wohnort."""
     return ready_dataset().escape_report(
         lat, lon, season, p, summer_window(sfrom, sto), limit=limit,
-        min_distance_km=WQ_MIN_CITY_DISTANCE_KM, period=parse_period_id(period))
+        min_distance_km=WQ_MIN_CITY_DISTANCE_KM, period=parse_period_id(period),
+        spread_km=spread_km)
 
 
 @app.get("/api/winterquarters/optimize")
@@ -748,24 +755,28 @@ def api_cities_climate(period: str = Query("all", description="all | recent5 | 2
 
 
 @app.get("/api/cities/search")
-def api_cities_search(q: str = Query("", min_length=1), limit: int = 8):
-    """Ortssuche (Prefix + Teilstring) über die Städteliste – schlankes JSON."""
+def api_cities_search(q: str = Query("", min_length=1), limit: int = 8,
+                      area: str = Query("all", pattern="^(all|data)$",
+                                        description="all | data (nur Orte im Klimaraster)")):
+    """Tolerante Ortssuche: Akzente, ae/oe/ue, deutsche und lokale Namen.
+
+    ``area=data`` liefert nur Orte innerhalb des Klimarasters – dort, wo auch
+    Wohnort und Ausweichquartier liegen dürfen. Die Grenze gilt *vor* dem Limit,
+    damit Treffer außerhalb keine gültigen Orte verdrängen.
+    """
     cd = ready_dataset()
-    needle = q.strip().lower()
-    if not needle or not cd.cities:
+    if not q.strip() or not cd.cities:
         return {"q": q, "cities": []}
-    hits = []
-    for c in cd.cities:
-        hay = c.get("search") or c["name"].lower()
-        if needle in hay or needle in c["name"].lower():
-            hits.append(c)
-            if len(hits) >= 200:
-                break
-    hits.sort(key=lambda c: (0 if (c.get("search") or "").startswith(needle) else 1, -int(c.get("pop", 0))))
+    bbox = cd.bbox
+    accept = None
+    if area == "data":
+        accept = (lambda c: bbox["lat_min"] <= c["lat"] <= bbox["lat_max"]
+                  and bbox["lon_min"] <= c["lon"] <= bbox["lon_max"])
+    hits = city_search(cd.cities, cd.city_search_keys, q, max(1, min(20, limit)), accept)
     return {"q": q, "cities": [{
         "name": c["name"], "country": c.get("name_de", ""), "lat": c["lat"], "lon": c["lon"],
-        "pop": c.get("pop", 0),
-    } for c in hits[: max(1, min(20, limit))]]}
+        "pop": c.get("pop", 0), "alias": matched_alias(c, q), "exact": rank == 0,
+    } for c, rank in hits]}
 
 
 @app.get("/")

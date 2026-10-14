@@ -12,6 +12,20 @@ from pathlib import Path
 import numpy as np
 
 SCENARIO_LABELS = {"ssp126": "SSP1-2.6", "ssp245": "SSP2-4.5", "ssp585": "SSP5-8.5"}
+# Sprechende Namen für die Oberfläche. Die globale Erwärmung 2081–2100 gegenüber
+# 1850–1900 ist die beste Schätzung aus IPCC AR6 WG I, SPM, Tabelle SPM.1.
+SCENARIO_TEXT = {
+    "ssp126": {"name": "Viel Klimaschutz", "summary": "Die Welt senkt ihre Emissionen schnell.",
+               "global_2100_c": 1.8},
+    "ssp245": {"name": "Mittlerer Weg", "summary": "Klimaschutz etwa wie bisher, die Emissionen sinken langsam.",
+               "global_2100_c": 2.7},
+    "ssp585": {"name": "Wenig Klimaschutz", "summary": "Die Emissionen steigen weiter stark.",
+               "global_2100_c": 4.4},
+}
+REGION_NAMES_DE = {
+    "GIC": "Grönland/Island", "NEU": "Nordeuropa", "WCE": "West- und Mitteleuropa",
+    "EEU": "Osteuropa", "MED": "Mittelmeerraum", "RAR": "Russische Arktis", "WCA": "West- und Zentralasien",
+}
 ASSUMPTIONS = [
     "Regionale monatliche CMIP6-Änderungen auf historische ERA5-Tage übertragen; keine lokalen täglichen Modellläufe.",
     "Tmax und Tmin erhalten dieselbe Änderung der regionalen Mitteltemperatur.",
@@ -121,8 +135,18 @@ class ProjectionCatalog:
                     precipitation.append(rain)
                 self.tables[identifier] = (np.asarray(temperature)[self.region_index],
                                            np.asarray(precipitation)[self.region_index])
+                text = SCENARIO_TEXT[scenario]
+                # Mittlere Erwärmung über alle Landpunkte gegenüber der ERA5-Basis.
+                warming = round(float(self.tables[identifier][0].mean()), 1)
                 self.records[identifier] = {
-                    "id": identifier, "label": f"Projektion {year} · {SCENARIO_LABELS[scenario]} (Näherung)",
+                    "id": identifier, "label": f"{year} · {text['name']} ({SCENARIO_LABELS[scenario]})",
+                    "short_label": year, "group": year,
+                    "scenario_name": text["name"], "scenario_code": SCENARIO_LABELS[scenario],
+                    "scenario_summary": text["summary"], "global_2100_c": text["global_2100_c"],
+                    "warming_c": warming,
+                    "summary": (f"{window['start_year']}–{window['end_year']} bei „{text['name']}“: "
+                                f"Europa im Mittel etwa +{str(warming).replace('.', ',')} °C wärmer als "
+                                f"{start_year}–{end_year}."),
                     "available": True, "projection": True, "approximation": True,
                     "start_date": f"{window['start_year']}-01-01", "end_date": f"{window['end_year']}-12-31",
                     "years": window["end_year"] - window["start_year"] + 1,
@@ -141,4 +165,5 @@ class ProjectionCatalog:
         region_key = self.region_keys[int(self.region_index[point])]
         year = identifier.split("-")[0]
         return {"region": region_key, "region_name": self.data["regions"][region_key]["name"],
+                "region_name_de": REGION_NAMES_DE.get(region_key, region_key),
                 **self.data["scenarios"][record["scenario"]][year]["regions"][region_key]}

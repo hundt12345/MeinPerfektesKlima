@@ -112,13 +112,19 @@ ok(/\[hidden\]\s*\{\s*display:\s*none\s*!important/.test(css),
   "styles.css erzwingt display:none für [hidden] (Monatsauswahl bleibt sonst sichtbar)");
 ok(doc.querySelectorAll("#presets .preset").length >= 4, `Voreinstellungen vorhanden (${doc.querySelectorAll("#presets .preset").length})`);
 ok((doc.querySelector("#dataset-badge").textContent || "").length > 5, "Datensatz-Info im Kopfbereich: " + doc.querySelector("#dataset-badge").textContent);
-ok(doc.querySelector('#period-select option[value="recent5"]'), "Fünfjahres-Zeitraum auswählbar");
-ok(!doc.querySelector('#period-select option[value="2030"]')?.disabled
-  && !doc.querySelector('#period-select option[value="2050"]')?.disabled,
+ok(doc.querySelector("#period-recent5") && !doc.querySelector("#period-recent-wrap").hidden,
+  "Fünfjahres-Zeitraum auswählbar");
+ok(!doc.querySelector('#period-when button[data-when="2030"]')?.disabled
+  && !doc.querySelector('#period-when button[data-when="2050"]')?.disabled,
   "2030/2050 als modellbasierte Näherungen verfügbar");
+ok(doc.querySelector('#period-when button[data-when="now"]').getAttribute("aria-checked") === "true"
+  && doc.querySelector("#scenario-list").hidden, "Start mit dem Klima von heute, Szenarien erst für 2030/2050");
 ok(doc.querySelectorAll("#period-projection-note a").length === 3,
   "drei echte Projektionsquellen für 2030/2050 sichtbar");
-ok(/\.card::after\s*\{\s*content:\s*none/.test(css), "keine dekorativen horizontalen Lichtstreifen");
+ok(!/h2::before|\.card::after\s*\{\s*content:\s*""|border-right:\s*2px solid/.test(css),
+  "keine dekorativen Striche (Überschrift-Balken, Lichtkanten, Ranglisten-Striche)");
+ok(/img\.leaflet-tile\s*\{[^}]*mix-blend-mode:\s*normal[^}]*width:\s*257px/.test(css),
+  "Kacheln überlappen 1 px – keine Kachelnähte bei 125 %/150 % Bildschirmskalierung");
 ok(!doc.querySelector("#legend").hidden, "Legende sichtbar");
 ok(doc.querySelectorAll("#legend-ticks span").length === 6, `Legenden-Ticks (${doc.querySelectorAll("#legend-ticks span").length})`);
 const rank = [...doc.querySelectorAll("#ranking li button")].map((b) => b.textContent.trim());
@@ -149,7 +155,8 @@ const detailText = doc.querySelector("#detail").textContent.replace(/\s+/g, " ")
 ok(detailText.includes("Tage"), "Detailbox zeigt Wohlfühl-Tage: " + detailText.slice(0, 90));
 ok(doc.querySelectorAll("#detail .bars .bar").length === 12, "12 Monatsbalken");
 ok(!!doc.querySelector("#detail .climsvg"), "Klimadiagramm (SVG) vorhanden");
-ok(/Jahr: Ø max/.test(detailText), "Jahresklima-Werte im Klartext: " + (detailText.match(/Jahr: Ø max[^·]*·[^·]*·[^·]*/) || [""])[0].trim());
+ok(doc.querySelectorAll("#detail .facts div").length === 6 && /Tagsüber/.test(detailText) && /Frosttage/.test(detailText),
+  "sechs verständliche Klimawerte: " + [...doc.querySelectorAll("#detail .facts div")].map(d => d.textContent).join(" | "));
 ok(/° N/.test(detailText) || /km/.test(detailText), "Angabe zum Gitterpunkt/Entfernung");
 
 console.log("\nInteraktion – Klick auf eine Stadt (Top-Orte-Liste):");
@@ -170,6 +177,10 @@ const d4 = Date.now() + 12_000;
 while (Date.now() < d4 && doc.querySelector("#search-results").hidden) await new Promise((r) => setTimeout(r, 200));
 const hits = [...doc.querySelectorAll("#search-results button")].map(b => b.textContent.trim());
 ok(hits.length > 0 && hits.some(h => /sev/i.test(h)), `Suchergebnisse (${hits.length}): ${hits.slice(0, 3).join(" | ")}`);
+for (const [query, expected] of [["muenchen", "München"], ["Mailand", "Mailand"], ["koeln", "Köln"], ["Kopenhagen", "Kopenhagen"]]) {
+  const res = await (await fetch(`${BASE}/api/cities/search?q=${encodeURIComponent(query)}&limit=3&area=data`)).json();
+  ok(res.cities[0] && res.cities[0].name === expected, `Suche „${query}“ findet ${expected} (${res.cities.map(c => c.name).join(", ")})`);
+}
 
 console.log("\nInteraktion – Regler und Modi:");
 const before = doc.querySelector("#controls output").textContent;
@@ -183,10 +194,10 @@ await new Promise((r) => setTimeout(r, 3500));
 ok(!doc.querySelector("#month-picker").hidden, "Monatsauswahl sichtbar");
 ok((doc.querySelector("#legend-title").textContent || "").includes("Tage im "), "Legende auf Monatsmodus: " + doc.querySelector("#legend-title").textContent);
 
-console.log("\nInteraktion – vereinfachte Zwei-Orte-Suche:");
+console.log("\nInteraktion – Winterquartier:");
 doc.querySelector("#mode-wq").click();
 const d5 = Date.now() + 25_000;
-while (Date.now() < d5 && !(doc.querySelector("#legend-title").textContent || "").includes("Wohlfühltage/Jahr an einem Ort")) {
+while (Date.now() < d5 && !(doc.querySelector("#legend-title").textContent || "").includes("Tage pro Jahr an einem Ort")) {
   await new Promise((r) => setTimeout(r, 250));
 }
 ok(doc.querySelector("#month-picker").hidden, "Monatsauswahl im Winterquartier-Modus ausgeblendet");
@@ -194,23 +205,39 @@ ok(doc.querySelectorAll("#controls .ctrl").length === 5, "ein gemeinsames Traumw
 ok(doc.querySelector("#winter-controls") === null && doc.querySelector("#pair-card") === null,
   "keine separaten Winterregler; Wohnortsuche im gemeinsamen Ablauf");
 ok(!doc.querySelector("#wq-setup").hidden, "Sommerfenster und Zwei-Orte-Suche sichtbar");
-ok(doc.querySelector("#feel-title").textContent === "Dein Traumwetterprofil",
-  "Überschrift für das gemeinsame Profil");
-ok((doc.querySelector("#wq-window").textContent || "").includes("Winterort:"),
+ok(doc.querySelector("#feel-title").textContent === "Dein Wohlfühlwetter",
+  "ein Profil, eine Überschrift in allen Modi");
+ok((doc.querySelector("#wq-window").textContent || "").includes("im Winterquartier"),
   "Sommer- und Restmonate werden klar zugeordnet: " + doc.querySelector("#wq-window").textContent);
-ok((doc.querySelector("#legend-title").textContent || "").includes("Wohlfühltage/Jahr an einem Ort"),
+ok((doc.querySelector("#legend-title").textContent || "").includes("Tage pro Jahr an einem Ort"),
   "Karte zeigt ergänzend die Jahreszahl für einen Einzelort");
+ok(doc.querySelector("#rank-card").hidden, "Einzelort-Rangliste im Winterquartier ausgeblendet");
 
-ok(doc.querySelector("#btn-wq-search").disabled, "Suche ohne festen Wohnort gesperrt");
+ok(doc.querySelector("#btn-wq-search").disabled, "Suche ohne Wohnort gesperrt");
 const homeInput = doc.querySelector("#wq-home");
+
+// Früherer Fehler: Stadt eingetippt, aber nicht aus der Liste geklickt -> nichts passierte.
+homeInput.value = "duisburg";
+homeInput.dispatchEvent(new window.Event("input", { bubbles: true }));
+ok(!doc.querySelector("#btn-wq-search").disabled, "getippter Wohnort reicht, um die Suche zu starten");
+doc.querySelector("#btn-wq-search").click();
+const typedDeadline = Date.now() + 30_000;
+while (Date.now() < typedDeadline && !/schöne Tage pro Jahr|fehlgeschlagen|Keine Stadt/.test(doc.querySelector("#wq-result").textContent || "")) {
+  await new Promise(r => setTimeout(r, 100));
+}
+ok((doc.querySelector("#wq-result").textContent || "").includes("Duisburg allein"),
+  "„Ziele finden“ übernimmt den besten Treffer: " + (doc.querySelector("#wq-result").textContent || "").slice(0, 90));
+ok(doc.querySelector("#wq-home").value === "Duisburg" && doc.querySelector("#wq-home-results").hidden,
+  "Wohnort wird übernommen und die Vorschlagsliste schließt");
+
 homeInput.value = "Berlin";
 homeInput.dispatchEvent(new window.Event("input", { bubbles: true }));
 const homeDeadline = Date.now() + 10_000;
-while (Date.now() < homeDeadline && !doc.querySelector("#wq-home-results button")) {
+while (Date.now() < homeDeadline && !doc.querySelector("#wq-home-results .option")) {
   await new Promise(r => setTimeout(r, 100));
 }
-ok(!!doc.querySelector("#wq-home-results button"), "Wohnortsuche liefert auswählbare Städte");
-doc.querySelector("#wq-home-results button")?.click();
+ok(!!doc.querySelector("#wq-home-results .option"), "Wohnortsuche liefert auswählbare Städte");
+doc.querySelector("#wq-home-results .option")?.click();
 ok(!doc.querySelector("#btn-wq-search").disabled, "Wohnortauswahl aktiviert die Suche");
 ok(doc.querySelector("#wq-home-status").textContent.includes("Berlin"), "Berlin bleibt fester Wohnort");
 ok(calls.lastHash.includes("home_name=Berlin") && calls.lastHash.includes("home_lat="),
@@ -227,36 +254,44 @@ ok(seasonText.includes("Mai – Juli") && seasonText.includes("August – April"
 
 doc.querySelector("#btn-wq-search").click();
 const d7 = Date.now() + 30_000;
-while (Date.now() < d7 && !/Wohlfühltage\/Jahr|keine passende Zwei-Orte-Kombination|Suche fehlgeschlagen/.test(
+while (Date.now() < d7 && !/schöne Tage pro Jahr|kein passendes Ziel|Suche fehlgeschlagen/.test(
   doc.querySelector("#wq-result").textContent || "")) {
   await new Promise((r) => setTimeout(r, 250));
 }
 const combination = (doc.querySelector("#wq-result").textContent || "").replace(/\s+/g, " ");
-ok(/Wohlfühltage\/Jahr/.test(combination), "Wohnortsuche liefert die Jahressumme zweier Orte: " + combination.slice(0, 160));
+ok(/schöne Tage pro Jahr/.test(combination) && /bis zu \d+ Tage/.test(combination),
+  "Wohnortsuche liefert die Jahressumme zweier Orte: " + combination.slice(0, 160));
 ok(doc.querySelectorAll("#wq-alternatives .combo-item").length > 0,
   `alternative Stadtpaare werden angezeigt (${doc.querySelectorAll("#wq-alternatives .combo-item").length})`);
 ok((doc.querySelector("#wq-window").textContent || "").includes("Mai – Juli"),
   "Suchergebnis ändert das gewählte Sommerfenster nicht");
 ok(!doc.querySelector("#wq-result").hidden, "Suchergebnis wird sichtbar");
 
-ok(combination.includes("Berlin") && combination.includes("gegenüber ganzjährig zu Hause"),
-  "Ergebnis nennt Wohnort und Zugewinn gegenüber zu Hause");
-const seasonSelect = doc.querySelector("#wq-season");
-seasonSelect.value = "summer";
-seasonSelect.dispatchEvent(new window.Event("change", { bubbles: true }));
+ok(combination.includes("Berlin allein") && /^\s*[+−]\d+/.test(doc.querySelector("#wq-alternatives .gain")?.textContent || ""),
+  "Ergebnis nennt Wohnort und Zugewinn gegenüber zu Hause: " + (doc.querySelector("#wq-alternatives .gain")?.textContent || ""));
+const places = [...doc.querySelectorAll("#wq-alternatives .place")].map(n => n.textContent);
+ok(new Set(places).size === places.length, "keine doppelten Ziele in der Liste: " + places.join(", "));
+doc.querySelector('#wq-season button[data-season="summer"]').click();
 ok(doc.querySelector("#wq-result").hidden, "Saisonwechsel verwirft altes Ergebnis");
 doc.querySelector("#btn-wq-search").click();
 const summerDeadline = Date.now() + 15_000;
-while (Date.now() < summerDeadline && !(doc.querySelector("#wq-result").textContent || "").includes("Wohlfühltage/Jahr")) {
+while (Date.now() < summerDeadline && !(doc.querySelector("#wq-result").textContent || "").includes("schöne Tage pro Jahr")) {
   await new Promise(r => setTimeout(r, 100));
 }
-ok(doc.querySelector("#wq-result").textContent.includes("Berlin"), "auch Sommer-Ausweichsuche behält den Wohnort");
-ok(doc.querySelector("#wq-window").textContent.includes("unterwegs im Sommer"), "Sommer-Ausweichsaison erklärt");
+ok(doc.querySelector("#wq-result").textContent.includes("Berlin") && doc.querySelector("#wq-result").textContent.includes("Sommerquartier"),
+  "auch Sommer-Ausweichsuche behält den Wohnort");
+ok(doc.querySelector("#wq-window").textContent.includes("im Sommerquartier"), "Sommer-Ausweichsaison erklärt");
 
 homeInput.value = "Nicht ausgewählt";
 homeInput.dispatchEvent(new window.Event("input", { bubbles: true }));
-ok(doc.querySelector("#wq-result").hidden && doc.querySelector("#btn-wq-search").disabled,
-  "frei eingegebener Wohnort verwirft Ergebnisse und sperrt die Suche");
+ok(doc.querySelector("#wq-result").hidden, "freie Eingabe verwirft alte Ergebnisse");
+doc.querySelector("#btn-wq-search").click();
+const unknownDeadline = Date.now() + 10_000;
+while (Date.now() < unknownDeadline && !(doc.querySelector("#wq-result").textContent || "").includes("Keine Stadt")) {
+  await new Promise(r => setTimeout(r, 100));
+}
+ok((doc.querySelector("#wq-result").textContent || "").includes("Keine Stadt „Nicht ausgewählt“"),
+  "unbekannter Wohnort gibt einen verständlichen Hinweis statt still nichts zu tun");
 
 // Änderungen an Profil oder Monaten machen alte Resultate ungültig.
 doc.querySelectorAll("#presets .preset")[0].click();
@@ -266,11 +301,11 @@ ok(doc.querySelector("#wq-result").hidden, "alte Kombination wird nach Profilän
 // Ein ausgewählter Ort zeigt weiterhin seine Einzelort-Auswertung.
 handlers.click[0]({ latlng: { lat: 43.3, lng: 5.4 }, containerPoint: { x: 10, y: 10 } });
 const d8 = Date.now() + 30_000;
-while (Date.now() < d8 && !/Jahreswerte an einem Ort/.test(doc.querySelector("#detail").textContent || "")) {
+while (Date.now() < d8 && !/das ganze Jahr hier/.test(doc.querySelector("#detail").textContent || "")) {
   await new Promise((r) => setTimeout(r, 250));
 }
 const wqText = doc.querySelector("#detail").textContent.replace(/\s+/g, " ");
-ok(/Jahreswerte an einem Ort/.test(wqText), "Detailbox zeigt das gemeinsame Profil an einem Ort");
+ok(/das ganze Jahr hier/.test(wqText), "Detailbox zeigt das Profil an einem Ort");
 ok(doc.querySelectorAll("#detail .bars .bar").length === 12, "Monatsübersicht bleibt in der Detailbox erhalten");
 
 console.log("\nZurück in den Jahresmodus:");
@@ -280,8 +315,7 @@ ok(doc.querySelector("#month-picker").hidden, "Monatsauswahl wieder versteckt");
 ok([...doc.querySelectorAll("[data-wq-only]")].every(n => n.hidden), "Winterquartier-Karten wieder versteckt");
 ok(doc.querySelector("#feel-title").textContent === "Dein Wohlfühlwetter", "Überschrift zurückgesetzt");
 
-doc.querySelector("#period-select").value = "recent5";
-doc.querySelector("#period-select").dispatchEvent(new window.Event("change", { bubbles: true }));
+doc.querySelector("#period-recent5").click();
 await new Promise((r) => setTimeout(r, 3000));
 ok((doc.querySelector("#legend-title").textContent || "").includes("Letzte 5 Jahre"),
   "Zeitraum-Auswahl aktualisiert die Legende: " + doc.querySelector("#legend-title").textContent);
@@ -313,14 +347,19 @@ ok(doc.querySelector('button[data-sort-key="hot_days"]').closest("th").getAttrib
   "Tageskennzahlen lassen sich sortieren");
 
 console.log("\nKlimaprojektionen und dynamische Sponsoren:");
-const futureSelect = doc.querySelector("#period-select");
-futureSelect.value = "2050-ssp585";
-futureSelect.dispatchEvent(new window.Event("change", { bubbles: true }));
+doc.querySelector('#period-when button[data-when="2050"]').click();
+const scenarioNames = [...doc.querySelectorAll("#scenario-options .scenario")].map(n => n.textContent.replace(/\s+/g, " ").trim());
+ok(scenarioNames.length === 3 && /Viel Klimaschutz/.test(scenarioNames[0]) && /Mittlerer Weg/.test(scenarioNames[1])
+  && /Wenig Klimaschutz/.test(scenarioNames[2]) && scenarioNames.every(t => /\+\d+,\d °C/.test(t)),
+  "Szenarien sprechend benannt, mit Erwärmung in °C: " + scenarioNames.map(t => t.slice(0, 32)).join(" | "));
+ok(doc.querySelector('#scenario-options input[value="ssp245"]').checked, "2050 startet mit dem mittleren Weg");
+doc.querySelector('#scenario-options input[value="ssp585"]').click();
 const futureDeadline = Date.now() + 30_000;
 while (Date.now() < futureDeadline && !doc.querySelector("#detail .projection-table")) {
   await new Promise(r => setTimeout(r, 100));
 }
-ok(doc.querySelector("#legend-title").textContent.includes("SSP5-8.5"), "Legende zeigt zukünftiges Szenario");
+ok(doc.querySelector("#legend-title").textContent.includes("Wenig Klimaschutz")
+  && doc.querySelector("#legend-title").textContent.includes("SSP5-8.5"), "Legende zeigt zukünftiges Szenario");
 ok(!doc.querySelector("#projection-warning").hidden && doc.querySelector("#projection-warning").textContent.includes("Sonne unverändert"),
   "Annahmen der Näherung immer sichtbar");
 ok(doc.querySelectorAll("#detail .projection-table tbody tr").length === 12, "Ortsdetails enthalten zwölf Monatswerte mit Modellstreuung");

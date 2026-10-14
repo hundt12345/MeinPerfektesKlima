@@ -37,6 +37,7 @@ from PIL import Image
 from scipy.ndimage import gaussian_filter
 from scipy.spatial import cKDTree
 
+from .names import search_key
 from .projections import ProjectionCatalog
 
 VARS = ("tmax", "tmin", "tdew", "sun", "prec")
@@ -258,6 +259,9 @@ class Filter:
 # (0,1 CPU / 512 MB) mehrere hundert Millisekunden pro Anfrage.
 FIELD_WIDTH = 640
 MAX_WIDTH = 1400
+# Am Rand des Datengebiets (z. B. 45° O, 34° N) läuft die Klimafläche über so
+# viele Grad weich aus, statt mit einer harten geraden Kante zu enden.
+EDGE_FEATHER_DEG = 0.75
 # Pixel, die weiter als dieser Betrag (Einheitskugel, ~380 km) von jedem
 # Datenpunkt entfernt liegen, gelten als „keine Daten“ (offenes Meer).
 FAR_DISTANCE = 0.06
@@ -355,6 +359,8 @@ class ClimateData:
 
         cities_file = data_dir / "cities.json"
         self.cities = json.loads(cities_file.read_text()) if cities_file.exists() else []
+        # Suchschlüssel immer frisch bilden (auch für ältere cities.json ohne Umschrift).
+        self.city_search_keys = [search_key(c) for c in self.cities]
         if self.cities:
             c_xyz = self._to_xyz(
                 np.array([c["lat"] for c in self.cities]),
@@ -403,24 +409,32 @@ class ClimateData:
             available = self._has_recent5
             label = (f"Letzte 5 Jahre ({start_year}–{end_year})" if available
                      else f"Letzte 5 Jahre (nicht im Datensatz)")
+            short_label = "Letzte 5 Jahre"
             description = (
                 f"Mittelwert der jüngsten fünf Kalenderjahre im Datensatz ({start_date} bis {end_date}). "
                 "Diese kurze Periode reagiert stärker auf einzelne warme oder kalte Jahre."
                 if available else
                 "Im vorhandenen Datensatz liegen keine fünf vollständigen Jahre für diesen Vergleich vor."
             )
+            summary = (f"Nur {start_year}–{end_year}. Einzelne warme oder kalte Jahre zählen hier stärker."
+                       if available else "Nicht im Datensatz.")
         else:
             available = True
-            label = f"Gesamter Zeitraum ({start_year}–{end_year})"
+            label = f"Heute ({start_year}–{end_year})"
+            short_label = "Heute"
             description = (
                 f"Mittelwert über alle vorhandenen Tage von {start_date} bis {end_date} "
                 f"({years:.1f} Jahre)."
             )
             if years < 30:
                 description += " Das ist keine offizielle 30-jährige Klimanormalperiode."
+            summary = f"Wetter der Jahre {start_year}–{end_year} (ERA5), Mittel über {years:.0f} Jahre."
         return {
             "id": period,
             "label": label,
+            "short_label": short_label,
+            "group": "now",
+            "summary": summary,
             "start_date": start_date,
             "end_date": end_date,
             "years": round(years, 2),
@@ -440,7 +454,9 @@ class ClimateData:
                     options.append(self.period_info(year + suffix))
         else:
             for year in ("2030", "2050"):
-                options.append({"id": year, "label": f"Projektion {year} (nicht verfügbar)",
+                options.append({"id": year, "label": f"{year} (nicht verfügbar)",
+                                "short_label": year, "group": year,
+                                "summary": "Klimamodell-Daten sind gerade nicht verfügbar.",
                                 "available": False, "projection": True, "years": None,
                                 "description": "Klimamodell-Daten nicht verfügbar oder nicht zur ERA5-Basis passend: "
                                     + str(self.projection_error)})
@@ -826,6 +842,11 @@ class ClimateData:
         soft = map_coordinates(self.mask_soft, [iy, ix], order=1, mode="constant", cval=0.0)
         # Kontrastkurve: >0,8 wird voll deckend, <0,25 ganz transparent
         soft = np.clip((soft - 0.25) / 0.55, 0.0, 1.0)
+        # Weicher Rand am Ende des Datengebiets statt einer geraden Kante quer durchs Land.
+        edge = np.minimum.reduce([ll[..., 0] - bbox["lat_min"], bbox["lat_max"] - ll[..., 0],
+                                  ll[..., 1] - bbox["lon_min"], bbox["lon_max"] - ll[..., 1]])
+        fade = np.clip(edge / EDGE_FEATHER_DEG, 0.0, 1.0)
+        soft = soft * fade * fade * (3.0 - 2.0 * fade)
         return np.round(soft * 255.0).astype(np.uint8)
 
     # ------------------------------------------------------------ Punktabfragen
@@ -980,7 +1001,8 @@ class ClimateData:
                 "name": city["name"],
                 "country": city.get("name_de", city.get("country", "")),
                 "country_en": city.get("country", ""),
-                "aliases": list(city.get("aliases") or []),
+                "aliases": [*(city.get("aliases") or []),
+                            *([city["name_local"]] if city.get("name_local") else [])],
                 "lat": float(city["lat"]),
                 "lon": float(city["lon"]),
                 "pop": int(city.get("pop", 0)),
@@ -1311,11 +1333,15 @@ class ClimateData:
 
     def escape_report(self, lat: float, lon: float, season: str, p: Params,
                       summer_months=DEFAULT_SUMMER_MONTHS, limit: int = 8,
-                      min_distance_km: float = 50, period: str = "all") -> dict:
+                      min_distance_km: float = 50, period: str = "all",
+                      spread_km: float = 0.0) -> dict:
         """Fester Wohnort, feste Reisemonate, ein gemeinsames Wohlfühlprofil.
 
-        Rangfolge: Jahressumme (äquivalent zum Zugewinn), danach Distanz.
-        Alle Städte werden geprüft, nicht nur eine Vorauswahl guter Paare.
+        Rangfolge: Jahressumme (äquivalent zum Zugewinn), bei Gleichstand die
+        größere Stadt, danach Distanz. Alle Städte werden geprüft, nicht nur eine
+        Vorauswahl guter Paare. Mit ``spread_km`` > 0 liegen die vorgeschlagenen
+        Ziele mindestens so weit auseinander – sonst teilen sich oft acht Orte
+        rund um denselben Rasterpunkt (Murcia, Molina de Segura, …) die Liste.
         """
         if season not in ("winter", "summer"):
             raise ValueError("season muss winter oder summer sein")
@@ -1349,7 +1375,8 @@ class ClimateData:
             seen.add(location)
             value = float(away_days[i])
             destination = {"name": city["name"], "country": city.get("name_de", ""),
-                           "lat": location[0], "lon": location[1], "days": round(value, 1)}
+                           "lat": location[0], "lon": location[1], "days": round(value, 1),
+                           "pop": int(city.get("pop", 0) or 0)}
             candidates.append({
                 "summer_city": home_city if season == "winter" else destination,
                 "winter_city": destination if season == "winter" else home_city,
@@ -1359,8 +1386,10 @@ class ClimateData:
                 "gain_days": round(home_days + value - baseline, 1),
                 "distance_km": round(distance, 1),
             })
-        candidates.sort(key=lambda c: (-c["total_days"], c["distance_km"],
-                                       c[season + "_city"]["name"]))
+        candidates.sort(key=lambda c: (-c["total_days"], -c[season + "_city"]["pop"],
+                                       c["distance_km"], c[season + "_city"]["name"]))
+        if spread_km > 0:
+            candidates = self._spread(candidates, season + "_city", spread_km, limit)
         return {"period": self.period_info(period), "season": season,
                 "anchor": home_city, "baseline_days": round(baseline, 1),
                 "away_months": list(away), "home_months": list(home),
@@ -1368,6 +1397,27 @@ class ClimateData:
                 "summer_label": months_label(summer), "winter_label": months_label(winter),
                 "params": p.query(), "min_distance_km": min_distance_km,
                 "candidates": candidates[:limit], "best": candidates[0] if candidates else None}
+
+    @staticmethod
+    def _spread(candidates: list[dict], key: str, spread_km: float, limit: int) -> list[dict]:
+        """Bestplatzierte Ziele behalten, die mindestens ``spread_km`` auseinanderliegen."""
+        picked: list[dict] = []
+        for candidate in candidates:
+            city = candidate[key]
+            lat1, lon1 = math.radians(city["lat"]), math.radians(city["lon"])
+            too_close = False
+            for other in picked:
+                lat2, lon2 = math.radians(other[key]["lat"]), math.radians(other[key]["lon"])
+                a = (math.sin((lat2 - lat1) / 2) ** 2
+                     + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2)
+                if 2 * 6371 * math.asin(math.sqrt(min(1.0, a))) < spread_km:
+                    too_close = True
+                    break
+            if not too_close:
+                picked.append(candidate)
+                if len(picked) >= limit:
+                    break
+        return picked
 
     def two_city_combination(self, p: Params, summer_months=None, limit: int = 8,
                              min_distance_km: float = 50.0,
