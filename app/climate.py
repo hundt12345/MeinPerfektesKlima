@@ -26,6 +26,7 @@ from __future__ import annotations
 import io
 import json
 import math
+import os
 from collections import OrderedDict
 from dataclasses import dataclass
 from functools import lru_cache
@@ -35,6 +36,8 @@ import numpy as np
 from PIL import Image
 from scipy.ndimage import gaussian_filter
 from scipy.spatial import cKDTree
+
+from .projections import ProjectionCatalog
 
 VARS = ("tmax", "tmin", "tdew", "sun", "prec")
 # Skalen: int8-Schritte je Einheit der Rohdaten. Temperatur/Taupunkt kommen in °C
@@ -327,6 +330,19 @@ class ClimateData:
         self.tree = cKDTree(self.xyz)
         self.repaired = self._repair_sentinels()
         self.season_delta = self._season_sign()
+        self.projections = None
+        self.projection_error = None
+        projection_file = Path(os.environ.get("KLIMA_PROJECTIONS_FILE", data_dir / "projections.json"))
+        if not projection_file.exists() and not os.environ.get("KLIMA_PROJECTIONS_FILE"):
+            projection_file = Path(__file__).parent / "data" / "projections.json"
+        try:
+            if str(days[0])[5:] != "01-01" or str(days[-1])[5:] != "12-31":
+                raise ValueError("Projection analog basis must contain full calendar years")
+            self.projections = ProjectionCatalog(projection_file, self.lat, self.lon,
+                                                 int(str(days[0])[:4]), int(str(days[-1])[:4]))
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            # A broken/mismatched manifest never silently enables fake projections.
+            self.projection_error = str(error)
         self._counts_cache: dict = {}
         self._annual_summary_cache: dict[str, dict[str, np.ndarray]] = {}
         self._city_climate_cache: dict[str, list[dict]] = {}
@@ -362,6 +378,8 @@ class ClimateData:
 
     def _period_slice(self, period: str = "all") -> slice:
         """Tagesausschnitt für die gewählte historische Bezugsperiode."""
+        if self.projections and str(period) in self.projections.records:
+            return self._period_slices["all"]  # historical analog sample, not simulated future dates
         try:
             return self._period_slices[str(period)]
         except KeyError as exc:
@@ -370,10 +388,12 @@ class ClimateData:
     def years_in_period(self, period: str = "all") -> float:
         """Länge des Ausschnitts in mittleren Jahren (365,25 Tage)."""
         self._period_slice(period)  # validiert die ID
-        return float(self._period_years[str(period)])
+        return float(self._period_years["all" if self.is_projection(period) else str(period)])
 
     def period_info(self, period: str = "all") -> dict:
         """Beschriftung und reale Datumsgrenzen einer verfügbaren Zeitreihe."""
+        if self.is_projection(period):
+            return {**self.projections.records[period], "analog_sample_years": round(self.years, 2)}
         part = self._period_slice(period)
         start_date = str(self.day_dates[part.start])
         end_date = str(self.day_dates[part.stop - 1])
@@ -408,22 +428,43 @@ class ClimateData:
             "description": description,
         }
 
+    def is_projection(self, period: str) -> bool:
+        return bool(self.projections and period in self.projections.records)
+
     def period_options(self) -> list[dict]:
-        """Historische Auswahl plus sichtbare, aber noch nicht belegte Projektionen."""
+        """Historical windows plus validated regional model approximations."""
         options = [self.period_info("all"), self.period_info("recent5")]
-        end_date = str(self.day_dates[-1])
-        projection_reason = (
-            f"Noch nicht verfügbar: ERA5 enthält historische Reanalysen nur bis {end_date}. "
-            "Für 2030/2050 muss erst ein dokumentiertes Klimamodell-Ensemble mit festgelegtem "
-            "Emissionsszenario eingebunden werden; deshalb werden hier keine Zukunftswerte geschätzt."
-        )
-        for year in (2030, 2050):
-            options.append({
-                "id": str(year), "label": f"Projektion {year} (noch nicht verfügbar)",
-                "start_date": None, "end_date": None, "years": None,
-                "available": False, "projection": True, "description": projection_reason,
-            })
+        if self.projections:
+            for year in ("2030", "2050"):
+                for suffix in ("-ssp126", "", "-ssp585"):
+                    options.append(self.period_info(year + suffix))
+        else:
+            for year in ("2030", "2050"):
+                options.append({"id": year, "label": f"Projektion {year} (nicht verfügbar)",
+                                "available": False, "projection": True, "years": None,
+                                "description": "Klimamodell-Daten nicht verfügbar oder nicht zur ERA5-Basis passend: "
+                                    + str(self.projection_error)})
         return options
+
+    def _raw_for(self, name: str, sel, period: str, point: int | slice | None = None) -> np.ndarray:
+        """Raw-unit values; future values are unquantized floats, never int8-clipped."""
+        points = slice(None) if point is None else point if isinstance(point, slice) else slice(point, point + 1)
+        base = self.raw[name][points, sel]
+        if not self.is_projection(period) or name == "sun":
+            return base
+        months = self.day_month[sel]
+        temperature, precipitation = self.projections.tables[period]
+        delta = temperature[points][:, months]
+        if name in ("tmax", "tmin"):
+            return base.astype(np.float32) + 2.0 * delta
+        if name == "prec":
+            return base.astype(np.float32) * precipitation[points][:, months]
+        if name == "tdew":
+            from .projections import estimate_dewpoint
+            tmean = (self.raw["tmax"][points, sel].astype(np.float32)
+                     + self.raw["tmin"][points, sel].astype(np.float32)) / 4.0
+            return 2.0 * estimate_dewpoint(tmean, base.astype(np.float32) / 2.0, delta)
+        raise ValueError(name)
 
     def _season_sign(self) -> float:
         """Ø (Juli − Januar) der Tageshöchstwerte im Süden – muss positiv sein.
@@ -522,7 +563,7 @@ class ClimateData:
             return int(math.floor(x + 1e-9))
         raise ValueError(mode)
 
-    def days_mask(self, p: Params, month=None, point: int | None = None,
+    def days_mask(self, p: Params, month=None, point: int | slice | None = None,
                   period: str = "all") -> np.ndarray:
         """Boolesche Matrix (Punkte, Tage) bzw. (Tage,) für einen Einzelpunkt.
 
@@ -530,23 +571,31 @@ class ClimateData:
         Liste von Monaten sein – siehe :func:`norm_months`. ``period`` wählt den
         gesamten Datensatz oder dessen jüngste fünf Kalenderjahre.
         """
+        if self.is_projection(period) and point is None:
+            # Bound peak memory on small hosting plans: dewpoint estimation
+            # otherwise creates several full P×D float arrays at once.
+            return np.concatenate([
+                self.days_mask(p, month, slice(start, min(start + 128, self.n_points)), period)
+                for start in range(0, self.n_points, 128)
+            ], axis=0)
         sel = self._day_sel(month, period)
 
         def get(name):
-            arr = self.raw[name]
-            if point is not None:
-                arr = arr[point: point + 1]
-            return arr[:, sel]
+            return self._raw_for(name, sel, period, point)
 
-        ok = (get("tmax") >= self._q(p.tmax_min, SCALES["tmax"], "min"))
-        ok &= (get("tmax") <= self._q(p.tmax_max, SCALES["tmax"], "max"))
-        ok &= (get("tmin") >= self._q(p.tmin_min, SCALES["tmin"], "min"))
-        ok &= (get("tmin") <= self._q(p.tmin_max, SCALES["tmin"], "max"))
-        ok &= (get("tdew") <= self._q(p.tdew_max, SCALES["tdew"], "max"))
+        # Model-shifted values are floats. Rounding thresholds would reintroduce
+        # the historical 0.5-degree quantization error into projected comparisons.
+        q = (lambda value, scale, mode: value * scale) if self.is_projection(period) else self._q
+
+        ok = (get("tmax") >= q(p.tmax_min, SCALES["tmax"], "min"))
+        ok &= (get("tmax") <= q(p.tmax_max, SCALES["tmax"], "max"))
+        ok &= (get("tmin") >= q(p.tmin_min, SCALES["tmin"], "min"))
+        ok &= (get("tmin") <= q(p.tmin_max, SCALES["tmin"], "max"))
+        ok &= (get("tdew") <= q(p.tdew_max, SCALES["tdew"], "max"))
         # sun_min wird in Stunden angegeben, die Rohdaten in Sekunden
-        ok &= (get("sun") >= self._q(p.sun_min * SUN_SECONDS_PER_HOUR, SCALES["sun"], "min"))
+        ok &= (get("sun") >= q(p.sun_min * SUN_SECONDS_PER_HOUR, SCALES["sun"], "min"))
         if p.prec_max < 90:
-            ok &= (get("prec") <= self._q(p.prec_max, SCALES["prec"], "max"))
+            ok &= (get("prec") <= q(p.prec_max, SCALES["prec"], "max"))
         return ok
 
     def _day_sel(self, month=None, period: str = "all") -> slice | np.ndarray:
@@ -832,36 +881,46 @@ class ClimateData:
 
         part = self._period_slice(period)
         years = self.years_in_period(period)
-        tmax = self.raw["tmax"][:, part]
-        tmin = self.raw["tmin"][:, part]
-        tdew = self.raw["tdew"][:, part]
-        sun = self.raw["sun"][:, part]
-        prec = self.raw["prec"][:, part]
+        summary: dict[str, np.ndarray] = {}
+        # Blockwise means avoid retaining four full future float fields.
+        for start in range(0, self.n_points, 128):
+            stop = min(start + 128, self.n_points)
+            points = slice(start, stop)
+            tmax = self._raw_for("tmax", part, period, points)
+            tmin = self._raw_for("tmin", part, period, points)
+            tdew = self._raw_for("tdew", part, period, points)
+            sun = self._raw_for("sun", part, period, points)
+            prec = self._raw_for("prec", part, period, points)
 
-        def days(mask: np.ndarray) -> np.ndarray:
-            return np.count_nonzero(mask, axis=1).astype(np.float64) / years
+            def days(mask: np.ndarray) -> np.ndarray:
+                return np.count_nonzero(mask, axis=1).astype(np.float64) / years
 
-        summary = {
-            # Temperatur-/Taupunkt-Rohwerte haben 0,5-°C-Schritte.
-            "tmax": tmax.mean(axis=1) / 2.0,
-            "tmin": tmin.mean(axis=1) / 2.0,
-            "tdew": tdew.mean(axis=1) / 2.0,
-            # Ein Rohwert Sonne entspricht 15 Minuten; Regen ist in 0,5-mm-Schritten.
-            "sun": sun.mean(axis=1) / 4.0,
-            "prec": prec.sum(axis=1, dtype=np.int64).astype(np.float64) / (2.0 * years),
-            # 0,5 °C und 0,5 mm Quantisierung; Sonne ist in Viertelstunden codiert.
-            "frost_days": days(tmin <= 0),
-            "winter_days": days(tmin < 0),
-            "ice_days": days(tmax < 0),
-            "summer_days": days(tmax >= 50),
-            "hot_days": days(tmax > 60),
-            "very_hot_days": days(tmax >= 70),
-            "tropical_nights": days(tmin >= 40),
-            "sultry_days": days(tdew > 30),
-            "wet_days": days(prec >= 2),
-            "heavy_rain_days": days(prec >= 20),
-            "sunny_days": days(sun > 16),
-        }
+            block = {
+                # Temperatur-/Taupunkt-Rohwerte haben 0,5-°C-Schritte.
+                "tmax": tmax.mean(axis=1) / 2.0,
+                "tmin": tmin.mean(axis=1) / 2.0,
+                "tdew": tdew.mean(axis=1) / 2.0,
+                # Ein Rohwert Sonne entspricht 15 Minuten; Regen ist in 0,5-mm-Schritten.
+                "sun": sun.mean(axis=1) / 4.0,
+                "prec": prec.sum(axis=1, dtype=np.float64) / (2.0 * years),
+                # 0,5 °C und 0,5 mm Quantisierung; Sonne ist in Viertelstunden codiert.
+                "frost_days": days(tmin <= 0),
+                "winter_days": days(tmin < 0),
+                "ice_days": days(tmax < 0),
+                "summer_days": days(tmax >= 50),
+                "hot_days": days(tmax > 60),
+                "very_hot_days": days(tmax >= 70),
+                "tropical_nights": days(tmin >= 40),
+                "sultry_days": days(tdew > 30),
+                "wet_days": days(prec >= 2),
+                "heavy_rain_days": days(prec >= 20),
+                "sunny_days": days(sun > 16),
+            }
+            for key, values in block.items():
+                if key not in summary:
+                    summary[key] = np.empty(self.n_points, dtype=np.float64)
+                summary[key][start:stop] = values
+
         self._annual_summary_cache[period] = summary
         return summary
 
@@ -885,12 +944,13 @@ class ClimateData:
     def climatology(self, idx: int, period: str = "all") -> dict:
         """Monats- und Jahresklima eines Rasterpunkts (°C, h/Tag, mm)."""
         part = self._period_slice(period)
-        vals = {name: self.raw[name][idx, part].astype(np.float64) * UNIT_FACTORS[name]
+        vals = {name: self._raw_for(name, part, period, idx)[0].astype(np.float64) * UNIT_FACTORS[name]
                 for name in VARS}
         return {
             "months": {name: self._monthly(vals[name], total=(name == "prec"), period=period)
                        for name in VARS},
             **self.annual_climatology(idx, period),
+            **({"projection": self.projections.point_info(period, idx)} if self.is_projection(period) else {}),
         }
 
     def city_climate_rows(self, period: str = "all") -> list[dict]:
@@ -1248,6 +1308,66 @@ class ClimateData:
             "max_km": max_km,
             "candidates": out,
         }
+
+    def escape_report(self, lat: float, lon: float, season: str, p: Params,
+                      summer_months=DEFAULT_SUMMER_MONTHS, limit: int = 8,
+                      min_distance_km: float = 50, period: str = "all") -> dict:
+        """Fester Wohnort, feste Reisemonate, ein gemeinsames Wohlfühlprofil.
+
+        Rangfolge: Jahressumme (äquivalent zum Zugewinn), danach Distanz.
+        Alle Städte werden geprüft, nicht nur eine Vorauswahl guter Paare.
+        """
+        if season not in ("winter", "summer"):
+            raise ValueError("season muss winter oder summer sein")
+        summer = norm_months(summer_months) or DEFAULT_SUMMER_MONTHS
+        winter = tuple(m for m in range(12) if m not in summer)
+        if not winter:
+            raise ValueError("Es muss mindestens ein Monat für das Winterquartier bleiben")
+        away = winter if season == "winter" else summer
+        home = tuple(m for m in range(12) if m not in away)
+        anchor_idx = self.point_index(lat, lon)
+        anchor_monthly = self.point_monthly(p, anchor_idx, period)
+        home_days = float(anchor_monthly[list(home)].sum())
+        baseline = float(anchor_monthly.sum())
+        monthly = self.monthly_counts(p, period)[:, self.city_point_idx]
+        away_days = monthly[list(away)].sum(axis=0)
+        anchor_city = self.nearest_city(lat, lon)
+        home_city = {"name": anchor_city["name"] if anchor_city else "Wohnort",
+                     "country": anchor_city.get("name_de", "") if anchor_city else "",
+                     "lat": lat, "lon": lon, "days": round(home_days, 1)}
+        candidates = []
+        seen = set()
+        for i, city in enumerate(self.cities):
+            location = (float(city["lat"]), float(city["lon"]))
+            dlat = math.radians(location[0] - lat)
+            dlon = math.radians(location[1] - lon)
+            a = (math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat))
+                 * math.cos(math.radians(location[0])) * math.sin(dlon / 2) ** 2)
+            distance = 2 * 6371 * math.asin(math.sqrt(min(1, max(0, a))))
+            if distance < min_distance_km or location in seen:
+                continue
+            seen.add(location)
+            value = float(away_days[i])
+            destination = {"name": city["name"], "country": city.get("name_de", ""),
+                           "lat": location[0], "lon": location[1], "days": round(value, 1)}
+            candidates.append({
+                "summer_city": home_city if season == "winter" else destination,
+                "winter_city": destination if season == "winter" else home_city,
+                "summer_days": round(home_days if season == "winter" else value, 1),
+                "winter_days": round(value if season == "winter" else home_days, 1),
+                "total_days": round(home_days + value, 1),
+                "gain_days": round(home_days + value - baseline, 1),
+                "distance_km": round(distance, 1),
+            })
+        candidates.sort(key=lambda c: (-c["total_days"], c["distance_km"],
+                                       c[season + "_city"]["name"]))
+        return {"period": self.period_info(period), "season": season,
+                "anchor": home_city, "baseline_days": round(baseline, 1),
+                "away_months": list(away), "home_months": list(home),
+                "summer_months": list(summer), "winter_months": list(winter),
+                "summer_label": months_label(summer), "winter_label": months_label(winter),
+                "params": p.query(), "min_distance_km": min_distance_km,
+                "candidates": candidates[:limit], "best": candidates[0] if candidates else None}
 
     def two_city_combination(self, p: Params, summer_months=None, limit: int = 8,
                              min_distance_km: float = 50.0,

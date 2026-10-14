@@ -347,3 +347,57 @@ def test_zwei_staedte_mit_einem_festen_profil(cd: ClimateData) -> None:
         expected_winter = monthly[report["winter_months"], winter_index].sum()
         assert candidate["summer_days"] == pytest.approx(expected_summer, abs=0.11)
         assert candidate["winter_days"] == pytest.approx(expected_winter, abs=0.11)
+
+
+@pytest.mark.parametrize("season", ["winter", "summer"])
+@pytest.mark.parametrize("period", ["all", "recent5"])
+def test_escape_report_fixed_home_and_exact_gain(cd: ClimateData, season: str, period: str) -> None:
+    p = Params()
+    lat, lon = 52.52, 13.405
+    summer = (4, 5, 6)
+    report = cd.escape_report(lat, lon, season, p, summer, period=period, limit=8)
+    assert report["summer_months"] == list(summer)
+    assert report["winter_months"] == [0, 1, 2, 3, 7, 8, 9, 10, 11]
+    assert set(report["home_months"]).isdisjoint(report["away_months"])
+    assert sorted(report["home_months"] + report["away_months"]) == list(range(12))
+    home_monthly = cd.point_monthly(p, cd.point_index(lat, lon), period)
+    baseline = float(home_monthly.sum())
+    home_days = float(home_monthly[report["home_months"]].sum())
+    assert report["baseline_days"] == pytest.approx(baseline, abs=.051)
+    assert report["best"] == report["candidates"][0]
+    home_key = "summer_city" if season == "winter" else "winter_city"
+    totals = []
+    for candidate in report["candidates"]:
+        assert candidate[home_key]["lat"] == lat
+        assert candidate[home_key]["lon"] == lon
+        assert candidate["distance_km"] >= 50
+        destination = candidate[season + "_city"]
+        monthly = cd.point_monthly(p, cd.point_index(destination["lat"], destination["lon"]), period)
+        away_days = float(monthly[report["away_months"]].sum())
+        assert candidate["total_days"] == pytest.approx(home_days + away_days, abs=.051)
+        assert candidate["gain_days"] == pytest.approx(home_days + away_days - baseline, abs=.051)
+        totals.append(candidate["total_days"])
+    assert totals == sorted(totals, reverse=True)
+    # No preselection: the winner must be the true best eligible city.
+    eligible_values = []
+    for city in cd.cities:
+        a = (math.sin(math.radians(city["lat"] - lat) / 2) ** 2
+             + math.cos(math.radians(lat)) * math.cos(math.radians(city["lat"]))
+             * math.sin(math.radians(city["lon"] - lon) / 2) ** 2)
+        distance = 2 * 6371 * math.asin(math.sqrt(min(1, a)))
+        if distance >= 50:
+            monthly = cd.point_monthly(p, cd.point_index(city["lat"], city["lon"]), period)
+            eligible_values.append(home_days + float(monthly[report["away_months"]].sum()))
+    assert report["best"]["total_days"] == pytest.approx(max(eligible_values), abs=.051)
+
+
+def test_escape_report_negative_gain_is_not_hidden(cd: ClimateData) -> None:
+    # Force every candidate to be worse in the selected months than the anchor.
+    from unittest.mock import patch
+    p = Params()
+    home = np.full(12, 20.0)
+    with patch.object(cd, "point_monthly", return_value=home), patch.object(
+            cd, "monthly_counts", return_value=np.zeros((12, cd.n_points))):
+        report = cd.escape_report(52.52, 13.405, "winter", p)
+    assert report["best"]["gain_days"] < 0
+    assert report["best"]["total_days"] < report["baseline_days"]

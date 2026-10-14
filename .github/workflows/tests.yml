@@ -49,3 +49,34 @@ jobs:
       # Balken, die erscheint, solange keine geprüften Klimadaten vorliegen.
       - name: Statusseite (jsdom)
         run: node tests/ui_statusseite.mjs
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: API für UI-Smoke vorbereiten
+        run: |
+          pip install --quiet -r requirements-dev.txt
+          python scripts/make_dev_grid.py --out /tmp/klima-ui-grid
+
+      - name: Karte, Projektionen und Werbung (jsdom)
+        env:
+          KLIMA_DATA_DIR: /tmp/klima-ui-grid
+          KLIMA_ALLOW_UNVERIFIED: "1"
+          KLIMA_PROGRESS_URL: ""
+        run: |
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 > /tmp/klima-ui.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID"' EXIT
+          python - <<'PY'
+          import time, urllib.request
+          for attempt in range(60):
+              try:
+                  urllib.request.urlopen("http://127.0.0.1:8000/healthz", timeout=2).close()
+                  break
+              except OSError:
+                  time.sleep(0.5)
+          else:
+              raise SystemExit("API start timed out")
+          PY
+          node tests/ui_smoketest.mjs http://127.0.0.1:8000

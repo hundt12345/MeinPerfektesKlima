@@ -83,7 +83,7 @@ window.fetch = (url, opts) => fetch(new URL(url, BASE), opts);
 window.requestAnimationFrame = (cb) => setTimeout(() => cb(0), 0);
 window.L = makeLeafletStub();
 window.navigator.clipboard = { writeText: async () => {} };
-window.history.replaceState = () => {};
+window.history.replaceState = (_state, _title, url) => { calls.lastHash = String(url); };
 Object.defineProperty(window.HTMLElement.prototype, "clientWidth", { value: 1100, configurable: true });
 
 console.log("Lade app.js in jsdom …");
@@ -113,9 +113,12 @@ ok(/\[hidden\]\s*\{\s*display:\s*none\s*!important/.test(css),
 ok(doc.querySelectorAll("#presets .preset").length >= 4, `Voreinstellungen vorhanden (${doc.querySelectorAll("#presets .preset").length})`);
 ok((doc.querySelector("#dataset-badge").textContent || "").length > 5, "Datensatz-Info im Kopfbereich: " + doc.querySelector("#dataset-badge").textContent);
 ok(doc.querySelector('#period-select option[value="recent5"]'), "Fünfjahres-Zeitraum auswählbar");
-ok(doc.querySelector('#period-select option[value="2030"]')?.disabled
-  && doc.querySelector('#period-select option[value="2050"]')?.disabled,
-  "2030/2050 werden ehrlich als noch nicht verfügbare Projektionen markiert");
+ok(!doc.querySelector('#period-select option[value="2030"]')?.disabled
+  && !doc.querySelector('#period-select option[value="2050"]')?.disabled,
+  "2030/2050 als modellbasierte Näherungen verfügbar");
+ok(doc.querySelectorAll("#period-projection-note a").length === 3,
+  "drei echte Projektionsquellen für 2030/2050 sichtbar");
+ok(/\.card::after\s*\{\s*content:\s*none/.test(css), "keine dekorativen horizontalen Lichtstreifen");
 ok(!doc.querySelector("#legend").hidden, "Legende sichtbar");
 ok(doc.querySelectorAll("#legend-ticks span").length === 6, `Legenden-Ticks (${doc.querySelectorAll("#legend-ticks span").length})`);
 const rank = [...doc.querySelectorAll("#ranking li button")].map((b) => b.textContent.trim());
@@ -189,7 +192,7 @@ while (Date.now() < d5 && !(doc.querySelector("#legend-title").textContent || ""
 ok(doc.querySelector("#month-picker").hidden, "Monatsauswahl im Winterquartier-Modus ausgeblendet");
 ok(doc.querySelectorAll("#controls .ctrl").length === 5, "ein gemeinsames Traumwetter-Profil mit fünf Reglern");
 ok(doc.querySelector("#winter-controls") === null && doc.querySelector("#pair-card") === null,
-  "keine separaten Winterregler oder manuelle Ankerortsuche");
+  "keine separaten Winterregler; Wohnortsuche im gemeinsamen Ablauf");
 ok(!doc.querySelector("#wq-setup").hidden, "Sommerfenster und Zwei-Orte-Suche sichtbar");
 ok(doc.querySelector("#feel-title").textContent === "Dein Traumwetterprofil",
   "Überschrift für das gemeinsame Profil");
@@ -197,6 +200,21 @@ ok((doc.querySelector("#wq-window").textContent || "").includes("Winterort:"),
   "Sommer- und Restmonate werden klar zugeordnet: " + doc.querySelector("#wq-window").textContent);
 ok((doc.querySelector("#legend-title").textContent || "").includes("Wohlfühltage/Jahr an einem Ort"),
   "Karte zeigt ergänzend die Jahreszahl für einen Einzelort");
+
+ok(doc.querySelector("#btn-wq-search").disabled, "Suche ohne festen Wohnort gesperrt");
+const homeInput = doc.querySelector("#wq-home");
+homeInput.value = "Berlin";
+homeInput.dispatchEvent(new window.Event("input", { bubbles: true }));
+const homeDeadline = Date.now() + 10_000;
+while (Date.now() < homeDeadline && !doc.querySelector("#wq-home-results button")) {
+  await new Promise(r => setTimeout(r, 100));
+}
+ok(!!doc.querySelector("#wq-home-results button"), "Wohnortsuche liefert auswählbare Städte");
+doc.querySelector("#wq-home-results button")?.click();
+ok(!doc.querySelector("#btn-wq-search").disabled, "Wohnortauswahl aktiviert die Suche");
+ok(doc.querySelector("#wq-home-status").textContent.includes("Berlin"), "Berlin bleibt fester Wohnort");
+ok(calls.lastHash.includes("home_name=Berlin") && calls.lastHash.includes("home_lat="),
+  "teilbare Links enthalten den festen Wohnort");
 
 // Feste Auswahl Mai–Juli; übrige Monate bleiben beim Winterort.
 const sto = doc.querySelector("#wq-sto");
@@ -214,12 +232,31 @@ while (Date.now() < d7 && !/Wohlfühltage\/Jahr|keine passende Zwei-Orte-Kombina
   await new Promise((r) => setTimeout(r, 250));
 }
 const combination = (doc.querySelector("#wq-result").textContent || "").replace(/\s+/g, " ");
-ok(/Wohlfühltage\/Jahr/.test(combination), "globale Suche liefert die Jahressumme zweier Orte: " + combination.slice(0, 160));
+ok(/Wohlfühltage\/Jahr/.test(combination), "Wohnortsuche liefert die Jahressumme zweier Orte: " + combination.slice(0, 160));
 ok(doc.querySelectorAll("#wq-alternatives .combo-item").length > 0,
   `alternative Stadtpaare werden angezeigt (${doc.querySelectorAll("#wq-alternatives .combo-item").length})`);
 ok((doc.querySelector("#wq-window").textContent || "").includes("Mai – Juli"),
   "Suchergebnis ändert das gewählte Sommerfenster nicht");
 ok(!doc.querySelector("#wq-result").hidden, "Suchergebnis wird sichtbar");
+
+ok(combination.includes("Berlin") && combination.includes("gegenüber ganzjährig zu Hause"),
+  "Ergebnis nennt Wohnort und Zugewinn gegenüber zu Hause");
+const seasonSelect = doc.querySelector("#wq-season");
+seasonSelect.value = "summer";
+seasonSelect.dispatchEvent(new window.Event("change", { bubbles: true }));
+ok(doc.querySelector("#wq-result").hidden, "Saisonwechsel verwirft altes Ergebnis");
+doc.querySelector("#btn-wq-search").click();
+const summerDeadline = Date.now() + 15_000;
+while (Date.now() < summerDeadline && !(doc.querySelector("#wq-result").textContent || "").includes("Wohlfühltage/Jahr")) {
+  await new Promise(r => setTimeout(r, 100));
+}
+ok(doc.querySelector("#wq-result").textContent.includes("Berlin"), "auch Sommer-Ausweichsuche behält den Wohnort");
+ok(doc.querySelector("#wq-window").textContent.includes("unterwegs im Sommer"), "Sommer-Ausweichsaison erklärt");
+
+homeInput.value = "Nicht ausgewählt";
+homeInput.dispatchEvent(new window.Event("input", { bubbles: true }));
+ok(doc.querySelector("#wq-result").hidden && doc.querySelector("#btn-wq-search").disabled,
+  "frei eingegebener Wohnort verwirft Ergebnisse und sperrt die Suche");
 
 // Änderungen an Profil oder Monaten machen alte Resultate ungültig.
 doc.querySelectorAll("#presets .preset")[0].click();
@@ -274,6 +311,64 @@ ok(doc.querySelectorAll("#city-table-body tr").length > 0
 doc.querySelector('button[data-sort-key="hot_days"]').click();
 ok(doc.querySelector('button[data-sort-key="hot_days"]').closest("th").getAttribute("aria-sort") === "descending",
   "Tageskennzahlen lassen sich sortieren");
+
+console.log("\nKlimaprojektionen und dynamische Sponsoren:");
+const futureSelect = doc.querySelector("#period-select");
+futureSelect.value = "2050-ssp585";
+futureSelect.dispatchEvent(new window.Event("change", { bubbles: true }));
+const futureDeadline = Date.now() + 30_000;
+while (Date.now() < futureDeadline && !doc.querySelector("#detail .projection-table")) {
+  await new Promise(r => setTimeout(r, 100));
+}
+ok(doc.querySelector("#legend-title").textContent.includes("SSP5-8.5"), "Legende zeigt zukünftiges Szenario");
+ok(!doc.querySelector("#projection-warning").hidden && doc.querySelector("#projection-warning").textContent.includes("Sonne unverändert"),
+  "Annahmen der Näherung immer sichtbar");
+ok(doc.querySelectorAll("#detail .projection-table tbody tr").length === 12, "Ortsdetails enthalten zwölf Monatswerte mit Modellstreuung");
+ok((doc.querySelector("#detail .projection-detail")?.textContent || "").includes("kein Intervall der Wohlfühltage"), "Modellstreuung korrekt eingeordnet");
+
+ok(calls.lastHash.includes("period=2050-ssp585"), "Szenario bleibt im teilbaren Link erhalten");
+const csvDeadline = Date.now() + 15_000;
+while (Date.now() < csvDeadline && !doc.querySelector("#city-data-summary").textContent.includes("SSP5-8.5")) {
+  await new Promise(r => setTimeout(r, 100));
+}
+let csvText = "";
+window.URL.createObjectURL = blob => {
+  const reader = new window.FileReader();
+  reader.onload = () => { csvText = String(reader.result); };
+  reader.readAsText(blob);
+  return "blob:klima-test";
+};
+window.URL.revokeObjectURL = () => {};
+window.HTMLAnchorElement.prototype.click = () => {}; // do not navigate in jsdom
+// The table is filtered to Madrid, as above; this is also the export scope.
+doc.querySelector("#city-csv-download").click();
+await new Promise(r => setTimeout(r, 150));
+ok(csvText.includes("Modell-basierte Näherung") && csvText.includes("SSP5-8.5")
+  && csvText.includes("Sonnenstunden unverändert") && csvText.includes("Quelle"),
+  "Zukunfts-CSV trägt Szenario, Quelle und die Schätzannahmen mit");
+
+const originalFetch = window.fetch;
+window.fetch = async (url, opts) => String(url).startsWith("/api/ads")
+  ? { ok: true, json: async () => ({ ad: { advertiser: "Testpartner", title: "<script>alert(1)</script>",
+      body: "Testanzeige", cta: "Details", url: "https://example.com/quartiere" } }) }
+  : originalFetch(url, opts);
+doc.querySelector("#mode-year").click();
+await new Promise(r => setTimeout(r, 400));
+ok(!doc.querySelector("#sponsor-slot").hidden, "kontextbezogene Kampagne wird dynamisch gerendert");
+ok(doc.querySelector("#sponsor-slot").textContent.includes("Anzeige · Testpartner"), "Werbekennzeichnung und Werbetreibender sichtbar");
+ok(doc.querySelector("#sponsor-slot script") === null, "Kampagnentext kann kein HTML/Script einschleusen");
+ok(doc.querySelector("#sponsor-slot a")?.rel.includes("sponsored") && doc.querySelector("#sponsor-slot a")?.rel.includes("noreferrer"),
+  "Anzeigenlink sicher und als sponsored gekennzeichnet");
+window.fetch = async (url, opts) => String(url).startsWith("/api/ads")
+  ? { ok: true, json: async () => ({ ad: { title: "Unsafe", url: "javascript:alert(1)" } }) }
+  : originalFetch(url, opts);
+doc.querySelector("#mode-year").click();
+await new Promise(r => setTimeout(r, 400));
+ok(doc.querySelector("#sponsor-slot").hidden, "unsichere Anzeigenlinks werden auch im Browser abgelehnt");
+window.fetch = originalFetch;
+doc.querySelector("#mode-year").click();
+await new Promise(r => setTimeout(r, 400));
+ok(doc.querySelector("#sponsor-slot").hidden, "ohne konfigurierte Kampagne bleibt der Werbeplatz verborgen");
 
 console.log(failures.length ? `\n${failures.length} Fehler` : "\nAlle Prüfungen bestanden");
 process.exit(failures.length ? 1 : 0);
