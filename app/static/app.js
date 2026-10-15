@@ -195,26 +195,115 @@ function trackPageView() {
   }).catch(() => {});
 }
 
-async function shareCurrentResult() {
+/* Funnel-Ereignisse: nur eine feste Namensliste, keine Parameter, keine
+   Nutzerkennung. Der Server verwirft unbekannte Namen (siehe app/analytics.py). */
+function trackEvent(name) {
+  if (!name) return;
+  fetch(`/api/analytics/event?name=${encodeURIComponent(name)}`, {
+    method: "POST", credentials: "omit", cache: "no-store", keepalive: true, referrerPolicy: "no-referrer",
+  }).catch(() => {});
+}
+
+/** Rechtslinks in der Fußzeile nur zeigen, wenn Betreiberangaben hinterlegt sind. */
+async function injectLegalLinks() {
+  const host = $("#legal-links");
+  if (!host) return;
+  try {
+    const site = await getJSON("/api/site");
+    if (!site.legal_configured) return;
+    host.replaceChildren(
+      el("a", { href: "/impressum", text: "Impressum" }), " · ",
+      el("a", { href: "/datenschutz", text: "Datenschutz" }), " · ");
+    host.hidden = false;
+  } catch { /* Ohne Statusauskunft bleibt die Fußzeile unverändert. */ }
+}
+
+function sharePayload() {
   const url = currentShareUrl();
   const selected = state.selected;
-  if (!url || !selected) return;
+  if (!url || !selected) return null;
   const place = selected.name || selected.cityInfo?.name || selected.report?.city?.name || "Europa";
   const monthMode = state.mode === "month";
   const days = monthMode ? selected.report.days_per_month[state.month - 1] : selected.report.days_per_year;
   const unit = monthMode ? `im ${monthNames[state.month - 1]}` : "pro Jahr";
-  const title = `${fmtDays(days)} schöne Tage ${unit} in ${place}`;
-  const text = `Mein Wohlfühlwetter gibt es in ${place} an ${fmtDays(days)} Tagen ${unit}.`;
+  return {
+    url,
+    place,
+    title: `${fmtDays(days)} schöne Tage ${unit} in ${place}`,
+    text: `Mein Wohlfühlwetter gibt es in ${place} an ${fmtDays(days)} Tagen ${unit}.`,
+  };
+}
+
+async function shareCurrentResult() {
+  const payload = sharePayload();
+  if (!payload) return;
+  trackEvent("share_click");
   if (typeof navigator.share === "function") {
-    try { await navigator.share({ title, text, url }); return; }
+    try { await navigator.share(payload); return; }
     catch (error) { if (error && error.name === "AbortError") return; }
   }
   try {
-    await navigator.clipboard.writeText(url);
+    await navigator.clipboard.writeText(payload.url);
     toast("Ergebnis-Link kopiert – mit Vorschau für Social Media.");
   } catch {
-    toast(url, 6500);
+    toast(payload.url, 6500);
   }
+}
+
+/** Teilen ohne Umwege: normale Links auf die Netzwerk-Intents, kein Fremd-JS. */
+function shareMenu() {
+  const payload = sharePayload();
+  if (!payload) return document.createDocumentFragment();
+  const url = encodeURIComponent(payload.url);
+  const text = encodeURIComponent(payload.text);
+  const targets = [
+    ["WhatsApp", `https://wa.me/?text=${text}%20${url}`],
+    ["Telegram", `https://t.me/share/url?url=${url}&text=${text}`],
+    ["X", `https://twitter.com/intent/tweet?text=${text}&url=${url}`],
+    ["Facebook", `https://www.facebook.com/sharer/sharer.php?u=${url}`],
+    ["Bluesky", `https://bsky.app/intent/compose?text=${text}%20${url}`],
+    ["E-Mail", `mailto:?subject=${encodeURIComponent(payload.title)}&body=${text}%20${url}`],
+  ];
+  const links = targets.map(([label, href]) => el("a", {
+    class: "ghost", href, target: "_blank", rel: "noopener noreferrer", text: label,
+    onclick: () => trackEvent("share_target"),
+  }));
+  links.push(el("button", {
+    type: "button", class: "ghost", text: "Link kopieren",
+    onclick: async () => {
+      trackEvent("share_copy");
+      try { await navigator.clipboard.writeText(payload.url); toast("Ergebnis-Link kopiert."); }
+      catch { toast(payload.url, 6500); }
+    },
+  }));
+  return el("details", { class: "share-more" },
+    el("summary", { text: "Weiter teilen" }),
+    el("div", { class: "share-actions" }, links));
+}
+
+/** Optionaler Partner-Link: nur wenn serverseitig ein Vertrag konfiguriert ist. */
+async function loadAffiliate(host, selected) {
+  if (!host || !selected || !selected.report) return;
+  const city = selected.cityInfo || selected.report.city || {};
+  const params = new URLSearchParams({
+    context: state.mode, lat: selected.lat, lon: selected.lon,
+    name: selected.name || city.name || "", country: selected.country || city.name_de || "",
+  });
+  try {
+    const data = await getJSON("/api/affiliate?" + params.toString());
+    if (!data.link) return;
+    const link = data.link;
+    const box = el("div", { class: "partner-slot" },
+      el("span", { class: "sponsor-label", text: `Anzeige · ${link.partner}` }),
+      el("a", {
+        class: "ghost sponsor-link", href: link.url, target: "_blank",
+        rel: "sponsored nofollow noopener noreferrer", text: link.label,
+        onclick: () => trackEvent("affiliate_click"),
+      }),
+      el("p", { class: "sub", text: link.note || "" }),
+      el("p", { class: "sub", text: link.disclosure }));
+    host.append(box);
+  } catch { /* Ohne Konfiguration oder bei Fehlern bleibt der Platz unsichtbar. */ }
 }
 
 /* ------------------------------------------------------------ Klimazeitraum */
@@ -881,8 +970,11 @@ function renderDetail(opts = {}) {
     el("div", { class: "share-actions" },
       el("button", { type: "button", class: "ghost", onclick: shareCurrentResult }, "Ergebnis teilen"),
       el("a", { class: "ghost", href: currentShareCardUrl(), download: "mein-perfektes-klima-ergebnis.png" }, "Bild speichern")),
+    shareMenu(),
+    el("div", { class: "partner-host", id: "partner-slot" }),
     el("p", { class: "sub", style: "margin-top:.6rem", text: cityLine }),
   );
+  loadAffiliate(document.getElementById("partner-slot"), sel);
 }
 
 function projectionDetails(rep) {
@@ -1765,6 +1857,7 @@ async function showStatusScreen(payload) {
 /* ------------------------------------------------------------------- Start */
 async function boot() {
   trackPageView();
+  injectLegalLinks();
   try {
     META = await getJSON("/api/meta");
   } catch (err) {
@@ -1901,7 +1994,10 @@ async function loadSponsor() {
     if (link.protocol !== "https:" || link.username || link.password) return;
     host.append(el("span", { class: "sponsor-label", text: `Anzeige · ${ad.advertiser}` }),
       el("strong", { text: ad.title }), el("p", { text: ad.body }),
-      el("a", { href: link.href, target: "_blank", rel: "sponsored nofollow noopener noreferrer", text: ad.cta }));
+      el("a", {
+        href: link.href, target: "_blank", rel: "sponsored nofollow noopener noreferrer", text: ad.cta,
+        onclick: () => trackEvent("ad_click"),
+      }));
     host.hidden = false;
   } catch { /* No campaign/network error never blocks the climate app. */ }
 }

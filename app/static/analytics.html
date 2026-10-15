@@ -72,7 +72,12 @@
     </section>
     <section class="card"><h2>Aufrufe je UTC-Tag</h2><div class="chart" id="chart" role="img" aria-label="Tägliche Seitenaufrufe"></div></section>
     <section class="card"><h2>Seiten</h2><div class="paths" id="paths"></div></section>
-    <p class="privacy">Datensparsam: nur Tagesdatum, Aufrufzahl und grobe Seite (<code>/</code> oder <code>/share</code>). Keine Cookies, IP-Adressen, Referrer, Nutzerkennungen oder individuellen Klickprofile.</p>
+    <section class="card">
+      <h2>Trichter: geteilte Ergebnisse, Partnerlinks, Inhaltsseiten</h2>
+      <div class="paths" id="funnel"></div>
+      <p id="funnel-note"></p>
+    </section>
+    <p class="privacy">Datensparsam: nur Tagesdatum, Aufrufzahl, grobe Seite (<code>/</code> oder <code>/share</code>) und ein Ereignisname aus einer festen Liste. Keine Cookies, IP-Adressen, Referrer, Suchbegriffe, Orte, Filter, Nutzerkennungen oder individuellen Klickprofile.</p>
   </section>
 </main>
 <script>
@@ -84,6 +89,43 @@
   const daysSelect = document.querySelector("#days");
   let token = "";
   const format = value => Number(value || 0).toLocaleString("de-DE");
+  const EVENT_LABELS = {
+    city_page: "Ortsprofil geöffnet",
+    guide_page: "Ratgeber geöffnet",
+    app_open: "App aus Inhaltsseite geöffnet",
+    share_click: "Ergebnis geteilt (Systemdialog)",
+    share_target: "Netzwerk-Link geklickt",
+    share_copy: "Teilen-Link kopiert",
+    affiliate_click: "Partnerlink geöffnet",
+    ad_click: "Sponsorplatz geklickt",
+    badge_copy: "Einbettungs-Code kopiert",
+  };
+  function chip(label, value) {
+    const box = document.createElement("div");
+    box.className = "path-chip";
+    const strong = document.createElement("strong");
+    strong.textContent = format(value);
+    box.append(strong, document.createTextNode(label));
+    return box;
+  }
+  function renderFunnel(data) {
+    const host = document.querySelector("#funnel");
+    host.replaceChildren();
+    const events = data.events || {};
+    const order = ["city_page", "guide_page", "app_open", "share_click", "share_target",
+                   "share_copy", "affiliate_click", "ad_click", "badge_copy"];
+    for (const name of order) {
+      if (events[name] === undefined) continue;
+      host.append(chip(EVENT_LABELS[name] || name, events[name]));
+    }
+    const per = (value) => (data.total ? (value / data.total * 1000) : 0)
+      .toLocaleString("de-DE", { maximumFractionDigits: 1 });
+    document.querySelector("#funnel-note").textContent =
+      `${per(events.affiliate_click || 0)} Partnerlink-Klicks und `
+      + `${per((events.share_click || 0) + (events.share_target || 0) + (events.share_copy || 0))} `
+      + "Teilen-Aktionen je 1.000 Seitenaufrufe. Das sind Ereignisse, keine Besucher – "
+      + "die App führt keine Nutzerkennung.";
+  }
   const setStatus = (message, error = false) => {
     status.textContent = message;
     status.classList.toggle("error", error);
@@ -127,6 +169,7 @@
         chip.append(strong, document.createTextNode(path === "/share" ? "Ergebnisse teilen" : "Startseite"));
         paths.append(chip);
       }
+      renderFunnel(data);
       dashboard.hidden = false;
       setStatus("Aktualisiert. Es werden nur aggregierte Aufrufe angezeigt.");
     } catch (error) {

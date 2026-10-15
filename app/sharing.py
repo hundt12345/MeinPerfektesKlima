@@ -92,6 +92,34 @@ def decode_share_state(token: str) -> dict[str, Any]:
             "params": params, "selected": selected}
 
 
+def encode_share_state(mode: str, *, params: Mapping[str, float], name: str, country: str,
+                       lat: float, lon: float, period: str = "all", month: int = 7) -> str:
+    """Serverseitiger Kodierer zum Gegenstück :func:`decode_share_state`.
+
+    Damit können Inhaltsseiten (Ortsprofile, Ratgeber) direkt in die App
+    verlinken: derselbe Hash, den die Oberfläche beim Teilen erzeugt, nur eben
+    vorberechnet. Der Client prüft die Werte erneut, deshalb sind hier nur
+    bereits validierte Zahlen und gekürzte Namen zulässig.
+    """
+    payload = {
+        "v": SHARE_VERSION,
+        "mode": mode,
+        "period": period,
+        "month": int(month),
+        "params": {key: float(params[key]) for key in PARAM_LIMITS},
+        "selected": {"lat": float(lat), "lon": float(lon),
+                     "name": str(name)[:100], "country": str(country)[:100]},
+    }
+    # Ein Testlauf gegen den eigenen Dekoder hält beide Seiten synchron.
+    decode_share_state(_b64(payload))
+    return _b64(payload)
+
+
+def _b64(payload: Mapping[str, Any]) -> str:
+    raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
 def share_headline(report: Mapping[str, Any], state: Mapping[str, Any], location: str) -> tuple[str, str, int]:
     """Create Open Graph title/description and the exact displayed day count."""
     mode = state["mode"]
@@ -141,6 +169,15 @@ def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.I
 def _text_width(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont) -> float:
     box = draw.textbbox((0, 0), text, font=font)
     return box[2] - box[0]
+
+
+def load_font(size: int, bold: bool = False):
+    """Öffentlicher Zugriff auf die gebündelte Schrift (auch für andere Karten)."""
+    return _font(size, bold)
+
+
+def text_width(draw: ImageDraw.ImageDraw, text: str, font) -> float:
+    return _text_width(draw, text, font)
 
 
 def render_share_card(report: Mapping[str, Any], state: Mapping[str, Any], location: str) -> bytes:

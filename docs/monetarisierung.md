@@ -4,6 +4,32 @@ Stand: **14.10.2026**. Strategie, noch keine Partnerintegration. Programmverfüg
 Annahmebedingungen, Provisionen und Netzwerkanforderungen wurden hier nicht live verifiziert.
 Alle Zahlen unten sind **Rechenannahmen, keine Marktpreise oder Umsatzprognosen**.
 
+## Umsetzungsstand im Code (14.10.2026)
+
+Alles unten Beschriebene ist technisch vorbereitet, aber **nichts ist eingeschaltet** – es gibt
+keinen Partnervertrag, kein Werbekonto, keine Domain und keine Betreiberangaben. Konkret gebaut:
+
+* **Reichweite:** ~840 serverseitig gerenderte Ortsprofile (`/klima/{ort}`) mit echten Zahlen,
+  Monatsprofil, Wintereignung, 2050-Vergleich, FAQ, eigener 1200×630-Grafik und Deep-Link in die
+  App; zwei Ratgeber (`/ueberwintern-in-europa`, `/sommerhitze-entfliehen`), `sitemap.xml`,
+  `robots.txt`, `feed.xml`, Startseiten-Grafik `/og/home.png` und ein einbettbares
+  Kennzahl-Badge `/badge/{ort}.svg` (verlinkt zurück).
+* **Teilen:** Netzwerk-Links (WhatsApp, Telegram, X, Facebook, Bluesky, Reddit, Pinterest,
+  E-Mail) plus Kopieren und Bild-Download – normale Links, kein Fremd-Skript.
+* **Affiliate:** `app/affiliate.py` mit Betreiber-Konfiguration (`app/data/affiliate.json` oder
+  `KLIMA_AFFILIATE_FILE`), HTTPS-Pflicht, Host-Allowlist, Orts-Platzhaltern, Laufzeitfenstern und
+  Länderfilter. Fehlt oder widerspricht etwas, erscheint **kein** Call-to-Action.
+* **Messung:** `/analytics` zeigt zusätzlich die Funnel-Ereignisse (Teilen, Partnerklick,
+  Inhaltsseiten, Sponsorplatz) als Tages-Summen – ohne Cookies, ohne Nutzerkennung.
+* **Social-Automatik:** `scripts/social_pack.py` erzeugt wöchentlich Grafiken und Beitragstexte
+  (`.github/workflows/social-pack.yml`, Artefakt); `scripts/social_post.py` veröffentlicht nur
+  mit ausdrücklicher Freigabe und nur mit gesetzter öffentlicher Domain.
+* **Rechtstexte:** Impressum und Datenschutzerklärung werden aus den echten Datenflüssen
+  erzeugt; ohne ausgefüllte Betreiberangaben antworten beide Seiten mit 503.
+
+Der einzige verbleibende Schritt für den Start steht in
+[monetarisierung-fahrplan.md](monetarisierung-fahrplan.md).
+
 ## Klare Empfehlung
 
 **Kostenlose Klimasuche → passendes Ziel → freiwilliger Unterkunftslink → Provision.**
@@ -101,16 +127,19 @@ Technische Details: [werbung-und-wachstum.md](werbung-und-wachstum.md).
 
 ## 3. Reichweite: wenige gute Einstiegsseiten statt täglicher Produktion
 
-Als überschaubares Startpaket drei dauerhafte, indexierbare Hilfeseiten:
+Diese Seiten **existieren jetzt** und rechnen sich bei jedem Datenlauf neu:
 
-- „Überwintern in Europa: milde Orte im Vergleich“
-- „Winterquartier nach deinem Wohlfühlklima finden“
-- „Im Sommer der Hitze entfliehen“
+- `/ueberwintern-in-europa` – Rangliste im Winterfenster Oktober–April, zwei Profile
+  („milder“ und „warmer Winter“), Vergleich mit deutschen Städten, Methode, FAQ.
+- `/sommerhitze-entfliehen` – Juli/August nach dem Profil „tagsüber 12–28 °C, Taupunkt ≤ 15 °C“,
+  ebenfalls mit Vergleichsstädten.
+- `/klima` und `/klima/{ort}` – rund 840 Ortsprofile (Orte ≥ 100.000 Einwohner plus kuratierte
+  Winter-/Küstenorte; Schwelle über `KLIMA_LANDING_MIN_POP` einstellbar). Jede Seite hat eigene
+  Canonical-URL, eigene Social-Grafik, echte Zahlen und einen Deep-Link in die App.
 
-Jeweils eine echte Beispielsuche, Methodik, Datenstand, Grenzen und einen klaren Einstieg
-in die App anbieten. Keine tausenden austauschbaren KI-Stadtseiten, keine tägliche
-Social-Media-Pflicht, kein Aufbau einer manuell gepflegten Unterkunftsliste. Die vorhandenen
-teilbaren Ergebnisse nutzen. Suchreichweite braucht Zeit und ist nicht garantiert.
+Keine tausenden austauschbaren Stadtseiten: Orte unterhalb der Schwelle bekommen bewusst keine
+Seite. Keine tägliche Social-Media-Pflicht: `scripts/social_pack.py` erzeugt vier Wochen Beiträge
+auf einmal. Kein Aufbau einer gepflegten Unterkunftsliste. Suchreichweite braucht trotzdem Zeit.
 
 ## 4. Erst Ertrag messen, dann eventuell Traffic einkaufen
 
@@ -170,16 +199,25 @@ Buchungsklicks als angebliche Käufe optimieren. Es wurde kein Budget ausgegeben
 - Freigabe-/Richtlinienänderungen und Ausfälle erfordern zeitnahe Reaktion, nicht erst
   am Monatsende. Inhalte mindestens vor der Wintersaison auf Aktualität prüfen.
 
-**Messgrenze des jetzigen Codes:** `/analytics` zählt Seitenaufrufe als Tages-Summen,
-nicht eindeutige Besucher, Suchabschlüsse, Affiliate-Klicks oder Buchungen. Die obige
-Besuchs-Funnelrechnung lässt sich damit **noch nicht** vollständig belegen. Anfangs
-Partner-Dashboard plus Seitenaufrufe getrennt auswerten, niemals Seitenaufrufe als
-Besucher ausgeben. Kampagnenkennungen nur grob, ohne Wohnort/Profil; zusätzliche
-Conversion-Messung erst mit überprüfter Rechtsgrundlage und nötiger Einwilligung.
+**Messgrenze des jetzigen Codes (aktualisiert):** `/analytics` zählt Seitenaufrufe als
+Tages-Summen (keine eindeutigen Besucher) und zusätzlich erlaubte Funnel-Ereignisse:
+Inhaltsseite geöffnet, App aus einer Inhaltsseite gestartet, Ergebnis geteilt (Dialog,
+Netzwerk-Link, kopiert), Partnerlink geöffnet, Sponsorplatz geklickt, Einbettungs-Code kopiert.
+Damit sind die ersten Stufen der Funnelrechnung belegbar – **nicht** die Buchung selbst: Die
+Erfolgsquote und die bestätigten Provisionen stehen nur im Partner-Dashboard. Seitenaufrufe
+niemals als Besucher ausgeben, Partnerzahlen getrennt auswerten. Eine weitergehende
+Conversion-Messung (etwa Kampagnenkennungen oder Partner-Postbacks) erst mit überprüfter
+Rechtsgrundlage und nötiger Einwilligung.
 
 ## Nicht umgesetzt / nächster Entscheidungspunkt
 
 Keine Affiliate-Anmeldung, Publisher-Konten, Werbetags, CMP, Weiterleitungslinks,
-Zahlungsintegration oder Akquisekampagnen wurden aktiviert. Der vorhandene Sponsorplatz
-bleibt unverändert aus. **Nächster Schritt ist die Auswahl und Freigabe eines einzigen
-langzeitgeeigneten Unterkunftsprogramms; erst dann dessen dokumentierten Link-Adapter bauen.**
+Zahlungsintegration oder Akquisekampagnen wurden aktiviert. Der vorhandene Sponsorplatz bleibt
+unverändert aus, ebenso die Partnerlinks: `app/affiliate.py` ist fertig, aber
+`app/data/affiliate.json` enthält `enabled: false` und keine Partner. Impressum und
+Datenschutz sind gesperrt, bis Betreiberangaben in `app/data/legal.json` stehen.
+
+**Nächster Schritt bleibt organisatorisch, nicht technisch:** Domain und Tarif wählen,
+Betreiberangaben eintragen, *ein* langzeitgeeignetes Unterkunftsprogramm auswählen und dessen
+Kennung in die Konfiguration schreiben. Reihung, Aufwand und Grenzen:
+[monetarisierung-fahrplan.md](monetarisierung-fahrplan.md).

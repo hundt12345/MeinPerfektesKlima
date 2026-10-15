@@ -76,5 +76,18 @@ def test_pageviews_are_aggregated_and_private(tmp_path: Path, monkeypatch) -> No
         assert data["pages"]["/"] == 2
         assert data["pages"]["/share"] == 1
         assert len(data["daily"]) == 7
-        assert set(data["daily"][-1]) == {"date", "views", "pages"}
+        assert set(data["daily"][-1]) == {"date", "views", "pages", "events"}
         assert "unique_visitors" not in data
+
+        # Funnel events: only allow-listed names count, nothing free-form.
+        assert client.post("/api/analytics/event", params={"name": "share_click"}).status_code == 204
+        assert client.post("/api/analytics/event", params={"name": "affiliate_click"}).status_code == 204
+        assert client.post("/api/analytics/event",
+                           params={"name": "wohnort_malaga"}).status_code == 204
+        funnel = client.get("/api/analytics/summary?days=7",
+                            headers={"Authorization": "Bearer test-only-secret"}).json()
+        assert funnel["events"]["share_click"] == 1
+        assert funnel["events"]["affiliate_click"] == 1
+        assert funnel["events_total"] == 2
+        assert "wohnort_malaga" not in json.dumps(funnel)
+        assert funnel["total"] == 3  # page views stay page views

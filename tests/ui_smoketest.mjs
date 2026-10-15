@@ -175,6 +175,13 @@ ok(calls.clipboardText.includes("/share?state="), "Teilen kopiert einen reproduz
 const sharedPage = await fetch(calls.clipboardText);
 ok(sharedPage.status === 200 && (await sharedPage.text()).includes('property="og:image"'),
   "kopierter Ergebnis-Link liefert Social-Media-Vorschau-Metadaten");
+ok(!!doc.querySelector("#detail .share-more a[href*='wa.me']") && !!doc.querySelector("#detail .share-more a[href*='bsky.app']"),
+  "Teilen-Menü bietet Netzwerk-Links als normale Links (kein Fremd-Skript)");
+ok(doc.querySelectorAll("#detail .share-more a[rel='noopener noreferrer']").length >= 6,
+  "alle Netzwerk-Links tragen rel=noopener noreferrer");
+await new Promise(r => setTimeout(r, 800));
+ok(!doc.querySelector("#detail .partner-slot"),
+  "ohne konfigurierte Partner-Vereinbarung bleibt der Partnerplatz leer");
 
 console.log("\nInteraktion – Klick auf eine Stadt (Top-Orte-Liste):");
 const firstCity = doc.querySelector("#ranking li button");

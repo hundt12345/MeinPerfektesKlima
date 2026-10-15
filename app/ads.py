@@ -77,6 +77,20 @@ class CampaignConfig(BaseModel):
         return self
 
 
+def ads_enabled() -> bool:
+    """Ist überhaupt eine Betreiber-Kampagne konfiguriert? (nur für Hinweistexte)"""
+    config = load_config_for_status()
+    return bool(config and config.enabled and any(c.enabled for c in config.campaigns))
+
+
+def load_config_for_status() -> "CampaignConfig | None":
+    path = Path(os.environ.get("KLIMA_AD_CAMPAIGNS_FILE", DEFAULT_PATH))
+    try:
+        return CampaignConfig.model_validate(json.loads(path.read_text()))
+    except (OSError, ValueError, TypeError):
+        return None
+
+
 def select_ad(context: str, placement: str, today: date | None = None) -> dict | None:
     if context not in CONTEXTS or placement not in PLACEMENTS:
         return None

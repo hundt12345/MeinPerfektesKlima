@@ -104,7 +104,9 @@ Quelle, Annahmen, Reproduktion, Lizenz und Datentor:
 Die kleine abgeleitete Datei `app/data/projections.json` wird mit ausgeliefert;
 fehlende/ungültige oder nicht zur ERA5-Basis passende Manifeste deaktivieren Zukunftsoptionen.
 
-**Monetarisierung und Werbung:** [docs/monetarisierung.md](docs/monetarisierung.md) beschreibt
+**Monetarisierung und Werbung:** [docs/monetarisierung-fahrplan.md](docs/monetarisierung-fahrplan.md)
+ist die einseitige To-do-Liste (Domain, Betreiberangaben, ein Affiliate-Programm, Streuung);
+[docs/monetarisierung.md](docs/monetarisierung.md) beschreibt
 den priorisierten Affiliate-Start ohne laufende Akquise, Werbenetzwerke und Kostenregeln
 für bezahlten Traffic; [docs/werbung-und-wachstum.md](docs/werbung-und-wachstum.md)
 beurteilt Reichweitenkampagnen, dynamische Sponsoranzeigen und Voraussetzungen für AdSense.
@@ -132,7 +134,11 @@ Technische Zugriffslogs des Hosters sind separat und unterliegen dessen Einstell
 
 * **Dashboard:** `KLIMA_ANALYTICS_TOKEN` als zufälligen Betreiber-Schlüssel in den Umgebungsvariablen
   setzen und `/analytics` öffnen. Der Schlüssel wird nur im Tab gehalten; die Statistik-API
-  akzeptiert ihn als `Authorization: Bearer …`.
+  akzeptiert ihn als `Authorization: Bearer …`. Zusätzlich zu den Seitenaufrufen zeigt das
+  Dashboard die Funnel-Ereignisse als Tages-Summen: Inhaltsseite geöffnet, App aus einer
+  Inhaltsseite gestartet, Ergebnis geteilt (Systemdialog/Netzwerk-Link/kopiert), Partnerlink
+  geöffnet, Sponsorplatz geklickt, Einbettungs-Code kopiert. Auch hier gibt es keine
+  Nutzerkennung – nur erlaubte Ereignisnamen aus einer festen Liste.
 * **Speicher:** Standard ist `/tmp/klima-analytics.sqlite3`; mit `KLIMA_ANALYTICS_DB` lässt sich ein
   anderer Pfad setzen. Für dauerhafte Werte muss dieser auf ein persistentes Volume zeigen. Ohne
   persistenten Datenträger können Deployments/Neustarts Zähler zurücksetzen (insbesondere beim
@@ -142,6 +148,74 @@ Technische Zugriffslogs des Hosters sind separat und unterliegen dessen Einstell
 Die Reichweitenmessung ist bewusst klein und first-party; sie ist keine rechtliche Bewertung.
 Betreiber sollten sie in der eigenen Datenschutzerklärung beschreiben und Hosting-Logs separat
 prüfen.
+
+## Inhaltsseiten für Suchmaschinen und Social Media
+
+Die Startseite ist eine Karte – für Suchmaschinen und soziale Netzwerke praktisch unsichtbar.
+Deshalb liefert die App zusätzlich **serverseitig gerenderte Seiten aus denselben geprüften
+ERA5-Daten** (`app/seo.py`), ohne Fremdskripte und ohne Tracking:
+
+| Pfad | Inhalt |
+|---|---|
+| `/klima` | Verzeichnis aller Ortsprofile, nach Ländern gruppiert |
+| `/klima/{ort}` | Ortsprofil: Wohlfühltage pro Jahr und Monat, Balken, Klimatabelle, Wintereignung, 2050-Wert (mittlerer Weg), Vergleichsorte, FAQ, Teilen-Links, Deep-Link in die App |
+| `/ueberwintern-in-europa` | Ratgeber: mildeste Orte im Winterfenster Oktober–April, zwei Profile, Vergleich mit deutschen Städten |
+| `/sommerhitze-entfliehen` | Ratgeber: erträgliche Orte in Juli und August |
+| `/klima/{ort}/card.png`, `/og/home.png`, `/guide/{ratgeber}/card.png` | 1200×630-Vorschaubilder (Open Graph, Newsletter, Social) |
+| `/badge/{ort}.svg` | einbettbare Kennzahl-Grafik, verlinkt auf das Ortsprofil |
+| `/sitemap.xml`, `/robots.txt`, `/feed.xml` | Indexierung und RSS für Newsletter-/Social-Werkzeuge |
+
+Ortsprofile entstehen nur für Orte im Klimaraster mit mindestens `KLIMA_LANDING_MIN_POP`
+Einwohnern (Standard 100.000) plus einer kuratierten Liste kleiner Winter- und Küstenorte –
+bewusst keine beliebig vielen, austauschbaren Stadtseiten. Die Sommerliste berücksichtigt nur
+erreichbare Zielländer (Liste `REACHABLE_COUNTRIES` in `app/seo.py`); Ratgeberüberschriften,
+Profile und Listen stehen dort an einer Stelle und lassen sich ohne Umbau ändern. Jede Seite trägt eigene
+Canonical-URL, Open-Graph-Daten, strukturierte Daten (Breadcrumb, FAQ, Place/Article) und
+verlinkt auf ihre Nachbarorte. Wie die Karte antworten alle diese Seiten mit **HTTP 503**,
+solange keine echten, geprüften Daten vorliegen.
+
+**Teilen ohne Umwege:** Die Orts-Detailkarte und jedes Ortsprofil bieten WhatsApp, Telegram,
+X, Facebook, Bluesky, Reddit, Pinterest, E-Mail, „Link kopieren“ und „Bild speichern“ als
+normale Links (`rel="noopener noreferrer"`, kein Fremd-JavaScript, keine Netzwerk-Pixel).
+
+**Streuen ohne Handarbeit:** `python scripts/social_pack.py --weeks 4` erzeugt für vier Wochen
+je Beitrag eine fertige Grafik, einen Beitragstext, einen Alt-Text und Hashtags nach
+`social/` (inklusive `plan.json` und `kalender.md`). Der Workflow **Social-Paket bauen**
+(`.github/workflows/social-pack.yml`) läuft montags und legt das Paket als Artefakt ab.
+Veröffentlicht wird nur, wenn das ausdrücklich gewünscht ist: `scripts/social_post.py --post`
+sendet an Mastodon, Telegram oder Bluesky (Zugangsdaten per Umgebungsvariable, Standard ist
+Trockenlauf) und verweigert die Arbeit, solange `KLIMA_PUBLIC_URL` fehlt.
+
+**Partner-Links (Affiliate):** `app/affiliate.py` hält **einen** serverseitig konfigurierten
+Link je Ort und Kontext bereit – kein Redirect-Dienst, keine Pixel, kein Besucher-Tracking.
+Konfiguration in `app/data/affiliate.json` oder über `KLIMA_AFFILIATE_FILE`: Partnerkennung,
+erlaubter HTTPS-Host, Orts-Platzhalter (`{city}`, `{country}`, `{lat}`, `{lon}`, `{slug}`),
+optional Länderfilter und Laufzeitfenster. Fehlt, widerspricht oder fehlerhaft ist etwas,
+erscheint **kein** Call-to-Action; standardmäßig ist die Datei ausgeschaltet und leer.
+Ausgeliefert wird ausschließlich ein bewusst angeklickter Link mit
+`rel="sponsored nofollow noopener noreferrer"` und sichtbarer Kennzeichnung
+(„Anzeige · Partner“) plus Provisonshinweis. Details und Auswahlkriterien:
+[docs/monetarisierung.md](docs/monetarisierung.md).
+
+**Umgebungsvariablen dieser Bausteine** (alle optional, Standard bleibt der ausgeschaltete Zustand):
+
+| Variable | Wirkung |
+|---|---|
+| `KLIMA_PUBLIC_URL` | kanonische Domain für Canonical-/Open-Graph-URLs und Social-Paket (nur `https://host`) |
+| `KLIMA_LANDING_MIN_POP` | Einwohnerschwelle für Ortsprofile (Standard 100000) |
+| `KLIMA_AFFILIATE_FILE` | Pfad zur Partner-Konfiguration (sonst `app/data/affiliate.json`) |
+| `KLIMA_LEGAL_FILE` | Pfad zu den Betreiberangaben (sonst `app/data/legal.json`) |
+| `KLIMA_REFERRER_POLICY` | `Referrer-Policy` der Inhaltsseiten (Standard `no-referrer`; manche Partnerprogramme verlangen `strict-origin-when-cross-origin`) |
+| `KLIMA_AD_CAMPAIGNS_FILE` | Sponsor-Kampagnen (Standard `app/data/ad_campaigns.json`, ausgeschaltet) |
+| `KLIMA_ANALYTICS_*` | Schalter, Datenbankpfad und Betreiber-Schlüssel der Reichweitenmessung |
+
+**Impressum und Datenschutzerklärung:** `app/legal.py` liest die Betreiberangaben aus
+`app/data/legal.json` (oder `KLIMA_LEGAL_FILE`). Beide Seiten werden aus dem **tatsächlichen**
+Verhalten der App erzeugt (First-Party-Auslieferung, keine Cookies, aggregierte Zähler,
+Kartenkacheln direkt vom Kartenanbieter, optionale Sponsor- und Partnerlinks). Solange keine
+vollständigen Angaben hinterlegt sind, antworten `/impressum` und `/datenschutz` mit **503**
+und einer Einrichtungshilfe; die Fußzeilen-Links erscheinen erst danach. Es gibt bewusst kein
+Platzhalter-Impressum.
 
 ## Der Winterquartier-Modus
 
@@ -272,6 +346,11 @@ Datensatz oder nur 2021–2025; einzelne Extremjahre werden im längeren Mittel 
 ```
 app/
   main.py            FastAPI: Seiten + JSON-/PNG-Endpunkte, Vorwärmen im Hintergrund
+  seo.py             Inhaltsseiten (Ortsprofile, Ratgeber), Sitemap, Feed, Badges, Karten
+  affiliate.py       Partner-/Affiliate-Links (Betreiber-Konfiguration, fail-closed)
+  legal.py           Betreiberangaben für Impressum und Datenschutzerklärung
+  ads.py             selbst konfigurierte Sponsorplätze (Standard: aus)
+  analytics.py       aggregierte Seitenaufrufe und Funnel-Ereignisse (ohne Cookies)
   climate.py         Datenzugriff, Tageszählung, Web-Mercator-Rendering (PIL/scipy)
   names.py           deutsche Städtenamen, Suchnamen und tolerante Ortssuche
   data/              Datensätze (Klimaraster, Ländergrenzen, Städte, Qualitätsbericht)
@@ -284,11 +363,15 @@ scripts/
   check_grid.py           Qualitätstor: Vergleich mit Klimanormalwerten (22 Städte)
   build_countries.mjs     world-atlas → Länderflächen + Landgrenzen (GeoJSON)
   build_geo.py            Landgrenzen-Linien + Städteliste bauen (Datumsgrenze, Küsten, Namen)
+  social_pack.py          Social-Paket: Grafiken + Beitragstexte für mehrere Wochen
+  social_post.py          optionales Veröffentlichen (Mastodon/Telegram/Bluesky, Standard: Trockenlauf)
   download_sources.sh     Rohquellen (world-atlas, Leaflet, GeoNames) laden
 app/build_progress.py     liest den Fortschritt (Datei/GitHub) und bewertet ihn für die UI
 .github/workflows/
   build-climate-data.yml  führt fetch_era5_zarr.py + check_grid.py auf einem
                           GitHub-Runner aus und committet das Ergebnis zurück
+  social-pack.yml         baut montags ein Social-Paket (Artefakt), veröffentlicht
+                          nur bei ausdrücklicher Freigabe
 render.yaml          Render-Blueprint (Web-Service, Free-Plan)
 ```
 
