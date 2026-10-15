@@ -581,6 +581,9 @@ function initMap() {
   osmLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap-Mitwirkende</a>',
+    // OSM requires a Referer; override the page-wide no-referrer only for tiles.
+    // Send only the origin, never paths, search parameters or climate profiles.
+    referrerPolicy: "strict-origin-when-cross-origin",
     updateWhenIdle: true, keepBuffer: 2,
   }).addTo(map);
   placeLabelLayer = L.layerGroup([], {

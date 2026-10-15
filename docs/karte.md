@@ -35,6 +35,18 @@ spät eintreffende PNG-Antwort darf die gewählte Deckkraft nicht zurücksetzen.
 „Zurücksetzen“ stellt wieder 55 % ein. Die Deckkraft ist eine lokale
 Darstellungseinstellung, kein Bestandteil geteilter Klimaprofile.
 
+## „Access blocked“ durch unterdrückten Referer
+
+Die direkte OSM-Einbindung kollidierte mit dem seitenweiten
+`<meta name="referrer" content="no-referrer">`: Kachelanfragen hatten keinen
+Referer, entgegen der OSM-Tile-Usage-Policy. Die Leaflet-Kachelebene setzt deshalb
+gezielt `referrerPolicy: "strict-origin-when-cross-origin"`. Leaflet überträgt diese
+Einstellung auf jedes Kachelbild. OSM erhält nur die Website-Herkunft, keine
+Pfade, Suchparameter oder Klimaprofile. Die seitenweite Datenschutzregel bleibt
+`no-referrer`. Keine Umgehung durch andere Hosts, Proxys oder Cache-Busting.
+Die tatsächliche Entsperrung muss nach Deployment im Browser geprüft werden;
+weitere providerseitige Sperrgründe sind damit nicht ausgeschlossen.
+
 ## Betrieb
 
 Leaflet und Schriften bleiben lokal. Der Browser lädt sichtbare OSM-Kacheln direkt;
@@ -62,7 +74,9 @@ Provider ist eingebaut. Die Klimadatenauflösung bleibt trotz Straßenzoom 0,75�
 Die externe OSM-Auslieferung ist in der eingeschränkten Entwicklungsumgebung nicht
 prüfbar; jsdom testet nicht das tatsächliche Rasterbild. Vor Veröffentlichung:
 
-1. Startseite öffnen; Netzwerk zeigt OSM-Kacheln, keine CARTO-/Key-Anfragen.
+1. Startseite nach Deployment neu laden; Netzwerk zeigt OSM-Kacheln, keine CARTO-/Key-Anfragen.
+   Bei Kachelanfragen muss `Referer` nur die Website-Herkunft enthalten (keine
+   Pfade/Query); die Bilder dürfen nicht mehr „Access blocked“ zeigen.
 2. Europa → Stadt → Straße zoomen und ziehen; Klimafläche bleibt georeferenziert.
 3. Dunkle und helle Klimaregionen prüfen: zusätzliche Ortsnamen lesbar, keine
    gegenseitigen Überlappungen; Kartenausschnitt verschieben.

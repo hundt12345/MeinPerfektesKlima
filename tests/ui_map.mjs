@@ -60,10 +60,16 @@ try {
   ]);
   t.paintPlaceLabels();
   assert.equal(t.osm._url, "https://tile.openstreetmap.org/{z}/{x}/{y}.png");
+  assert.equal(doc.querySelector('meta[name="referrer"]').content, "no-referrer",
+    "Page-wide privacy policy stays restrictive");
+  assert.equal(t.osm.options.referrerPolicy, "strict-origin-when-cross-origin");
   assert.equal(t.map.getMaxZoom(), 19);
   assert.equal(doc.querySelectorAll(".leaflet-tile-pane img").length > 0, true);
   assert.equal([...doc.querySelectorAll(".leaflet-tile-pane img")].every(img =>
     new URL(img.src).hostname === "tile.openstreetmap.org" && !new URL(img.src).search), true);
+  assert([...doc.querySelectorAll(".leaflet-tile-pane img")].every(img =>
+    img.referrerPolicy === "strict-origin-when-cross-origin"),
+    "Every actual tile image overrides no-referrer with an origin-only external Referer");
   assert.match(doc.querySelector(".leaflet-control-attribution").textContent, /OpenStreetMap/);
   assert.match(doc.querySelector(".leaflet-control-attribution").textContent, /GeoNames/);
   assert.equal(t.map.getPane("placeLabels").style.zIndex, "500");
