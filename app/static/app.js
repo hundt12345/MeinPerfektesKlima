@@ -19,6 +19,7 @@ const state = {
   fixedScale: false,
   showCities: true,
   selected: null,            // {lat, lon, name, country, report}
+  comparison: null,          // {first, second?, awaitingSecond} – nur zwei bewusst gewählte Orte
 };
 
 let META = null;             // /api/meta
@@ -28,12 +29,15 @@ let map = null, overlay = null, borderLayer = null;
 let osmLayer = null, placeLabelLayer = null, layerControl = null;
 let cityLayer = null, cityData = [], markerIndex = new Map();
 let wqLayer = null;          // Wohnort + vorgeschlagene Ziele auf der Karte
+let compareLayer = null;     // A/B-Marker für einen bewusst gestarteten Ortsvergleich
+let detailRequestSeq = 0;
 const CLIMATE_OVERLAY_OPACITY = 0.55;
 let climateOpacity = CLIMATE_OVERLAY_OPACITY;
 // Ab dieser Zoomstufe zeigt die OSM-Karte genauere Grenzen als unsere Linien.
 const BORDER_MAX_ZOOM = 9;
 let hoverTip = null, marker = null;
 let pendingShareSelection = null;
+let pendingShareComparison = null;
 let seq = 0, hoverQueued = false, refreshTimer = null;
 
 const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni",
@@ -115,24 +119,36 @@ function encodeShareState(payload) {
   return btoa(encoded).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
+function sharePlace(place) {
+  const city = place.cityInfo || place.report?.city || {};
+  const nearbyCity = Number(city.dist_km) < 40;
+  return {
+    lat: place.lat,
+    lon: place.lon,
+    name: place.name || (nearbyCity ? city.name : "") || "",
+    country: place.country || (nearbyCity ? city.name_de : "") || "",
+  };
+}
+
+function comparisonIsReady(comparison = state.comparison) {
+  return Boolean(comparison?.first?.report && comparison?.second?.report);
+}
+
 function currentSharePayload() {
   const selected = state.selected;
   if (!selected || !selected.report) return null;
-  const city = selected.cityInfo || selected.report.city || {};
-  const nearbyCity = Number(city.dist_km) < 40;
-  return {
+  const payload = {
     v: 1,
-    mode: state.mode,
+    mode: state.mode === "wq" && comparisonIsReady() ? "year" : state.mode,
     period: state.period,
     month: state.month,
     params: { ...state.params },
-    selected: {
-      lat: selected.lat,
-      lon: selected.lon,
-      name: selected.name || (nearbyCity ? city.name : "") || "",
-      country: selected.country || (nearbyCity ? city.name_de : "") || "",
-    },
+    selected: sharePlace(selected),
   };
+  if (comparisonIsReady()) {
+    payload.compare = [sharePlace(state.comparison.first), sharePlace(state.comparison.second)];
+  }
+  return payload;
 }
 
 function currentShareUrl() {
@@ -177,13 +193,28 @@ function readSharedState() {
       throw new Error("ungültiger Ort");
     }
     state.mode = shared.mode;
-    pendingShareSelection = {
+    const sharedSelected = {
       lat, lon,
       name: String(place.name || "").slice(0, 100),
       country: String(place.country || "").slice(0, 100),
     };
+    if (shared.compare !== undefined) {
+      if (!Array.isArray(shared.compare) || shared.compare.length !== 2) throw new Error("ungültiger Vergleich");
+      pendingShareComparison = shared.compare.map(item => {
+        const compareLat = Number(item && item.lat), compareLon = Number(item && item.lon);
+        if (!Number.isFinite(compareLat) || !Number.isFinite(compareLon)
+            || compareLat < -90 || compareLat > 90 || compareLon < -180 || compareLon > 180) {
+          throw new Error("ungültiger Vergleichsort");
+        }
+        return { lat: compareLat, lon: compareLon,
+          name: String(item.name || "").slice(0, 100), country: String(item.country || "").slice(0, 100) };
+      });
+    } else {
+      pendingShareSelection = sharedSelected;
+    }
   } catch {
     pendingShareSelection = null;
+    pendingShareComparison = null;
     setTimeout(() => toast("Dieser Ergebnis-Link ist leider ungültig."), 0);
   }
 }
@@ -222,10 +253,29 @@ function sharePayload() {
   const url = currentShareUrl();
   const selected = state.selected;
   if (!url || !selected) return null;
-  const place = selected.name || selected.cityInfo?.name || selected.report?.city?.name || "Europa";
   const monthMode = state.mode === "month";
-  const days = monthMode ? selected.report.days_per_month[state.month - 1] : selected.report.days_per_year;
   const unit = monthMode ? `im ${monthNames[state.month - 1]}` : "pro Jahr";
+  if (comparisonIsReady()) {
+    const [first, second] = [state.comparison.first, state.comparison.second];
+    const daysFor = place => monthMode
+      ? place.report.days_per_month[state.month - 1] : place.report.days_per_year;
+    const firstDays = Math.round(daysFor(first)), secondDays = Math.round(daysFor(second));
+    const difference = secondDays - firstDays;
+    const name = place => place.name || place.cityInfo?.name || place.report?.city?.name || "Ort";
+    const firstName = name(first), secondName = name(second);
+    const verdict = difference === 0
+      ? `gleich viele Wohlfühltage ${unit}`
+      : `${name(difference > 0 ? second : first)} hat ${fmtDays(Math.abs(difference))} mehr Wohlfühltage ${unit}`;
+    return {
+      url,
+      place: `${firstName} vs. ${secondName}`,
+      title: `${firstName} vs. ${secondName}: ${verdict}`,
+      text: `Mein Wohlfühlwetter im Vergleich: ${firstName} ${fmtDays(firstDays)}, `
+        + `${secondName} ${fmtDays(secondDays)} schöne Tage ${unit}.`,
+    };
+  }
+  const place = selected.name || selected.cityInfo?.name || selected.report?.city?.name || "Europa";
+  const days = monthMode ? selected.report.days_per_month[state.month - 1] : selected.report.days_per_year;
   return {
     url,
     place,
@@ -811,10 +861,124 @@ function onHover(e) {
 }
 
 /* ------------------------------------------------------------------ Details */
-async function selectPlace(lat, lon, name, country) {
-  const np = nearestPoint(lat, lon);
+function placeLabel(place) {
+  if (!place) return "Ort";
+  const name = place.name || place.cityInfo?.name || place.report?.city?.name || "Ausgewählter Ort";
+  const country = place.country || place.cityInfo?.name_de || "";
+  return country && !name.toLocaleLowerCase("de").includes(country.toLocaleLowerCase("de"))
+    ? `${name}, ${country}` : name;
+}
+
+function snapshotPlace(place) {
+  return {
+    lat: Number(place.lat), lon: Number(place.lon),
+    name: String(place.name || "").slice(0, 100), country: String(place.country || "").slice(0, 100),
+    report: place.report || null, cityInfo: place.cityInfo || null,
+  };
+}
+
+function distanceKm(a, b) {
+  const lat = (Number(a.lat) + Number(b.lat)) / 2;
+  return Math.hypot((Number(a.lat) - Number(b.lat)) * 111,
+    (Number(a.lon) - Number(b.lon)) * 111 * Math.cos(lat * Math.PI / 180));
+}
+
+function samePlace(a, b) { return Boolean(a && b && distanceKm(a, b) < 1); }
+function sameCoordinates(a, b) { return Boolean(a && b && distanceKm(a, b) < 0.01); }
+
+function paintComparisonMarkers() {
+  if (!map || !L.layerGroup) return;
+  if (!compareLayer) compareLayer = L.layerGroup([], { pane: "cities" }).addTo(map);
+  compareLayer.clearLayers();
+  if (!state.comparison) return;
+  for (const [index, place] of [state.comparison.first, state.comparison.second].entries()) {
+    if (!place) continue;
+    const letter = index === 0 ? "A" : "B";
+    compareLayer.addLayer(L.marker([place.lat, place.lon], {
+      pane: "cities", interactive: false, keyboard: false,
+      icon: L.divIcon({ className: `comparison-pin comparison-pin-${letter.toLowerCase()}`,
+        html: `<span>${letter}</span>`, iconSize: [27, 27], iconAnchor: [13.5, 13.5] }),
+    }));
+  }
+}
+
+function renderComparisonBanner() {
+  const banner = $("#compare-banner");
+  if (!banner) return;
+  const comparison = state.comparison;
+  banner.hidden = !comparison;
+  if (!comparison) return;
+  const text = $("#compare-banner-text");
+  const action = $("#compare-banner-action");
+  if (comparison.awaitingSecond) {
+    text.textContent = `1 von 2 · ${placeLabel(comparison.first)} gespeichert. Wähle einen zweiten Ort.`;
+    action.textContent = "Abbrechen";
+  } else if (comparisonIsReady(comparison)) {
+    text.textContent = `${placeLabel(comparison.first)} ↔ ${placeLabel(comparison.second)}`;
+    action.textContent = "Beenden";
+  } else {
+    text.textContent = "Vergleich wird berechnet …";
+    action.textContent = "Abbrechen";
+  }
+}
+
+function cancelComparison() {
+  const comparison = state.comparison;
+  if (!comparison) return;
+  detailRequestSeq++;
+  const restore = comparison.second && !comparison.second.report ? comparison.first : null;
+  state.comparison = null;
+  paintComparisonMarkers();
+  renderComparisonBanner();
+  if (restore) selectPlace(restore.lat, restore.lon, restore.name, restore.country);
+  else if (state.selected?.report) renderDetail();
+  else { state.selected = null; $("#detail").hidden = true; }
+  if (!state.selected) $("#mapnote").hidden = false;
+}
+
+function beginComparison() {
+  const selected = state.selected;
+  if (!selected?.report) return;
+  state.comparison = { first: snapshotPlace(selected), second: null, awaitingSecond: true };
+  paintComparisonMarkers();
+  renderComparisonBanner();
+  renderDetail();
+  trackEvent("compare_start");
+  toast("Erster Ort gespeichert. Wähle jetzt einen zweiten Ort auf der Karte oder über die Suche.", 4200);
+}
+
+async function fetchPointReport(place) {
+  const q = filterQuery(new URLSearchParams({ lat: place.lat, lon: place.lon }));
+  return getJSON("/api/point?" + q);
+}
+
+function attachPlaceReport(place, report) {
+  const city = report.city || nearestCityCached(place.lat, place.lon);
+  return {
+    ...place, report, cityInfo: city || null,
+    name: place.name || (city && city.dist_km < 40 ? city.name : null),
+    country: place.country || (city ? (city.name_de || "") : ""),
+  };
+}
+
+async function selectPlace(lat, lon, name, country, options = {}) {
+  const place = { lat: Number(lat), lon: Number(lon), name: name || null, country: country || "" };
+  const comparison = state.comparison;
+  let completesComparison = false;
+  if (comparison?.awaitingSecond && !options.preserveComparison) {
+    if (samePlace(comparison.first, place)) {
+      toast("Das ist derselbe Ort – wähle bitte einen anderen.");
+      return;
+    }
+    comparison.second = snapshotPlace(place);
+    comparison.awaitingSecond = false;
+    completesComparison = true;
+    renderComparisonBanner();
+  }
+  const np = nearestPoint(place.lat, place.lon);
   const gridLat = META.points.lat[np.idx], gridLon = META.points.lon[np.idx];
-  state.selected = { lat, lon, gridLat, gridLon, name: name || null, country: country || "" };
+  place.gridLat = gridLat; place.gridLon = gridLon;
+  state.selected = place;
   if (map && L.circleMarker) {
     if (marker) marker.remove();
     marker = L.circleMarker([gridLat, gridLon], {
@@ -824,16 +988,39 @@ async function selectPlace(lat, lon, name, country) {
   }
   const note = $("#mapnote"); if (note) note.hidden = true;
   renderDetail({ loading: true });
+  const request = ++detailRequestSeq;
   try {
-    const q = filterQuery(new URLSearchParams({ lat, lon }));
-    const rep = await getJSON("/api/point?" + q);
-    const city = rep.city || nearestCityCached(lat, lon);
-    state.selected.report = rep;
-    state.selected.name = name || (city && city.dist_km < 40 ? city.name : null);
-    state.selected.country = country || (city ? (city.name_de || "") : "");
-    state.selected.cityInfo = city || null;
+    const comparisonNow = state.comparison;
+    const candidates = [place, comparisonNow?.first, comparisonNow?.second].filter(Boolean);
+    const unique = [];
+    for (const candidate of candidates) if (!unique.some(item => sameCoordinates(item, candidate))) unique.push(candidate);
+    const reports = await Promise.all(unique.map(fetchPointReport));
+    if (request !== detailRequestSeq) return;
+    const withReport = candidate => {
+      const index = unique.findIndex(item => sameCoordinates(item, candidate));
+      return attachPlaceReport(candidate, reports[index]);
+    };
+    state.selected = withReport(place);
+    if (state.comparison) {
+      state.comparison.first = withReport(state.comparison.first);
+      if (state.comparison.second) state.comparison.second = withReport(state.comparison.second);
+    }
+    paintComparisonMarkers();
+    renderComparisonBanner();
     renderDetail();
+    if (completesComparison) trackEvent("compare_complete");
   } catch (err) {
+    if (request !== detailRequestSeq) return;
+    if (completesComparison && state.comparison) {
+      state.comparison.second = null;
+      state.comparison.awaitingSecond = true;
+      state.selected = state.comparison.first;
+      paintComparisonMarkers();
+      renderComparisonBanner();
+      renderDetail();
+      toast(`Vergleich fehlgeschlagen: ${err.message || err}`);
+      return;
+    }
     renderDetail({ error: String(err.message || err) });
   }
 }
@@ -925,6 +1112,116 @@ function projectionNote(rep) {
     + `hier im Jahresmittel etwa ${fmtDelta(mean)} wärmer als ${base}.` });
 }
 
+function comparisonDays(place) {
+  if (!place?.report) return 0;
+  return state.mode === "month"
+    ? Number(place.report.days_per_month[state.month - 1] || 0)
+    : Number(place.report.days_per_year || 0);
+}
+
+function comparisonSummary() {
+  const comparison = state.comparison;
+  if (!comparison) return null;
+  if (!comparison.second?.report || !comparison.first?.report) {
+    return el("div", { class: "comparison-awaiting" },
+      el("strong", { text: comparison.awaitingSecond ? "Ort A gespeichert." : "Vergleich wird berechnet …" }),
+      comparison.awaitingSecond ? " Tippe auf einen zweiten Ort oder wähle ihn über die Suche. Der Vergleich erscheint hier." : " Die Klimawerte werden geladen.");
+  }
+
+  const first = comparison.first, second = comparison.second;
+  const a = comparisonDays(first), b = comparisonDays(second);
+  const delta = Math.round(b) - Math.round(a);
+  const unit = state.mode === "month" ? `im ${monthNames[state.month - 1]}` : "pro Jahr";
+  let verdict;
+  if (delta === 0) verdict = `Beide Orte kommen bei deinem Profil auf etwa gleich viele passende Tage ${unit}.`;
+  else if (delta > 0) verdict = `${placeLabel(second)} hat bei deinem Profil ${fmtDays(delta)} passende Tage ${unit} mehr als ${placeLabel(first)}.`;
+  else verdict = `${placeLabel(first)} hat bei deinem Profil ${fmtDays(Math.abs(delta))} passende Tage ${unit} mehr als ${placeLabel(second)}.`;
+
+  let biggestMonth = null;
+  let monthlyChart = null;
+  if (state.mode !== "month") {
+    const av = first.report.days_per_month || [];
+    const bv = second.report.days_per_month || [];
+    let bestGap = -1;
+    for (let i = 0; i < Math.min(av.length, bv.length); i++) {
+      const gap = Math.abs(Number(bv[i]) - Number(av[i]));
+      if (gap > bestGap) { bestGap = gap; biggestMonth = i; }
+    }
+    if (biggestMonth !== null) {
+      const aMonth = Math.round(Number(av[biggestMonth]));
+      const bMonth = Math.round(Number(bv[biggestMonth]));
+      const monthGap = Math.abs(bMonth - aMonth);
+      if (monthGap === 0) {
+        verdict += ` Im ${monthNames[biggestMonth]} liegen beide Orte gleichauf.`;
+      } else {
+        const monthWinner = bMonth > aMonth ? placeLabel(second) : placeLabel(first);
+        verdict += ` Der größte Monatsabstand liegt im ${monthNames[biggestMonth]}: ${monthWinner} hat dort ${monthGap} passende Tage mehr.`;
+      }
+    }
+    monthlyChart = comparisonMonthsChart(first, second);
+  }
+
+  const valueLabel = state.mode === "month" ? monthNames[state.month - 1] : "Tage/Jahr";
+  return el("section", { class: "comparison-card", "aria-label": "Ortsvergleich" },
+    el("h4", { text: "Dein Direktvergleich" }),
+    el("div", { class: "comparison-grid" },
+      comparisonPlace(first, "A", a, valueLabel), comparisonPlace(second, "B", b, valueLabel)),
+    el("p", { class: "comparison-verdict", text: verdict }),
+    monthlyChart,
+    state.mode !== "month" ? el("div", { class: "comparison-key", "aria-hidden": "true" },
+      el("span", { text: placeLabel(first) }), el("span", { text: placeLabel(second) })) : null);
+}
+
+function comparisonPlace(place, letter, days, unit) {
+  return el("div", { class: "comparison-place" },
+    el("span", { class: "comparison-name", title: placeLabel(place), text: `${letter} · ${placeLabel(place)}` }),
+    el("span", { class: "comparison-number", text: fmtDays(days) }),
+    el("small", { text: unit }));
+}
+
+function comparisonMonthsChart(first, second) {
+  const av = first.report.days_per_month || [];
+  const bv = second.report.days_per_month || [];
+  const maximum = Math.max(1, ...av, ...bv);
+  return el("div", { class: "comparison-months", role: "img",
+    "aria-label": `Monatsvergleich von ${placeLabel(first)} und ${placeLabel(second)}` },
+  monthLetters.map((letter, i) => {
+    const a = Number(av[i] || 0), b = Number(bv[i] || 0);
+    const aHeight = Math.max(2, a / maximum * 100);
+    const bHeight = Math.max(2, b / maximum * 100);
+    return el("div", { class: "comparison-month", title: `${monthNames[i]}: ${placeLabel(first)} ${fmtDays(a)}, ${placeLabel(second)} ${fmtDays(b)} Tage` },
+      el("div", { class: "comparison-month-pair" },
+        el("i", { style: `height:${aHeight}%` }), el("i", { style: `height:${bHeight}%` })),
+      el("small", { text: letter }));
+  }));
+}
+
+function resultExplanation(report) {
+  const params = state.params;
+  const months = report.days_per_month || [];
+  const bestMonth = months.length ? months.reduce((best, value, index) => value > months[best] ? index : best, 0) : null;
+  const worstMonth = months.length ? months.reduce((worst, value, index) => value < months[worst] ? index : worst, 0) : null;
+  const temp = `tagsüber ${fmtTempRange(params.tmax_min, params.tmax_max)}, nachts ${fmtTempRange(params.tmin_min, params.tmin_max)}`;
+  const humidity = params.tdew_max >= 26 ? "Schwüle egal" : `Taupunkt bis ${fmtNumber(params.tdew_max)} °C`;
+  const sun = params.sun_min <= 0 ? "Sonne egal" : `mindestens ${fmtNumber(params.sun_min)} Sonnenstunden am Tag`;
+  const rain = params.prec_max >= 90 ? "Regen egal" : `höchstens ${fmtNumber(params.prec_max)} mm Regen am Tag`;
+  const lines = [
+    `Ein Tag zählt nur, wenn alle Bedingungen gleichzeitig am selben Tag erfüllt sind: ${temp}, ${humidity}, ${sun} und ${rain}.`,
+  ];
+  if (bestMonth !== null && worstMonth !== null) {
+    lines.push(`Am häufigsten passt dein Profil im ${monthNames[bestMonth]} (${fmtDays(months[bestMonth])} Tage im Mittel), am seltensten im ${monthNames[worstMonth]} (${fmtDays(months[worstMonth])}).`);
+  }
+  if (report.percentile != null) lines.push(`Dieser Rasterpunkt liegt über ${num(report.percentile, 0)} % der untersuchten Orte.`);
+  const period = report.period?.label || currentPeriodLabel();
+  lines.push(`Die Zahl ist ein Klimamittel für ${period}; das 0,75°-Raster bildet keine Straßen- oder Stadtteilunterschiede ab (grob 25–85 km, je nach Lage).`);
+  if (report.period?.projection) lines.push("2030/2050 ist eine modellbasierte Näherung, keine Wettervorhersage.");
+  return el("details", { class: "result-explanation", ontoggle: event => {
+    if (event.currentTarget.open) trackEvent("explanation_open");
+  } },
+    el("summary", { text: "Warum kommt dieses Ergebnis heraus?" }),
+    el("ul", {}, lines.map(text => el("li", { text }))));
+}
+
 function renderDetail(opts = {}) {
   const box = $("#detail");
   const sel = state.selected;
@@ -953,10 +1250,16 @@ function renderDetail(opts = {}) {
   const cityLine = place + (rep.grid_distance_km > 1 ? ` · Rasterpunkt ${Math.round(rep.grid_distance_km)} km entfernt` : "");
 
   const [bars, barLabels] = monthBars(rep);
-  box.replaceChildren(
+  const compareReady = comparisonIsReady();
+  const comparePending = Boolean(state.comparison && !compareReady);
+  const compareActionText = state.comparison?.awaitingSecond ? "Vergleich abbrechen"
+    : comparePending ? "Vergleich wird berechnet …"
+      : compareReady ? "Neuen Vergleich starten" : "Mit anderem Ort vergleichen";
+  const detailContent = [
     el("h3", {},
       el("span", { text: (sel.name || "Ausgewählter Ort") + (sel.country ? ", " + sel.country : ""), class: "title" }),
       closeBtn()),
+    comparisonSummary(),
     el("div", { class: "big" }, fmtDays(headline), " ", el("small", { text: unit })),
     el("p", { class: "sub", text: isWinterquarters()
       ? `wenn du das ganze Jahr hier bist · mehr als an ${num(rep.percentile, 0)} % der Orte`
@@ -969,14 +1272,22 @@ function renderDetail(opts = {}) {
     climateDiagram(rep) || el("p", { class: "sub", text: "keine Klimadaten" }),
     climateFacts(clim),
     moreClimate(clim),
+    resultExplanation(rep),
     projectionDetails(rep),
+    el("div", { class: "detail-actions" }, el("button", {
+      type: "button", class: "ghost", disabled: comparePending && !state.comparison.awaitingSecond ? "disabled" : null,
+      onclick: state.comparison?.awaitingSecond ? cancelComparison : beginComparison,
+      text: compareActionText,
+    })),
     el("div", { class: "share-actions" },
-      el("button", { type: "button", class: "ghost", onclick: shareCurrentResult }, "Ergebnis teilen"),
-      el("a", { class: "ghost", href: currentShareCardUrl(), download: "mein-perfektes-klima-ergebnis.png" }, "Bild speichern")),
+      el("button", { type: "button", class: "ghost", onclick: shareCurrentResult }, compareReady ? "Vergleich teilen" : "Ergebnis teilen"),
+      el("a", { class: "ghost", href: currentShareCardUrl(), download: compareReady ? "mein-perfektes-klima-vergleich.png" : "mein-perfektes-klima-ergebnis.png" },
+        compareReady ? "Vergleichsbild speichern" : "Bild speichern")),
     shareMenu(),
     el("div", { class: "partner-host", id: "partner-slot" }),
     el("p", { class: "sub", style: "margin-top:.6rem", text: cityLine }),
-  );
+  ];
+  box.replaceChildren(...detailContent.filter(node => node !== null && node !== undefined));
   loadAffiliate(document.getElementById("partner-slot"), sel);
 }
 
@@ -1007,8 +1318,13 @@ function closeBtn() {
   return el("button", {
     class: "close", title: "schließen", "aria-label": "schließen",
     onclick: () => {
-      state.selected = null; $("#detail").hidden = true;
+      detailRequestSeq++;
+      state.selected = null;
+      state.comparison = null;
+      $("#detail").hidden = true;
       if (marker) { marker.remove(); marker = null; }
+      paintComparisonMarkers();
+      renderComparisonBanner();
       const note = $("#mapnote"); if (note) note.hidden = false;
     },
   }, "✕");
@@ -1316,7 +1632,8 @@ async function refresh(immediate = false) {
   if (mySeq !== seq) return;
   loadCities();                                  // Markerwerte aktuell halten
   if (!isWinterquarters()) loadRanking();
-  if (state.selected) selectPlace(state.selected.lat, state.selected.lon, state.selected.name, state.selected.country);
+  if (state.selected) selectPlace(state.selected.lat, state.selected.lon, state.selected.name, state.selected.country,
+    { preserveComparison: true });
 }
 
 async function loadRanking() {
@@ -1356,6 +1673,9 @@ function renderLegend(info) {
   $("#legend-title").replaceChildren(
     document.createTextNode(`${monthUnit()} mit deinem Wetter`),
     el("small", { text: currentPeriodLabel() + (info.fixed_scale ? " · feste Skala" : "") }));
+  const step = Number(META.dataset?.grid_step_deg);
+  $("#legend-resolution").textContent = Number.isFinite(step) && step > 0
+    ? `Klimaraster: ${num(step, 2)}° · grob 25–85 km je nach Lage` : "Klimaraster: grob 25–85 km je nach Lage";
 }
 
 /* ------------------------------------------------------- Alle Städte / Tabelle */
@@ -1909,12 +2229,17 @@ async function boot() {
     invalidateCombination(); syncWqInputs(); updateHash();
   }));
   $("#btn-wq-search").addEventListener("click", searchCombination);
+  $("#compare-banner-action").addEventListener("click", cancelComparison);
   $("#fixed-scale").checked = state.fixedScale;
   $("#fixed-scale").addEventListener("change", (e) => { state.fixedScale = e.target.checked; refresh(true); });
   $("#show-cities").addEventListener("change", (e) => { state.showCities = e.target.checked; paintCities(); });
   $("#climate-opacity").addEventListener("input", (e) => setClimateOpacity(Number(e.target.value) / 100));
   setClimateOpacity(climateOpacity);
   $("#btn-reset").addEventListener("click", () => {
+    detailRequestSeq++;
+    state.comparison = null;
+    paintComparisonMarkers();
+    renderComparisonBanner();
     setClimateOpacity(CLIMATE_OVERLAY_OPACITY);
     state.params = { ...META.defaults };
     state.period = META.default_period || "all";
@@ -1948,7 +2273,17 @@ async function boot() {
 
   initMap();
   await refresh(true);
-  if (pendingShareSelection) {
+  if (pendingShareComparison) {
+    const [first, second] = pendingShareComparison;
+    pendingShareComparison = null;
+    state.comparison = { first: snapshotPlace(first), second: snapshotPlace(second), awaitingSecond: false };
+    renderComparisonBanner();
+    paintComparisonMarkers();
+    map.fitBounds(L.latLngBounds([[first.lat, first.lon], [second.lat, second.lon]]), {
+      maxZoom: 6, paddingTopLeft: [40, 80], paddingBottomRight: [40, 100],
+    });
+    await selectPlace(second.lat, second.lon, second.name, second.country);
+  } else if (pendingShareSelection) {
     const selected = pendingShareSelection;
     pendingShareSelection = null;
     map.setView([selected.lat, selected.lon], Math.max(map.getZoom(), 6), { animate: false });

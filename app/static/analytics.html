@@ -96,6 +96,9 @@
     share_click: "Ergebnis geteilt (Systemdialog)",
     share_target: "Netzwerk-Link geklickt",
     share_copy: "Teilen-Link kopiert",
+    compare_start: "Ortsvergleich gestartet",
+    compare_complete: "Ortsvergleich abgeschlossen",
+    explanation_open: "Ergebnis-Erklärung geöffnet",
     affiliate_click: "Partnerlink geöffnet",
     ad_click: "Sponsorplatz geklickt",
     badge_copy: "Einbettungs-Code kopiert",
@@ -113,7 +116,8 @@
     host.replaceChildren();
     const events = data.events || {};
     const order = ["city_page", "guide_page", "app_open", "share_click", "share_target",
-                   "share_copy", "affiliate_click", "ad_click", "badge_copy"];
+                   "share_copy", "compare_start", "compare_complete", "explanation_open",
+                   "affiliate_click", "ad_click", "badge_copy"];
     for (const name of order) {
       if (events[name] === undefined) continue;
       host.append(chip(EVENT_LABELS[name] || name, events[name]));

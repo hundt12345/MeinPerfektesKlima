@@ -810,16 +810,30 @@ def share_result(token: str) -> tuple[dict, dict, str, str, str]:
         raise HTTPException(400, str(exc)) from exc
     cd = ready_dataset()
     period = parse_period_id(state["period"])
-    selected = state["selected"]
-    # A user can click just outside the data rectangle on the visual map, so
-    # keep the API's global coordinate range and let point_index select its
-    # nearest valid grid cell, just as /api/point does.
     params = Params(**state["params"])
     month = state["month"] - 1 if state["mode"] == "month" else None
-    report = cd.point_report(selected["lat"], selected["lon"], params, month, period)
-    city = report.get("city") or {}
-    name = selected["name"] or (city.get("name") if city.get("dist_km", 999) < 40 else "") or "Europa"
-    country = selected["country"] or (city.get("name_de") if city.get("dist_km", 999) < 40 else "") or ""
+
+    def calculate(place: dict) -> tuple[dict, dict]:
+        # A user can click just outside the data rectangle on the visual map, so
+        # point_index selects the nearest valid grid cell, just as /api/point does.
+        report = cd.point_report(place["lat"], place["lon"], params, month, period)
+        city = report.get("city") or {}
+        name = place["name"] or (city.get("name") if city.get("dist_km", 999) < 40 else "") or "Europa"
+        country = place["country"] or (city.get("name_de") if city.get("dist_km", 999) < 40 else "") or ""
+        resolved = {**place, "name": name, "country": country}
+        return report, resolved
+
+    if state.get("compare"):
+        results = [calculate(place) for place in state["compare"]]
+        reports = [item[0] for item in results]
+        state["compare"] = [item[1] for item in results]
+        state["period"] = period
+        location = f"{state['compare'][0]['name']} vs. {state['compare'][1]['name']}"
+        return state, {"comparison": reports}, "", "", location
+
+    report, selected = calculate(state["selected"])
+    state["selected"] = selected
+    name, country = selected["name"], selected["country"]
     location = f"{name}, {country}" if country and country.lower() not in name.lower() else name
     state["period"] = period
     return state, report, name, country, location

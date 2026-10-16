@@ -31,6 +31,13 @@ Dazu:
   Namen funktionieren beide (`Mailand`/`Milano`, `Kopenhagen`/`København`, `Genf`/`Genève`),
   ebenso Inseln für den Hauptort (`Mallorca` → Palma, `Kreta` → Heraklion). Städte heißen
   in der Oberfläche so, wie man sie auf Deutsch kennt (München, Rom, Moskau, Kiew …).
+* **Orte direkt vergleichen**: In einer Ortsdetailkarte „Mit anderem Ort vergleichen“ wählen,
+  einen zweiten Ort antippen und die Tage pro Jahr sowie den Monatsverlauf nebeneinander sehen.
+  Vergleichslinks öffnen beide Orte wieder und liefern eine eigene 1200×630-Vorschau.
+* **Ergebnis verstehen**: „Warum kommt dieses Ergebnis heraus?“ erklärt die aktiven Wettergrenzen,
+  stärkste Monate, Einordnung und Rasterauflösung anhand der berechneten Daten – ohne KI-Schätzungen.
+* **Einfacher Einstieg**: Wetter-Feinregler und Kartenoptionen sind zunächst eingeklappt; die
+  Karte rückt auf schmalen Bildschirmen vor die Filter.
 * **Vollständige Städtedaten**: die eingeklappte Tabelle unter der Karte listet alle Städte mit
   Klimamitteln, Hitze-/Sommer-/Winter-/Eistagen, Schwüle, Regen, Sonne und weiteren Kennzahlen.
   Sie lässt sich durchsuchen und sortieren; der CSV-Export folgt dem aktuellen Suchfilter.
@@ -38,7 +45,7 @@ Dazu:
   Ortsbeschriftungen liegen als eigene transparente Kachelebene über der Wetterfläche. So kann die
   Klimafläche Labels nicht mehr abwechselnd überdecken. Die Ebenensteuerung schaltet Wetter und
   Beschriftungen; OSM- und CARTO-Attribution bleiben sichtbar. Beim Reinzoomen werden Straßen
-  detaillierter, die Klimadaten bleiben aber auf ihrem 0,75°-Raster (grob 50–80 km).
+  detaillierter, die Klimadaten bleiben aber auf ihrem 0,75°-Raster (grob 25–85 km je nach Lage).
 
 ## Wie funktioniert die Auswertung?
 
