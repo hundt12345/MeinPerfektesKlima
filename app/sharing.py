@@ -23,6 +23,23 @@ PARAM_LIMITS: dict[str, tuple[float, float]] = {
 FONT_DIR = Path(__file__).resolve().parent / "static" / "vendor" / "dejavu"
 
 
+def _validated_place(value: Any, label: str = "Ort") -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError(f"Im Teilen-Link fehlt ein gültiger {label}.")
+    if isinstance(value.get("lat"), bool) or isinstance(value.get("lon"), bool):
+        raise ValueError(f"Die Koordinaten für {label} im Teilen-Link sind ungültig.")
+    try:
+        lat, lon = float(value["lat"]), float(value["lon"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError(f"Die Koordinaten für {label} im Teilen-Link sind ungültig.") from exc
+    if not math.isfinite(lat) or not math.isfinite(lon) or not -90 <= lat <= 90 or not -180 <= lon <= 180:
+        raise ValueError(f"Die Koordinaten für {label} liegen außerhalb des gültigen Bereichs.")
+    name, country = value.get("name") or "", value.get("country") or ""
+    if not isinstance(name, str) or not isinstance(country, str):
+        raise ValueError(f"Der Name für {label} im Teilen-Link ist ungültig.")
+    return {"lat": lat, "lon": lon, "name": name[:100], "country": country[:100]}
+
+
 def decode_share_state(token: str) -> dict[str, Any]:
     """Decode the compact URL payload and reject unexpected/oversized values."""
     if not token or len(token) > MAX_SHARE_TOKEN_LENGTH:
@@ -64,21 +81,20 @@ def decode_share_state(token: str) -> dict[str, Any]:
     if params["tmin_min"] > params["tmin_max"]:
         params["tmin_min"], params["tmin_max"] = params["tmin_max"], params["tmin_min"]
 
-    selected = payload.get("selected")
-    if not isinstance(selected, dict):
-        raise ValueError("Im Teilen-Link fehlt der ausgewählte Ort.")
-    try:
-        lat, lon = float(selected["lat"]), float(selected["lon"])
-    except (KeyError, TypeError, ValueError) as exc:
-        raise ValueError("Die Koordinaten im Teilen-Link sind ungültig.") from exc
-    if not math.isfinite(lat) or not math.isfinite(lon) or not -90 <= lat <= 90 or not -180 <= lon <= 180:
-        raise ValueError("Die Koordinaten im Teilen-Link liegen außerhalb des gültigen Bereichs.")
-
-    name = selected.get("name") or ""
-    country = selected.get("country") or ""
-    if not isinstance(name, str) or not isinstance(country, str):
-        raise ValueError("Der Ortsname im Teilen-Link ist ungültig.")
-    selected = {"lat": lat, "lon": lon, "name": name[:100], "country": country[:100]}
+    selected = _validated_place(payload.get("selected"), "ausgewählter Ort")
+    comparison = None
+    if "compare" in payload:
+        raw_comparison = payload["compare"]
+        if not isinstance(raw_comparison, list) or len(raw_comparison) != 2:
+            raise ValueError("Ein Ortsvergleich benötigt genau zwei Orte.")
+        comparison = [_validated_place(item, f"Vergleichsort {index + 1}")
+                      for index, item in enumerate(raw_comparison)]
+        lat_delta = (comparison[0]["lat"] - comparison[1]["lat"]) * 111
+        mean_lat = (comparison[0]["lat"] + comparison[1]["lat"]) / 2
+        lon_delta = ((comparison[0]["lon"] - comparison[1]["lon"]) * 111
+                     * math.cos(math.radians(mean_lat)))
+        if math.hypot(lat_delta, lon_delta) < 1:
+            raise ValueError("Für einen Vergleich müssen zwei unterschiedliche Orte gewählt sein.")
 
     month = payload.get("month", 7)
     try:
@@ -88,8 +104,11 @@ def decode_share_state(token: str) -> dict[str, Any]:
     if not 1 <= month <= 12:
         raise ValueError("Der Monat im Teilen-Link ist ungültig.")
 
-    return {"v": SHARE_VERSION, "mode": mode, "period": period, "month": month,
-            "params": params, "selected": selected}
+    result = {"v": SHARE_VERSION, "mode": mode, "period": period, "month": month,
+              "params": params, "selected": selected}
+    if comparison is not None:
+        result["compare"] = comparison
+    return result
 
 
 def encode_share_state(mode: str, *, params: Mapping[str, float], name: str, country: str,
@@ -120,8 +139,36 @@ def _b64(payload: Mapping[str, Any]) -> str:
     return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
 
 
+def _report_days(report: Mapping[str, Any], state: Mapping[str, Any]) -> int:
+    if state["mode"] == "month":
+        return int(round(report["days_per_month"][int(state["month"]) - 1]))
+    return int(round(report["days_per_year"]))
+
+
 def share_headline(report: Mapping[str, Any], state: Mapping[str, Any], location: str) -> tuple[str, str, int]:
     """Create Open Graph title/description and the exact displayed day count."""
+    if state.get("compare"):
+        reports = report.get("comparison") or []
+        if len(reports) != 2:
+            raise ValueError("Der Vergleich im Teilen-Link ist unvollständig.")
+        first_days, second_days = (_report_days(item, state) for item in reports)
+        places = state["compare"]
+        difference = second_days - first_days
+        unit = f"im {MONTH_NAMES[int(state['month']) - 1]}" if state["mode"] == "month" else "pro Jahr"
+        if difference > 0:
+            verdict = f"{places[1]['name']} hat {difference} mehr Wohlfühltage {unit}"
+        elif difference < 0:
+            verdict = f"{places[0]['name']} hat {abs(difference)} mehr Wohlfühltage {unit}"
+        else:
+            verdict = f"beide Orte haben gleich viele Wohlfühltage {unit}"
+        title = f"{places[0]['name']} vs. {places[1]['name']}: {verdict}"
+        period = (reports[0].get("period") or {}).get("label") or "ERA5-Klimadaten"
+        description = (
+            f"Mein Wohlfühlwetter im Vergleich: {places[0]['name']} {first_days} Tage, "
+            f"{places[1]['name']} {second_days} Tage {unit}. Auswertung: {period}."
+        )
+        return title[:180], description[:300], max(first_days, second_days)
+
     mode = state["mode"]
     month = int(state["month"])
     if mode == "month":
@@ -171,6 +218,16 @@ def _text_width(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont)
     return box[2] - box[0]
 
 
+def _truncate_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont,
+                   max_width: float) -> str:
+    if _text_width(draw, text, font) <= max_width:
+        return text
+    value = text.rstrip()
+    while value and _text_width(draw, value + "…", font) > max_width:
+        value = value[:-1]
+    return value.rstrip() + "…" if value else "…"
+
+
 def load_font(size: int, bold: bool = False):
     """Öffentlicher Zugriff auf die gebündelte Schrift (auch für andere Karten)."""
     return _font(size, bold)
@@ -181,7 +238,9 @@ def text_width(draw: ImageDraw.ImageDraw, text: str, font) -> float:
 
 
 def render_share_card(report: Mapping[str, Any], state: Mapping[str, Any], location: str) -> bytes:
-    """Render a 1200 × 630 branded preview with the monthly result profile."""
+    """Render a 1200 × 630 branded preview for a result or an A/B comparison."""
+    if state.get("compare"):
+        return render_comparison_share_card(report, state)
     width, height = 1200, 630
     image = Image.new("RGB", (width, height), (11, 18, 32))
     draw = ImageDraw.Draw(image)
@@ -279,6 +338,109 @@ def render_share_card(report: Mapping[str, Any], state: Mapping[str, Any], locat
         draw.text((x0 + bar_width / 2, 438), labels[i], font=small, fill=(152, 169, 190), anchor="mt")
     draw.text((710, 479), "Quelle: ERA5 · Copernicus / ECMWF", font=small, fill=(152, 169, 190))
     draw.text((710, 550), "mein perfektes klima", font=small, fill=(201, 213, 227))
+
+    output = io.BytesIO()
+    image.save(output, format="PNG", optimize=True)
+    return output.getvalue()
+
+
+def render_comparison_share_card(report: Mapping[str, Any], state: Mapping[str, Any]) -> bytes:
+    """Two-place comparison card with exact values and a 12-month A/B chart."""
+    reports = report.get("comparison") or []
+    places = state.get("compare") or []
+    if len(reports) != 2 or len(places) != 2:
+        raise ValueError("Der Vergleich im Teilen-Link ist unvollständig.")
+
+    width, height = 1200, 630
+    image = Image.new("RGB", (width, height), (11, 18, 32))
+    draw = ImageDraw.Draw(image)
+    left, right = (11, 18, 32), (19, 50, 65)
+    for x in range(width):
+        ratio = x / (width - 1)
+        color = tuple(round(left[i] + (right[i] - left[i]) * ratio) for i in range(3))
+        draw.line((x, 0, x, height), fill=color)
+
+    small = _font(16)
+    medium, title_font = _font(22, True), _font(42, True)
+    draw.ellipse((65, 38, 101, 74), fill=(255, 180, 84))
+    for angle in range(0, 360, 45):
+        from math import cos, radians, sin
+        a = radians(angle)
+        x1, y1 = 83 + cos(a) * 23, 56 + sin(a) * 23
+        x2, y2 = 83 + cos(a) * 30, 56 + sin(a) * 30
+        draw.line((x1, y1, x2, y2), fill=(255, 180, 84), width=3)
+    draw.text((118, 40), "MEIN PERFEKTES KLIMA", font=medium, fill=(238, 243, 249))
+    draw.text((118, 69), "Dein Wohlfühlwetter im Direktvergleich", font=small, fill=(152, 169, 190))
+
+    labels = []
+    for place in places:
+        name = str(place.get("name") or "Ort")
+        country = str(place.get("country") or "")
+        labels.append(name if not country or country.lower() in name.lower() else f"{name}, {country}")
+    headline = f"{labels[0]}  vs.  {labels[1]}"
+    while _text_width(draw, headline, title_font) > 1050 and title_font.size > 30:
+        title_font = _font(title_font.size - 3, True)
+    if _text_width(draw, headline, title_font) > 1050:
+        divider_width = _text_width(draw, "  vs.  ", title_font)
+        name_width = (1050 - divider_width) / 2
+        labels = [_truncate_text(draw, label, title_font, name_width) for label in labels]
+        headline = f"{labels[0]}  vs.  {labels[1]}"
+    headline = _truncate_text(draw, headline, title_font, 1050)
+    draw.text((70, 112), headline, font=title_font, fill=(238, 243, 249))
+
+    values = [_report_days(item, state) for item in reports]
+    difference = values[1] - values[0]
+    if difference > 0:
+        takeaway = f"{labels[1]}: {difference} mehr passende Tage"
+    elif difference < 0:
+        takeaway = f"{labels[0]}: {abs(difference)} mehr passende Tage"
+    else:
+        takeaway = "Beide Orte liegen gleichauf"
+    unit = f"im {MONTH_NAMES[int(state['month']) - 1]}" if state["mode"] == "month" else "pro Jahr"
+    period = (reports[0].get("period") or {}).get("label") or "ERA5-Klimadaten"
+    takeaway_line = _truncate_text(draw, f"{takeaway} {unit} · {period}", small, 1050)
+    draw.text((72, 163), takeaway_line, font=small, fill=(255, 201, 121))
+
+    colors = [(255, 180, 84), (111, 214, 227)]
+    panel_boxes = [(70, 195, 565, 328), (635, 195, 1130, 328)]
+    for index, (place_label, value, box) in enumerate(zip(labels, values, panel_boxes)):
+        draw.rounded_rectangle(box, radius=20, fill=(18, 27, 45), outline=(57, 77, 102), width=2)
+        x0, y0, x1, y1 = box
+        draw.ellipse((x0 + 22, y0 + 22, x0 + 50, y0 + 50), fill=colors[index])
+        panel_name = f"{chr(65 + index)} · {place_label}"
+        panel_font = medium
+        while _text_width(draw, panel_name, panel_font) > (x1 - x0 - 82) and panel_font.size > 15:
+            panel_font = _font(panel_font.size - 1, True)
+        while _text_width(draw, panel_name, panel_font) > (x1 - x0 - 82) and len(panel_name) > 12:
+            panel_name = panel_name[:-2] + "…"
+        draw.text((x0 + 61, y0 + 20), panel_name, font=panel_font, fill=(238, 243, 249))
+        number = f"{value:,}".replace(",", ".")
+        number_font = _font(70, True)
+        while _text_width(draw, number, number_font) > 430 and number_font.size > 48:
+            number_font = _font(number_font.size - 4, True)
+        draw.text((x0 + 24, y0 + 59), number, font=number_font, fill=colors[index])
+        draw.text((x0 + 240, y0 + 90), f"passende Tage {unit}", font=small, fill=(201, 213, 227))
+
+    draw.rounded_rectangle((70, 350, 1130, 565), radius=22, fill=(18, 27, 45), outline=(57, 77, 102), width=2)
+    draw.text((98, 369), "Schöne Tage je Monat", font=medium, fill=(238, 243, 249))
+    draw.text((98, 400), "A", font=small, fill=colors[0])
+    draw.text((124, 400), "B", font=small, fill=colors[1])
+    months_a = list(reports[0].get("days_per_month") or [0] * 12)
+    months_b = list(reports[1].get("days_per_month") or [0] * 12)
+    maximum = max(1.0, *(float(v) for v in months_a[:12]), *(float(v) for v in months_b[:12]))
+    chart_left, chart_right, chart_top, chart_bottom = 195, 1090, 510, 431
+    group_width = (chart_right - chart_left) / 12
+    for i in range(12):
+        center = chart_left + (i + .5) * group_width
+        for index, vals in enumerate((months_a, months_b)):
+            raw = max(0.0, float(vals[i] if i < len(vals) else 0))
+            bar_height = max(3, raw / maximum * (chart_bottom - chart_top))
+            x0 = center + (-9 if index == 0 else 2)
+            draw.rounded_rectangle((round(x0), round(chart_bottom - bar_height), round(x0 + 8), chart_bottom),
+                                   radius=3, fill=colors[index])
+        draw.text((center, 520), ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"][i],
+                  font=small, fill=(152, 169, 190), anchor="mt")
+    draw.text((940, 580), "Quelle: ERA5 · Copernicus / ECMWF", font=small, fill=(152, 169, 190), anchor="rt")
 
     output = io.BytesIO()
     image.save(output, format="PNG", optimize=True)

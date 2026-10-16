@@ -107,6 +107,8 @@ while (Date.now() < deadline && !ready()) await new Promise((r) => setTimeout(r,
 const doc = window.document;
 console.log("\nOberfläche:");
 ok(doc.querySelectorAll("#controls .ctrl").length === 5, `5 Regler aufgebaut (${doc.querySelectorAll("#controls .ctrl").length})`);
+ok(!doc.querySelector("#weather-tweaks").open, "fortgeschrittene Wetterregler sind beim Einstieg eingeklappt");
+ok(!doc.querySelector("#map-options").open, "Kartenoptionen sind beim Einstieg eingeklappt");
 ok(doc.querySelector("#month-picker").hidden, "Monatsauswahl im Jahresmodus ausgeblendet");
 ok([...doc.querySelectorAll("[data-wq-only]")].every(n => n.hidden),
   "Winterquartier-Karten erst im Winterquartier-Modus");
@@ -129,6 +131,7 @@ ok(!/h2::before|\.card::after\s*\{\s*content:\s*""|border-right:\s*2px solid/.te
   "keine dekorativen Striche (Überschrift-Balken, Lichtkanten, Ranglisten-Striche)");
 ok(/img\.leaflet-tile\s*\{[^}]*mix-blend-mode:\s*normal[^}]*width:\s*257px/.test(css),
   "Kacheln überlappen 1 px – keine Kachelnähte bei 125 %/150 % Bildschirmskalierung");
+ok(/\.mapwrap\s*\{\s*order:\s*-1;\s*\}/.test(css), "Karte steht auf schmalen Bildschirmen vor den Filtern");
 ok(!doc.querySelector("#legend").hidden, "Legende sichtbar");
 ok(doc.querySelectorAll("#legend-ticks span").length === 6, `Legenden-Ticks (${doc.querySelectorAll("#legend-ticks span").length})`);
 const rank = [...doc.querySelectorAll("#ranking li button")].map((b) => b.textContent.trim());
@@ -162,10 +165,17 @@ const detailReady = () => { const t = doc.querySelector("#detail").textContent |
 while (Date.now() < d2 && !detailReady()) await new Promise((r) => setTimeout(r, 200));
 const detailText = doc.querySelector("#detail").textContent.replace(/\s+/g, " ");
 ok(detailText.includes("Tage"), "Detailbox zeigt Wohlfühl-Tage: " + detailText.slice(0, 90));
+ok(!detailText.includes("null"), "optionale Detailbereiche erzeugen keinen sichtbaren Null-Text");
 ok(doc.querySelectorAll("#detail .bars .bar").length === 12, "12 Monatsbalken");
 ok(!!doc.querySelector("#detail .climsvg"), "Klimadiagramm (SVG) vorhanden");
 ok(doc.querySelectorAll("#detail .facts div").length === 6 && /Tagsüber/.test(detailText) && /Frosttage/.test(detailText),
   "sechs verständliche Klimawerte: " + [...doc.querySelectorAll("#detail .facts div")].map(d => d.textContent).join(" | "));
+const explanation = doc.querySelector("#detail .result-explanation");
+ok(!!explanation && !explanation.open, "datenbasierte Erklärung bleibt zunächst dezent eingeklappt");
+explanation.open = true;
+explanation.dispatchEvent(new window.Event("toggle"));
+ok(explanation.querySelectorAll("li").length >= 3 && /gleichzeitig/.test(explanation.textContent),
+  "Erklärung nennt Profilregeln, beste Monate und Datengrenzen");
 ok(/° N/.test(detailText) || /km/.test(detailText), "Angabe zum Gitterpunkt/Entfernung");
 ok(!!doc.querySelector("#detail .share-actions button") && !!doc.querySelector("#detail .share-actions a[href*='/share/card.png']"),
   "Ergebnis lässt sich teilen und als Social-Karte speichern");
@@ -197,6 +207,34 @@ await new Promise(r => setTimeout(r, 0));
 const unicodeShare = await fetch(calls.clipboardText);
 ok(unicodeShare.status === 200 && (await unicodeShare.text()).includes(cityName),
   "Umlaute/Sonderzeichen im Ergebnis-Link werden korrekt übertragen");
+
+console.log("\nInteraktion – Zwei-Orte-Vergleich und teilbare Vorschau:");
+doc.querySelector("#detail .detail-actions button").click();
+ok(!doc.querySelector("#compare-banner").hidden
+  && doc.querySelector("#compare-banner-text").textContent.includes("1 von 2"),
+  "erster Ort wird sichtbar für den Vergleich gemerkt");
+handlers.click[0]({ latlng: { lat: 52.52, lng: 13.405 }, containerPoint: { x: 20, y: 20 } });
+const compareDeadline = Date.now() + 25_000;
+while (Date.now() < compareDeadline && !doc.querySelector("#detail .comparison-card")) {
+  await new Promise(r => setTimeout(r, 200));
+}
+ok(!!doc.querySelector("#detail .comparison-card"), "zwei Orte erhalten einen direkten Klimavergleich");
+ok(doc.querySelectorAll("#detail .comparison-place").length === 2
+  && doc.querySelectorAll("#detail .comparison-month").length === 12,
+  "Vergleich zeigt A/B-Werte und Monatsprofil");
+ok(doc.querySelector("#compare-banner-text").textContent.includes("↔"), "Kartenbanner nennt beide Vergleichsorte");
+ok(doc.querySelector("#detail .share-actions button").textContent.includes("Vergleich"),
+  "Vergleich erhält eigene Teilen-Aktion");
+doc.querySelector("#detail .share-actions button").click();
+await new Promise(r => setTimeout(r, 0));
+const comparisonPage = await fetch(calls.clipboardText);
+const comparisonHtml = await comparisonPage.text();
+ok(comparisonPage.status === 200 && /og:title/.test(comparisonHtml)
+  && /vs\./.test(comparisonHtml), "Vergleichslink enthält eine eigene Social-Media-Überschrift");
+const comparisonCardUrl = calls.clipboardText.replace("/share?", "/share/card.png?");
+const comparisonCard = await fetch(comparisonCardUrl);
+ok(comparisonCard.status === 200 && comparisonCard.headers.get("content-type").includes("image/png"),
+  "Vergleichslink liefert eine eigene teilbare PNG-Karte");
 
 console.log("\nInteraktion – Ortssuche:");
 const search = doc.querySelector("#city-search");

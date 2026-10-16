@@ -156,8 +156,11 @@
     <section class="card">
       <h2 id="feel-title">Dein Wohlfühlwetter</h2>
       <div class="presets" id="presets" aria-label="Schnellauswahl"></div>
-      <div id="controls"></div>
-      <p class="hint" id="feel-hint">Ein Tag zählt nur, wenn alles zusammen passt.</p>
+      <details class="weather-tweaks" id="weather-tweaks">
+        <summary>Wetter genauer einstellen</summary>
+        <div id="controls"></div>
+      </details>
+      <p class="hint" id="feel-hint">Ein Tag zählt nur, wenn Temperatur, Schwüle, Sonne und Regen gleichzeitig passen.</p>
     </section>
 
     <section class="card" id="rank-card">
@@ -166,17 +169,22 @@
     </section>
 
     <section class="card settings">
-      <label class="switch"><input type="checkbox" id="show-cities" checked><span>Klimapunkte der Städte</span></label>
-      <label class="switch"><input type="checkbox" id="fixed-scale"><span>Feste Farbskala</span></label>
-      <div class="map-opacity">
-        <label for="climate-opacity">Deckkraft Klimafarben <output id="climate-opacity-value" for="climate-opacity">55 %</output></label>
-        <input id="climate-opacity" type="range" min="0" max="90" step="5" value="55" aria-describedby="climate-opacity-hint">
-        <p class="hint" id="climate-opacity-hint">Weniger Farbe für mehr Kartendetails. Zusätzliche Ortsnamen lassen sich im Karten-Ebenenmenü schalten.</p>
-      </div>
-      <div class="buttons">
-        <button class="ghost" id="btn-reset" type="button">Zurücksetzen</button>
-        <button class="ghost" id="btn-link" type="button">Link kopieren</button>
-      </div>
+      <details id="map-options">
+        <summary>Kartenoptionen</summary>
+        <div class="map-options-body">
+          <label class="switch"><input type="checkbox" id="show-cities" checked><span>Klimapunkte der Städte</span></label>
+          <label class="switch"><input type="checkbox" id="fixed-scale"><span>Feste Farbskala</span></label>
+          <div class="map-opacity">
+            <label for="climate-opacity">Deckkraft Klimafarben <output id="climate-opacity-value" for="climate-opacity">55 %</output></label>
+            <input id="climate-opacity" type="range" min="0" max="90" step="5" value="55" aria-describedby="climate-opacity-hint">
+            <p class="hint" id="climate-opacity-hint">Weniger Farbe für mehr Kartendetails. Zusätzliche Ortsnamen lassen sich im Karten-Ebenenmenü schalten.</p>
+          </div>
+          <div class="buttons">
+            <button class="ghost" id="btn-reset" type="button">Zurücksetzen</button>
+            <button class="ghost" id="btn-link" type="button">Link kopieren</button>
+          </div>
+        </div>
+      </details>
     </section>
 
     <section class="card sponsor-slot" id="sponsor-slot" aria-label="Werbung" hidden></section>
@@ -192,10 +200,16 @@
       <div class="suggest results" id="search-results" role="listbox" aria-label="Suchtreffer" hidden></div>
     </div>
 
+    <div class="compare-banner" id="compare-banner" role="status" aria-live="polite" hidden>
+      <span id="compare-banner-text"></span>
+      <button class="compare-banner-action" id="compare-banner-action" type="button">Abbrechen</button>
+    </div>
+
     <div class="legend" id="legend" hidden>
       <div class="legend-title" id="legend-title">Tage</div>
       <div class="legend-bar" id="legend-bar"></div>
       <div class="legend-ticks" id="legend-ticks"></div>
+      <div class="legend-note" id="legend-resolution">Klimaraster: grob 25–85 km je nach Lage</div>
     </div>
 
     <div class="card detail" id="detail" hidden></div>
@@ -277,7 +291,7 @@
       <ul>
         <li>Quelle: <span id="about-source">ERA5-Reanalyse (Copernicus/ECMWF)</span> – ein Wettermodell,
           keine einzelne Messstation. In Bergen und an Küsten kann es um ein paar Grad abweichen.</li>
-        <li>Ein Rasterpunkt steht für ein Gebiet von etwa 50–80 km (<span id="about-grid">0,75°</span>).
+        <li>Ein Rasterpunkt steht für ein Gebiet von grob 25–85 km je nach Lage (<span id="about-grid">0,75°</span>).
           „Pro Jahr“ heißt: Mittel über <span id="about-years">10</span> Jahre.</li>
         <li>2030 und 2050 sind Modellrechnungen, keine Messwerte (siehe „Welches Klima?“).</li>
       </ul>

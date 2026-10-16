@@ -26,6 +26,9 @@ EVENTS = (
     "share_click",      # nativer Teilen-Dialog oder Teilen-Menü benutzt
     "share_copy",       # Ergebnis-Link kopiert
     "share_target",     # Klick auf einen konkreten Netzwerk-Link
+    "compare_start",    # bewusster Start eines Zwei-Orte-Vergleichs
+    "compare_complete", # zweiter Ort ausgewählt und Werte berechnet
+    "explanation_open", # deterministische Ergebnis-Erklärung geöffnet
     "affiliate_click",  # Partner-/Unterkunftslink geöffnet
     "ad_click",         # selbst konfigurierter Sponsorplatz geklickt
     "badge_copy",       # Einbettungs-Code kopiert

@@ -47,11 +47,35 @@ def test_share_page_has_dynamic_social_metadata_and_png_preview() -> None:
         assert image.size == (1200, 630)
 
 
+def test_comparison_share_has_dynamic_social_metadata_and_png_preview() -> None:
+    token = _share_token(compare=[
+        {"lat": 52.52, "lon": 13.405, "name": "Berlin", "country": "Deutschland"},
+        {"lat": 37.389, "lon": -5.984, "name": "Sevilla", "country": "Spanien"},
+    ])
+    with TestClient(app) as client:
+        page = client.get("/share", params={"state": token})
+        assert page.status_code == 200
+        assert "Berlin vs. Sevilla" in page.text
+        assert 'property="og:image"' in page.text
+
+        card = client.get("/share/card.png", params={"state": token})
+        assert card.status_code == 200
+        image = Image.open(BytesIO(card.content))
+        assert image.size == (1200, 630)
+
+
 def test_share_rejects_malformed_or_invalid_filters() -> None:
     with TestClient(app) as client:
         assert client.get("/share", params={"state": "not-a-token"}).status_code == 400
         bad = _share_token(params={"tmax_min": 90})
         assert client.get("/share/card.png", params={"state": bad}).status_code == 400
+        malformed_comparison = _share_token(compare=[{"lat": 52.52, "lon": 13.405}])
+        assert client.get("/share", params={"state": malformed_comparison}).status_code == 400
+        identical_places = _share_token(compare=[
+            {"lat": 52.52, "lon": 13.405, "name": "Berlin"},
+            {"lat": 52.5201, "lon": 13.4051, "name": "Berlin"},
+        ])
+        assert client.get("/share", params={"state": identical_places}).status_code == 400
 
 
 def test_pageviews_are_aggregated_and_private(tmp_path: Path, monkeypatch) -> None:
@@ -82,12 +106,18 @@ def test_pageviews_are_aggregated_and_private(tmp_path: Path, monkeypatch) -> No
         # Funnel events: only allow-listed names count, nothing free-form.
         assert client.post("/api/analytics/event", params={"name": "share_click"}).status_code == 204
         assert client.post("/api/analytics/event", params={"name": "affiliate_click"}).status_code == 204
+        assert client.post("/api/analytics/event", params={"name": "compare_start"}).status_code == 204
+        assert client.post("/api/analytics/event", params={"name": "compare_complete"}).status_code == 204
+        assert client.post("/api/analytics/event", params={"name": "explanation_open"}).status_code == 204
         assert client.post("/api/analytics/event",
                            params={"name": "wohnort_malaga"}).status_code == 204
         funnel = client.get("/api/analytics/summary?days=7",
                             headers={"Authorization": "Bearer test-only-secret"}).json()
         assert funnel["events"]["share_click"] == 1
         assert funnel["events"]["affiliate_click"] == 1
-        assert funnel["events_total"] == 2
+        assert funnel["events"]["compare_start"] == 1
+        assert funnel["events"]["compare_complete"] == 1
+        assert funnel["events"]["explanation_open"] == 1
+        assert funnel["events_total"] == 5
         assert "wohnort_malaga" not in json.dumps(funnel)
         assert funnel["total"] == 3  # page views stay page views
