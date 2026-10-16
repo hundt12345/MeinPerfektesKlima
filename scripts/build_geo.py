@@ -7,7 +7,8 @@
 Eingaben (siehe scripts/download_sources.sh und scripts/build_countries.mjs):
   data/raw/countries-world.geojson    (aus world-atlas / Natural Earth 1:10m)
   data/raw/borders-world.geojson      (Landgrenzen, topojson.mesh)
-  data/raw/geonames_cities15000.csv   (GeoNames cities15000)
+  data/raw/geonames_cities15000.csv   (GeoNames cities15000, optional mit
+                                       ``dem``/``elevation`` -> ``elev_m``)
 
 Aufruf:  python scripts/build_geo.py
 
@@ -192,7 +193,8 @@ def _country_shapes() -> tuple[list, list[str]]:
     return geoms, names
 
 
-def _city_record(name: str, country: str, lat: float, lon: float, pop: int) -> dict:
+def _city_record(name: str, country: str, lat: float, lon: float, pop: int,
+                 elev_m: int | None = None) -> dict:
     display = GERMAN_NAMES.get(name, name)
     aliases = [a for a in dict.fromkeys(EXTRA_ALIASES.get(name, [])) if a not in (display, name)]
     record = {
@@ -204,6 +206,9 @@ def _city_record(name: str, country: str, lat: float, lon: float, pop: int) -> d
         "pop": pop,
         "aliases": aliases,
     }
+    if elev_m is not None:
+        # Ortshöhe (GeoNames-DEM): Grundlage der Höhenkorrektur in app/elevation.py.
+        record["elev_m"] = int(elev_m)
     if display != name:
         record["name_local"] = name
     record["search"] = search_key(record)
@@ -245,22 +250,31 @@ def build_cities(min_pop: int = 25000) -> None:
             name = (row["name"] or "").strip()
             if not name:
                 continue
-            rows.append((name, lat, lon, pop))
+            elev = None
+            raw_elev = (row.get("dem") or row.get("elevation") or "").strip()
+            if raw_elev:
+                try:
+                    value = float(raw_elev)
+                    if value > -9999:
+                        elev = int(round(value))
+                except ValueError:
+                    elev = None
+            rows.append((name, lat, lon, pop, elev))
 
     cities, smaller = [], {}
-    for name, lat, lon, pop in rows:
+    for name, lat, lon, pop, elev in rows:
         country = country_of(lat, lon)
         if country is None:
             continue
         if pop >= min_pop:
-            cities.append(_city_record(name, country, lat, lon, pop))
+            cities.append(_city_record(name, country, lat, lon, pop, elev))
         elif pop > smaller.get(country, (None, -1))[1]:
-            smaller[country] = (name, pop, lat, lon)
+            smaller[country] = (name, pop, lat, lon, elev)
     # Kleine Länder ohne Stadt ≥ min_pop (Malta, Andorra, …) behalten ihren größten Ort.
     present = {c["country"] for c in cities}
-    for country, (name, pop, lat, lon) in sorted(smaller.items()):
+    for country, (name, pop, lat, lon, elev) in sorted(smaller.items()):
         if country not in present:
-            cities.append(_city_record(name, country, lat, lon, pop))
+            cities.append(_city_record(name, country, lat, lon, pop, elev))
 
     # Duplikate entfernen: gleicher Name sehr nah beieinander, oder ein Stadtteil
     # mit exakt derselben Einwohnerzahl wie die Stadt („City of London“).

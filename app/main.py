@@ -535,6 +535,10 @@ def api_meta():
             "generated_at": cd.meta.get("generated_at"),
             "bbox": cd.bbox,
             "model": cd.meta.get("model"),
+            # Stadtwerte werden höhenkorrigiert, die Kartenfläche nicht.
+            "city_elevation_adjusted": cd.city_elevation_adjusted,
+            "elevation_source": cd.elevation_meta.get("source"),
+            "elevation_method": cd.elevation_meta.get("method"),
         },
         # Ehrliche Kennzeichnung der Datenbasis – die Oberfläche zeigt daraus
         # einen Hinweis, wenn keine echten ERA5-Werte vorliegen.
@@ -605,7 +609,7 @@ def api_ranking(f: Filter = Depends(parse_filter), limit: int = 12):
         "unit_label": f.unit_label(),
         "view_kind": f.kind,
         "period": f.period,
-        "cities": cd.ranking_counts(f.counts(cd), max(1, min(40, limit))),
+        "cities": cd.ranking_city_counts(f.city_counts(cd), max(1, min(40, limit))),
     }
 
 
@@ -614,7 +618,7 @@ def api_cities_map(f: Filter = Depends(parse_filter), limit: int = 400):
     """Größte Orte mit ihrer Tageszahl – für anklickbare Kartenmarker."""
     cd = ready_dataset()
     return {"month": f.single_month(), "view_kind": f.kind, "period": f.period,
-            "cities": cd.cities_for_map_counts(f.counts(cd), max(20, min(1200, limit)))}
+            "cities": cd.cities_for_map_city_counts(f.city_counts(cd), max(20, min(1200, limit)))}
 
 
 @app.get("/api/winterquarters/combination")
@@ -755,8 +759,10 @@ def api_cities_climate(period: str = Query("all", description="all | recent5 | 2
     """Jahres-Klimakenngrößen für alle Städte (unabhängig vom Kartenfilter).
 
     Die Stadtkoordinaten werden dem jeweils nächsten ERA5-Rasterpunkt
-    zugeordnet. Tageszahlen sind Mittelwerte pro Jahr über den gewählten
-    Zeitraum; Grenzwerte stehen explizit in ``indicators``.
+    zugeordnet; seine Temperaturen werden auf die Höhe der Stadt korrigiert
+    (siehe ``city_method`` und die ``elevation``-Angabe je Stadt). Tageszahlen
+    sind Mittelwerte pro Jahr über den gewählten Zeitraum; Grenzwerte stehen
+    explizit in ``indicators``.
     """
     period_id = parse_period_id(period)
     cd = ready_dataset()
@@ -766,7 +772,7 @@ def api_cities_climate(period: str = Query("all", description="all | recent5 | 2
             "period": selected_period,
             "grid_step_deg": cd.meta.get("grid_step_deg"),
             "city_count": len(cd.cities),
-            "city_method": "nearest_grid_point_regional_delta" if cd.is_projection(period_id) else "nearest_grid_point",
+            "city_method": cd.city_method(period_id),
             "indicators": {
                 key: {"label": label, "threshold": threshold, "unit": "Tage/Jahr"}
                 for key, label, threshold in CITY_DAY_INDICATORS

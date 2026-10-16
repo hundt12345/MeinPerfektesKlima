@@ -29,7 +29,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from app.climate import SCALES, ClimateData, Params  # noqa: E402
+from app.climate import SCALES, UNIT_FACTORS, ClimateData, Params  # noqa: E402
 
 # Referenz: Klimanormalwerte ~1991–2020 (Stationsmittel, gerundet).
 # name: (lat, lon, tmaxJan, tmaxJul, tminJan, tminJul, SonneJan h/Tag, SonneJul h/Tag, mm/Jahr)
@@ -64,10 +64,24 @@ TOL_T = 4.5          # K, Monatsmittel
 TOL_SUN = 2.5        # h/Tag
 TOL_PREC = 0.45      # relativer Fehler Jahresniederschlag
 
+# Alpen-Talorte: genau die Fälle, die mit reinen Rasterwerten sichtbar falsch
+# werden (Meran zeigte 31 Wohlfühl-Tage im Juli bei Höchstwert ≤ 25 °C, weil
+# die zugeordnete Zelle im Mittel auf ~2.000 m liegt, der Ort aber auf 310 m).
+# Geprüft werden die *höhenkorrigierten Stadtwerte* gegen Stationsnormalwerte.
+# name: (lat, lon, Ortshöhe m, tminJan, tmaxJan, tminJul, tmaxJul, Quelle)
+ALPINE_REFERENCE = {
+    "Meran":     (46.6682, 11.1595, 310, -3.1, 6.8, 15.1, 30.0,
+                  "Landeswetterdienst Südtirol, Station Gratsch (Meran), 2001–2020"),
+    "Innsbruck": (47.2627, 11.3945, 587, -4.5, 3.9, 13.1, 24.7,
+                  "Klimanormalwerte 1991–2020"),
+}
+ALPINE_TOL_T = 3.5   # K, Monatsmittel nach Höhenkorrektur (Stationsperiode weicht ab)
+
 warnungen: list[str] = []
 fehler: list[str] = []
 checks: list[dict] = []
 tabelle: list[dict] = []
+alpen_tabelle: list[dict] = []
 
 
 def pruefe(name: str, bedingung: bool, detail: str = "", schwer: bool = False) -> None:
@@ -90,6 +104,16 @@ def monat(cd: ClimateData, idx: int, mon: int):
     out["sun"] = float(sun.mean())
     prec = cd.raw["prec"][idx][sel].astype(np.float64) / SCALES["prec"]
     out["prec"] = float(prec.sum() / cd.years)
+    return out
+
+
+def stadt_monat(cd: ClimateData, city_idx: int, mon: int):
+    """Monatsmittel einer Stadt nach Höhenkorrektur (wie in der Detailkarte)."""
+    sel = cd.day_month == mon
+    out = {}
+    for name in ("tmax", "tmin", "tdew", "sun"):
+        v = cd._city_raw_adjusted(name, slice(None), "all", [city_idx])[0].astype(np.float64)
+        out[name] = float((v * UNIT_FACTORS[name])[sel].mean())
     return out
 
 
@@ -204,6 +228,41 @@ def main() -> int:
     pruefe("Jahresniederschlag im Rahmen der Normalwerte", prec_fail_n <= len(REFERENCE) // 2,
            f"{prec_fail_n}/{len(REFERENCE)} Städte außerhalb ±{int(TOL_PREC*100)} %")
 
+    print("\nAlpen-Talorte (Stationswerte gegen höhenkorrigierte Stadtwerte):")
+    pruefe("Höhendaten für die Stadt-Korrektur vorhanden", cd.city_elevation_adjusted,
+           "grid_elevation.npz + elev_m in cities.json", schwer=True)
+    alpen_dev: list[float] = []
+    alpen_fail = 0
+    alpen_n = 0
+    for name, (la, lo, elev, nj_min, nj_max, nJ_min, nJ_max, quelle) in ALPINE_REFERENCE.items():
+        city_idx = cd._city_index_at(la, lo, max_km=5.0)
+        if city_idx is None:
+            pruefe(f"Alpen-Referenzort {name} in der Städteliste", False,
+                   "nicht gefunden", schwer=True)
+            continue
+        jan, jul = stadt_monat(cd, city_idx, 0), stadt_monat(cd, city_idx, 6)
+        rows = [("tmaxJan", jan["tmax"], nj_max), ("tminJan", jan["tmin"], nj_min),
+                ("tmaxJul", jul["tmax"], nJ_max), ("tminJul", jul["tmin"], nJ_min)]
+        alpen_dev += [abs(g - r) for _, g, r in rows]
+        alpen_fail += sum(abs(g - r) > ALPINE_TOL_T for _, g, r in rows)
+        alpen_n += len(rows)
+        adjustment = cd.city_adjustment(city_idx) or {}
+        alpen_tabelle.append({
+            "ort": name, "elev_m": elev,
+            "grid_elev_m": adjustment.get("grid_elev_m"),
+            "tmax_jan": round(jan["tmax"], 1), "ref_tmax_jan": nj_max,
+            "tmin_jan": round(jan["tmin"], 1), "ref_tmin_jan": nj_min,
+            "tmax_jul": round(jul["tmax"], 1), "ref_tmax_jul": nJ_max,
+            "tmin_jul": round(jul["tmin"], 1), "ref_tmin_jul": nJ_min,
+            "quelle": quelle,
+        })
+        print(f"  {name:11s} Ort {elev} m, Zelle {adjustment.get('grid_elev_m')} m · "
+              f"Jan {jan['tmax']:5.1f}/{nj_max:<5} Jul {jul['tmax']:5.1f}/{nJ_max:<5} "
+              f"(korrigiert, Quelle: {quelle})")
+    pruefe(f"Alpen-Talorte nach Höhenkorrektur ≤ {ALPINE_TOL_T} K daneben",
+           alpen_n > 0 and alpen_fail == 0,
+           f"{alpen_fail}/{alpen_n} Werte außerhalb ±{ALPINE_TOL_T} K", schwer=True)
+
     print("\nJahresgang (verkehrte Jahreszeiten?):")
     sued = [cd.point_index(REFERENCE[k][0], REFERENCE[k][1]) for k in
             ("Madrid", "Sevilla", "Athen", "Rom", "Palermo", "Lissabon")]
@@ -256,10 +315,13 @@ def main() -> int:
                     "grid_step_deg": cd.meta.get("grid_step_deg")},
         "coverage": round(float(cov), 6),
         "mean_temp_deviation_k": round(mean_dev, 2),
+        "alpine_mean_temp_deviation_k": (round(float(np.mean(alpen_dev)), 2)
+                                         if alpen_dev else None),
         "checks": checks,
         "warnings": warnungen,
         "errors": fehler,
         "referenz": tabelle,
+        "alpen_referenz": alpen_tabelle,
     }
     out = data_dir / "quality_report.json"
     out.write_text(json.dumps(report, indent=2, ensure_ascii=False))

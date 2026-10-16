@@ -99,7 +99,7 @@ def test_cities_climate_returns_complete_city_table(client: TestClient) -> None:
     assert data["period"]["start_date"]
     assert data["period"]["end_date"]
     assert data["period"]["years"] > 0
-    assert data["city_method"] == "nearest_grid_point"
+    assert data["city_method"].startswith("nearest_grid_point")
     assert data["city_count"] == len(data["cities"])
     assert data["city_count"] == len(json.loads((DATA_DIR / "cities.json").read_text()))
 

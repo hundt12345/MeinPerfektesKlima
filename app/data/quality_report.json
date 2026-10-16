@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "checked_at": "2026-10-12T15:34:50+00:00",
+  "checked_at": "2026-10-16T08:16:58+00:00",
   "model": "era5",
   "dataset": {
     "generated_at": "2026-10-12T15:04:48Z",
@@ -12,6 +12,7 @@
   },
   "coverage": 1.0,
   "mean_temp_deviation_k": 0.99,
+  "alpine_mean_temp_deviation_k": 1.21,
   "checks": [
     {
       "name": "Zeitreihe deckt den angegebenen Zeitraum ab",
@@ -114,6 +115,18 @@
       "ok": true,
       "detail": "2/22 Städte außerhalb ±45 %",
       "schwer": false
+    },
+    {
+      "name": "Höhendaten für die Stadt-Korrektur vorhanden",
+      "ok": true,
+      "detail": "grid_elevation.npz + elev_m in cities.json",
+      "schwer": true
+    },
+    {
+      "name": "Alpen-Talorte nach Höhenkorrektur ≤ 3.5 K daneben",
+      "ok": true,
+      "detail": "0/8 Werte außerhalb ±3.5 K",
+      "schwer": true
     },
     {
       "name": "Südeuropa: Juli deutlich wärmer als Januar",
@@ -534,6 +547,36 @@
       "ref_sonne_jul": 9.0,
       "niederschlag_jahr": 702,
       "ref_niederschlag_jahr": 700
+    }
+  ],
+  "alpen_referenz": [
+    {
+      "ort": "Meran",
+      "elev_m": 310,
+      "grid_elev_m": 1996,
+      "tmax_jan": 6.5,
+      "ref_tmax_jan": 6.8,
+      "tmin_jan": -4.1,
+      "ref_tmin_jan": -3.1,
+      "tmax_jul": 27.0,
+      "ref_tmax_jul": 30.0,
+      "tmin_jul": 15.2,
+      "ref_tmin_jul": 15.1,
+      "quelle": "Landeswetterdienst Südtirol, Station Gratsch (Meran), 2001–2020"
+    },
+    {
+      "ort": "Innsbruck",
+      "elev_m": 587,
+      "grid_elev_m": 1339,
+      "tmax_jan": 6.0,
+      "ref_tmax_jan": 3.9,
+      "tmin_jan": -3.1,
+      "ref_tmin_jan": -4.5,
+      "tmax_jul": 25.0,
+      "ref_tmax_jul": 24.7,
+      "tmin_jul": 14.5,
+      "ref_tmin_jul": 13.1,
+      "quelle": "Klimanormalwerte 1991–2020"
     }
   ]
 }

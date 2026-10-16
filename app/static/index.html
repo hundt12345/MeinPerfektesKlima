@@ -232,7 +232,8 @@
     <div class="city-data-body">
       <p class="city-data-intro">
         <span id="city-data-method">Klimamittel für den oben gewählten Zeitraum.</span>
-        Tage sind Durchschnittswerte pro Jahr. Jede Stadt bekommt die Werte des nächsten Rasterpunkts.
+        Tage sind Durchschnittswerte pro Jahr. Jede Stadt bekommt die Werte des nächsten Rasterpunkts,
+        seine Temperaturen auf die Höhe der Stadt korrigiert.
       </p>
       <div class="city-data-tools" id="city-data-tools" hidden>
         <label class="city-data-search" for="city-climate-search">
@@ -293,6 +294,8 @@
           keine einzelne Messstation. In Bergen und an Küsten kann es um ein paar Grad abweichen.</li>
         <li>Ein Rasterpunkt steht für ein Gebiet von grob 25–85 km je nach Lage (<span id="about-grid">0,75°</span>).
           „Pro Jahr“ heißt: Mittel über <span id="about-years">10</span> Jahre.</li>
+        <li>Stadtwerte sind auf die Höhe des Ortes korrigiert – ein Talort bekommt nicht das Klima
+          der umliegenden Berge. Die Kartenfläche selbst bleibt ein Rasterwert.</li>
         <li>2030 und 2050 sind Modellrechnungen, keine Messwerte (siehe „Welches Klima?“).</li>
       </ul>
       <p id="about-quality"></p>
