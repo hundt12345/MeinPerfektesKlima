@@ -150,6 +150,7 @@ class Entry:
     lon: float
     pop: int
     point: int
+    city_index: int = -1
 
     @property
     def label(self) -> str:
@@ -166,22 +167,23 @@ class DatasetView:
     _counts: dict[str, np.ndarray]
 
     def counts(self, key: str) -> np.ndarray:
+        """Tageszahlen **je Stadt** (höhenkorrigiert), indiziert wie ``cd.cities``."""
         if key in self._counts:
             return self._counts[key]
         cd = self.cd
         array = {
-            "mild": lambda: cd.counts(PROFILE_MILD, None, "all"),
-            "future": lambda: cd.counts(PROFILE_MILD, None, FUTURE_PERIOD),
-            "winter": lambda: cd.counts(PROFILE_WINTER, WINTER_MONTHS, "all"),
-            "winter_warm": lambda: cd.counts(PROFILE_WINTER_WARM, WINTER_MONTHS, "all"),
-            "summer": lambda: cd.counts(PROFILE_SUMMER, SUMMER_DRY_MONTHS, "all"),
-            "summer_mild": lambda: cd.counts(PROFILE_SUMMER_MILD, SUMMER_MONTHS, "all"),
+            "mild": lambda: cd.city_counts(PROFILE_MILD, None, "all"),
+            "future": lambda: cd.city_counts(PROFILE_MILD, None, FUTURE_PERIOD),
+            "winter": lambda: cd.city_counts(PROFILE_WINTER, WINTER_MONTHS, "all"),
+            "winter_warm": lambda: cd.city_counts(PROFILE_WINTER_WARM, WINTER_MONTHS, "all"),
+            "summer": lambda: cd.city_counts(PROFILE_SUMMER, SUMMER_DRY_MONTHS, "all"),
+            "summer_mild": lambda: cd.city_counts(PROFILE_SUMMER_MILD, SUMMER_MONTHS, "all"),
         }[key]()
         self._counts[key] = array
         return array
 
     def days(self, entry: Entry, key: str) -> float:
-        return round(float(self.counts(key)[entry.point]), 1)
+        return round(float(self.counts(key)[entry.city_index]), 1)
 
     def by_name(self, name: str) -> Entry | None:
         wanted = fold(name)
@@ -207,8 +209,8 @@ def view_for(cd: ClimateData) -> DatasetView:
         return cached
     entries = _build_entries(cd)
     by_slug = {entry.slug: entry for entry in entries}
-    mild = cd.counts(PROFILE_MILD, None, "all")
-    order = sorted(entries, key=lambda entry: -float(mild[entry.point]))
+    mild = cd.city_counts(PROFILE_MILD, None, "all")
+    order = sorted(entries, key=lambda entry: -float(mild[entry.city_index]))
     ranking = {entry.slug: index + 1 for index, entry in enumerate(order)}
     view = DatasetView(signature=signature, cd=cd, entries=entries, by_slug=by_slug,
                        ranking=ranking, _counts={"mild": mild})
@@ -244,11 +246,11 @@ def ranked_places(view: "DatasetView", counts_key: str, limit: int, *,
     counts = view.counts(counts_key)
     allowed = set(countries)
     pool = [item for item in view.entries if not allowed or item.country_en in allowed]
-    ordered = sorted(pool, key=lambda item: (-float(counts[item.point]), -item.pop))
+    ordered = sorted(pool, key=lambda item: (-float(counts[item.city_index]), -item.pop))
     out: list[dict[str, Any]] = []
     seen: set[float] = set()
     for entry in ordered:
-        value = round(float(counts[entry.point]), 1)
+        value = round(float(counts[entry.city_index]), 1)
         if distinct and value in seen:
             continue
         seen.add(value)
@@ -265,6 +267,7 @@ def _distance_km(a: Entry, b: Entry) -> float:
 
 def _build_entries(cd: ClimateData) -> list[Entry]:
     bbox = cd.bbox or {}
+    city_index_by_id = {id(city): index for index, city in enumerate(cd.cities)}
     inside = [
         city for city in cd.cities
         if bbox.get("lat_min", -90) <= city["lat"] <= bbox.get("lat_max", 90)
@@ -300,6 +303,7 @@ def _build_entries(cd: ClimateData) -> list[Entry]:
             slug=slug, name=city["name"], country=city.get("name_de") or city.get("country") or "",
             country_en=city.get("country") or "", lat=float(city["lat"]), lon=float(city["lon"]),
             pop=int(city.get("pop", 0)), point=cd.point_index(float(city["lat"]), float(city["lon"])),
+            city_index=city_index_by_id.get(id(city), -1),
         ))
     return sorted(entries, key=lambda entry: fold(entry.name))
 
@@ -589,11 +593,12 @@ def render_city(view: DatasetView, origin: str, context: Mapping[str, Any]) -> s
     lead = (
         f"<p><strong>{e(entry.name)}</strong> ({e(entry.country)}) erreicht bei diesem Wohlfühlwetter "
         f"im Mittel <strong>{de(days)} Tage pro Jahr</strong>. Das ist mehr als an "
-        f"{de(context['percentile'])} % der rund {de(cd.n_points)} Rasterpunkte in Europa"
+        f"{de(context['percentile'])} % der {de(len(cd.cities))} verglichenen Städte in Europa"
         + (f" und Platz {de(context['rank'])} von {de(context['total'])} Ortsprofilen."
            if context.get("rank") else ".")
         + f" Grundlage sind die täglichen ERA5-Werte der Jahre {e(data_years)}, ausgewertet auf "
-          f"einem 0,75°-Raster (rund 50–80 km).</p>"
+          f"einem 0,75°-Raster (rund 50–80 km); die Temperaturen sind auf die Höhe des "
+          f"Ortes umgerechnet.</p>"
     )
 
     criteria = (
@@ -700,7 +705,7 @@ def render_city(view: DatasetView, origin: str, context: Mapping[str, Any]) -> s
         (f"Wie viele Wohlfühltage hat {entry.name} im Jahr?",
          f"Bei den Kriterien {_plain(PROFILE_MILD_TEXT)} werden in {entry.name} im Mittel "
          f"{de(days)} von rund 365 Tagen erfüllt. Das entspricht dem {de(context['percentile'])}. "
-         f"Perzentil der Rasterpunkte in Europa (Basis: {_plain(data_years)}, ERA5)."),
+         f"Perzentil der verglichenen Städte in Europa (Basis: {_plain(data_years)}, ERA5)."),
         (f"Wann ist die beste Zeit für {entry.name}?",
          f"Die meisten passenden Tage liegen im {best[0]} ({de(best_values[0], 1)}), "
          f"im {best[1]} ({de(best_values[1], 1)}) und im {best[2]} ({de(best_values[2], 1)}). "
@@ -715,7 +720,8 @@ def render_city(view: DatasetView, origin: str, context: Mapping[str, Any]) -> s
         (f"Wie genau sind die Zahlen für {entry.name}?",
          f"Grundlage sind tägliche ERA5-Reanalysewerte von {_plain(data_years)} auf einem "
          f"0,75°-Raster (rund 50–80 km). Der nächste Rasterpunkt liegt "
-         f"{de(report.get('grid_distance_km', 0))} km von den Stadtkoordinaten entfernt. ERA5 ist "
+         f"{de(report.get('grid_distance_km', 0))} km von den Stadtkoordinaten entfernt; seine "
+         f"Temperaturen sind auf die Höhe des Ortes umgerechnet. ERA5 ist "
          f"ein Modell, kein Stationsmesswert – in Bergen und an Küsten sind Abweichungen möglich."),
     ]
     if context.get("future_days") is not None:
@@ -1075,7 +1081,9 @@ def feed_xml(view: DatasetView, origin: str) -> str:
     now = datetime.now(timezone.utc)
     build = now.strftime("%a, %d %b %Y %H:%M:%S +0000")
     month = now.month - 1
-    ranking = view.cd.ranking_counts(view.cd.counts(PROFILE_MILD, month, "all"), 10)
+    # Großzügig ziehen: Nicht jeder Top-Ort hat ein Ortsprofil (Einwohnerschwelle);
+    # übersprungen wird trotzdem, aber der Feed soll nicht leer laufen.
+    ranking = view.cd.ranking_city_counts(view.cd.city_counts(PROFILE_MILD, month, "all"), 40)
     by_name = {entry.name: entry.slug for entry in view.entries}
 
     def item(title: str, link: str, description: str) -> str:
@@ -1105,6 +1113,7 @@ def feed_xml(view: DatasetView, origin: str) -> str:
              f"{de(len(view.entries))} Ortsprofile mit Wohlfühltagen, Monatsklima, "
              "Wintereignung und Blick auf 2050."),
     ]
+    added = 0
     for row in ranking:
         slug = by_name.get(row["name"])
         if not slug:
@@ -1115,6 +1124,9 @@ def feed_xml(view: DatasetView, origin: str) -> str:
             f"Wohlfühltage im {month_label} in {row['name']} ({row['country']}) bei "
             f"{PROFILE_MILD_TEXT}: {de(row['days'], 1)} von rund "
             f"{de(365.25 / 12, 1)} möglichen Tagen."))
+        added += 1
+        if added >= 6:
+            break
     return ('<?xml version="1.0" encoding="UTF-8"?>\n'
             '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel>'
             f"<title>{e(SITE_NAME)} – Aktualisierungen</title>"

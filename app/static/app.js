@@ -1211,7 +1211,15 @@ function resultExplanation(report) {
   if (bestMonth !== null && worstMonth !== null) {
     lines.push(`Am häufigsten passt dein Profil im ${monthNames[bestMonth]} (${fmtDays(months[bestMonth])} Tage im Mittel), am seltensten im ${monthNames[worstMonth]} (${fmtDays(months[worstMonth])}).`);
   }
-  if (report.percentile != null) lines.push(`Dieser Rasterpunkt liegt über ${num(report.percentile, 0)} % der untersuchten Orte.`);
+  if (report.percentile != null) {
+    lines.push(report.percentile_basis === "cities"
+      ? `Dieser Ort liegt über ${num(report.percentile, 0)} % der verglichenen Städte.`
+      : `Dieser Rasterpunkt liegt über ${num(report.percentile, 0)} % der untersuchten Rasterpunkte.`);
+  }
+  if (report.elevation) {
+    const elev = report.elevation;
+    lines.push(`Höhenkorrektur: Die Stadt liegt auf ${num(elev.city_elev_m, 0)} m, die zugeordnete Rasterzelle im Mittel auf ${num(elev.grid_elev_m, 0)} m. Deshalb wurden die Temperaturen um ${num(elev.tmax_shift_c, 1)} °C (tagsüber) bzw. ${num(elev.tmin_shift_c, 1)} °C (nachts) angepasst – ohne diese Korrektur bekämen Talorte im Gebirge die Werte der umliegenden Berge.`);
+  }
   const period = report.period?.label || currentPeriodLabel();
   lines.push(`Die Zahl ist ein Klimamittel für ${period}; das 0,75°-Raster bildet keine Straßen- oder Stadtteilunterschiede ab (grob 25–85 km, je nach Lage).`);
   if (report.period?.projection) lines.push("2030/2050 ist eine modellbasierte Näherung, keine Wettervorhersage.");
@@ -1647,7 +1655,7 @@ async function loadRanking() {
       host.append(el("li", {},
         el("button", {
           type: "button",
-          title: `${c.name}: ${fmtDays(c.days)} ${monthUnit()} (Rasterpunkt ${c.dist_km} km entfernt)`,
+          title: `${c.name}: ${fmtDays(c.days)} ${monthUnit()} (Rasterpunkt ${c.dist_km} km entfernt${c.elevation ? `, auf ${c.elevation.city_elev_m} m Ortshöhe korrigiert` : ""})`,
           onclick: () => {
             map.flyTo([c.lat, c.lon], Math.max(map.getZoom(), 6), { duration: 0.7 });
             selectPlace(c.lat, c.lon, c.name, c.country);

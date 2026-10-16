@@ -64,6 +64,22 @@ Die Karte zeigt die mittlere Anzahl erfüllter Tage pro Jahr (bzw. im gewählten
 interpoliert zwischen den Rasterpunkten. Die Farbwerte selbst sind die exakten
 Rasterpunkt-Zählungen – Hover und Klick zeigen sie ungeglättet an.
 
+**Stadtwerte sind höhenkorrigiert.** Eine 0,75°-Zelle ist ein Flächenmittel über
+grob 50–85 km; im Gebirge liegt sie oft mehr als 1.000 m über dem Talort, dem sie
+zugeordnet wird. Ohne Korrektur bekam Meran (310 m) die Werte einer Zelle mit
+1.996 m mittlerer Höhe und zeigte deshalb 31 „passende“ Tage im Juli bei
+Höchstwert ≤ 25 °C – real liegt Merans Juli-Höchstwert bei etwa 27–30 °C.
+Deshalb werden in allen Stadt-Auswertungen (Detailkarte bei Auswahl über Suche,
+Ranking oder Marker, Top-Orte, Städtetabelle/CSV, Winterquartier-Suchen und
+Ortsprofile) die Temperaturen der Zelle auf die Ortshöhe umgerechnet:
+Tageshöchstwert 6,5 K/km, Tiefstwert 5,0 K/km, Taupunkt bei gleicher relativer
+Feuchte (Magnus-Formel). Meran kommt damit im Juli auf 3,8 statt 31 Tage im
+Beispielprofil. Die **Kartenfläche bleibt bewusst das unkorrigierte
+Rasterprodukt**; die Detailkarte legt die Korrektur offen („Warum kommt dieses
+Ergebnis heraus?“). Sonne und Niederschlag werden nicht höhenkorrigiert – dafür
+gibt es ohne feineres Raster keine belastbare Beziehung. Die Korrektur ist eine
+physikalische Näherung, kein Stationsmesswert.
+
 Der Monatsfilter kennt außerdem **Zeiträume**: `month=5-9` (Mai – September) oder
 `month=10-3` (Oktober – März, über den Jahreswechsel). Damit lassen sich ganze
 Jahreszeiten auf die Karte legen – die Zahlen sind weiterhin exakte Zählungen,
@@ -301,6 +317,11 @@ Deshalb prüft `scripts/check_grid.py` nach jedem Datenlauf automatisch gegen
 Tiefsttemperatur, Sonnenscheindauer, Jahresniederschlag) sowie gegen strukturelle
 Erwartungen (Jahresgang, Wertebereiche, Vollständigkeit). Das Ergebnis steht in
 `app/data/quality_report.json`; schlägt das Tor fehl, wird der Action-Lauf rot.
+Zusätzlich gibt es eine harte **Alpen-Prüfung**: Meran und Innsbruck müssen nach
+der Höhenkorrektur innerhalb von ±3,5 K an ihren Stationsnormalwerten liegen
+(Meran: Juli-Höchstwert 27,0 °C berechnet vs. 30,0 °C Station Gratsch (Meran) 2001–2020).
+Ohne Höhendaten oder mit den alten, unkorrigierten Talwerten fiele diese Prüfung
+mit >10 K Abweichung durch – genau der Fehler aus dem Meran-Screenshot.
 
 Seit dem Umbau ist das Tor **hart**, nicht mehr nur ein Warnbanner: Bestehen die
 bereitgestellten Daten die Prüfung nicht (oder fehlen sie ganz), antworten alle
@@ -333,6 +354,8 @@ Nachbarpunkten ergänzt und als `coverage` in den Metadaten ausgewiesen.
 | Landmaske fürs Ausblenden der Meeresflächen | [global-land-mask](https://pypi.org/project/global-land-mask/) (Natural Earth/OSM-basiert) | 0,05° |
 | Landgrenzen (zusätzliche Linienebene) | [world-atlas](https://www.npmjs.com/package/world-atlas) (Natural Earth 1:10m) | nur Grenzen zwischen Ländern, als Linien; Küsten und Details kommen aus OSM |
 | Städteliste für Suche/Marker/Top-Orte | [GeoNames cities15000](https://www.geonames.org/) | 4.163 Orte ≥ 25.000 Einwohner in Europa (dazu der größte Ort kleiner Länder), bekannte Städte mit deutschem Namen |
+| Ortshöhen für die Höhenkorrektur | GeoNames-DEM (`dem`, SRTM3/GTOPO30), Spiegel des [GeoNames-Dumps](https://www.geonames.org/) | je Stadt ein Höhenwert (`elev_m`, 4.097 von 4.163 Orten) |
+| Mittlere Höhe der Rasterzellen | [ETOPO1](https://www.ncei.noaa.gov/) (NOAA/NCEI, public domain), 10′-Fassung | Landmittel je 0,75°-Zelle, `app/data/grid_elevation.npz` |
 
 Lizenzen/Attribution: ERA5-Daten enthalten modifizierte Copernicus-Klimadaten
 (2026); bereitgestellt von ECMWF, gespiegelt als offene, analysis-ready Kopie durch
@@ -345,8 +368,21 @@ GeoNames CC-BY-4.0, Leaflet BSD-2. Der frühere Weg über die Open-Meteo-API ent
 **Grenzen der Aussage:** ERA5 ist ein Reanalyse-Modell (≈0,25°), kein Stationsmesswert.
 In Gebirgen und an Küsten sind Abweichungen von mehreren Grad möglich; der Datensatz
 ist zusätzlich auf 0,75° ausgedünnt und Werte sind auf 0,5 °C, 0,25 h bzw. 0,5 mm
-gerundet. Je nach Auswahl ist „ein Jahr“ ein Mittel über den gesamten zehnjährigen
+gerundet. Die Höhenkorrektur der Stadtwerte beseitigt den systematischen
+Höhenfehler, ersetzt aber kein Stationsnetz: Talinversionen, Föhn, Hanglage und
+Stadtwärme bleiben unaufgelöst, und Sonne/Niederschlag bleiben Rasterwerte.
+Je nach Auswahl ist „ein Jahr“ ein Mittel über den gesamten zehnjährigen
 Datensatz oder nur 2021–2025; einzelne Extremjahre werden im längeren Mittel stärker geglättet.
+
+**Bessere Quellen?** Für ganz Europa mit Tageswerten bleibt ERA5 die tragfähige
+Basis; feinere Produkte wären ERA5-Land (0,1°, keine Sonnenscheindauer wie hier
+definiert) oder nationale Stations-/Rasterdaten (z. B. DWD, MeteoSchweiz,
+GeoSphere Austria, Südtiroler Landeswetterdienst). Letztere eignen sich als
+**Validierung** (so geschehen für Meran/Innsbruck im Qualitätstor), aber nicht
+als einheitliche Europa-Datenbasis: unterschiedliche Zeiträume, Lizenzen,
+Variablen und Lücken. Wer einen einzelnen Ort exakt braucht, sollte immer die
+nächste Wetterstation danebenlegen – die App zeigt deshalb Rasterabstand und
+Höhenkorrektur offen an.
 
 ## Architektur
 
@@ -359,6 +395,7 @@ app/
   ads.py             selbst konfigurierte Sponsorplätze (Standard: aus)
   analytics.py       aggregierte Seitenaufrufe und Funnel-Ereignisse (ohne Cookies)
   climate.py         Datenzugriff, Tageszählung, Web-Mercator-Rendering (PIL/scipy)
+  elevation.py       Höhenkorrektur der Stadtwerte (Lapsrate, Taupunkt, ETOPO1-Lader)
   names.py           deutsche Städtenamen, Suchnamen und tolerante Ortssuche
   data/              Datensätze (Klimaraster, Ländergrenzen, Städte, Qualitätsbericht)
   static/            Startseite (index.html), Styles, Leaflet (vendored)
@@ -367,7 +404,9 @@ scripts/
   build_progress.py       Baufortschritt schreiben + auf Zweig „klima-fortschritt" veröffentlichen
   fetch_climate_grid.py   alternativer Abruf über die Open-Meteo-API (nur mit Kontingent)
   make_dev_grid.py        plausibles synthetisches Raster für Offline-Entwicklung/Demo
-  check_grid.py           Qualitätstor: Vergleich mit Klimanormalwerten (22 Städte)
+  check_grid.py           Qualitätstor: Klimanormalwerte (22 Städte) + Alpen-Talorte
+  build_elevation.py      ETOPO1 → mittlere Höhe jeder Rasterzelle (grid_elevation.npz)
+  build_city_elevation.py GeoNames-DEM → Ortshöhen in cities.json nachtragen
   build_countries.mjs     world-atlas → Länderflächen + Landgrenzen (GeoJSON)
   build_geo.py            Landgrenzen-Linien + Städteliste bauen (Datumsgrenze, Küsten, Namen)
   social_pack.py          Social-Paket: Grafiken + Beitragstexte für mehrere Wochen
@@ -460,6 +499,14 @@ liest sie über `raw.githubusercontent.com` und zeigt daraus den Balken.
    (`data/checkpoints/zarr-…/y<jahr>.npz`) bleiben liegen und der nächste Lauf macht
    dort weiter. Also: erneut *Run workflow* klicken, bis das Protokoll „Vollständig“ meldet.
 3. Render deployt den neuen Commit automatisch.
+
+Die Höhendateien (`app/data/grid_elevation.npz`, `elev_m` in `cities.json`) sind
+statisch und werden vom Datenlauf nicht neu gebaut. Ändert sich die
+Rastergeometrie in `scripts/grid_config.json`, müssen sie neu entstehen:
+`bash scripts/download_sources.sh`, dann `python scripts/build_elevation.py`
+und `python scripts/build_city_elevation.py`; danach `scripts/check_grid.py`
+laufen lassen (die Alpen-Prüfung fängt eine veraltete Höhendatei ab, weil
+`ClimateData` sie bei falscher Geometrie ignoriert und Meran dann durchfällt).
 
 Der Lauf startet auch von selbst, wenn sich an `scripts/fetch_era5_zarr.py`,
 `scripts/grid_config.json` oder am Workflow etwas ändert (Push auf `main`).

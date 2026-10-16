@@ -14,6 +14,7 @@ import pytest
 
 from app.climate import (DEFAULT_SUMMER_MONTHS, SCALES, WINTER_DEFAULTS, ClimateData, Filter,
                          Params, _recent_five_calendar_years, months_label, norm_months)
+from app.elevation import dewpoint_c, load_grid_elevation, temperature_shift_c
 
 DATA_DIR = Path(os.environ["KLIMA_DATA_DIR"])   # von tests/conftest.py gesetzt
 pytestmark = pytest.mark.skipif(
@@ -129,6 +130,48 @@ def test_point_report(cd: ClimateData) -> None:
     assert len(rep["days_per_month"]) == 12
     assert rep["days_per_year"] == pytest.approx(sum(rep["days_per_month"]), abs=0.2)
     assert rep["grid_distance_deg"] < 1.5
+
+
+def test_elevation_correction_helpers(tmp_path) -> None:
+    """Lapsrate und Taupunkt-Umrechnung müssen physikalisch stimmig bleiben."""
+    assert temperature_shift_c(1000.0, 6.5) == pytest.approx(6.5)
+    assert temperature_shift_c(-500.0, 5.0) == pytest.approx(-2.5)
+    # Ohne Temperaturverschiebung bleibt der Taupunkt (bis auf Rundung) gleich;
+    # bei Erwärmung und gleicher relativer Feuchte steigt er mit, aber weniger
+    # stark als die Temperatur selbst.
+    assert dewpoint_c(20.0, 12.0, 0.0) == pytest.approx(12.0, abs=0.05)
+    warmed = dewpoint_c(20.0, 12.0, 5.0)
+    assert 12.0 < warmed < 20.0
+    # Eine Höhendatei zu einem fremden Raster wird verworfen, nicht angewendet.
+    np.savez(tmp_path / "grid_elevation.npz", lat=np.array([0.0]), lon=np.array([0.0]),
+             elev=np.array([100], dtype=np.int16))
+    elev, _meta = load_grid_elevation(tmp_path, np.array([46.0]), np.array([11.0]))
+    assert elev is None
+
+
+def test_city_counts_fall_back_to_grid_without_elevation(cd: ClimateData) -> None:
+    """Ohne Höhendaten sind Stadtwerte exakt die Werte ihrer Rasterzelle."""
+    if cd.city_elevation_adjusted:
+        pytest.skip("Dieser Datensatz hat Höhendaten – Fallback hier nicht prüfbar")
+    p = Params()
+    assert np.allclose(cd.city_counts(p, month=6), cd.counts(p, month=6)[cd.city_point_idx])
+
+
+def test_meran_no_longer_gets_mountain_climate(cd: ClimateData) -> None:
+    """Regression: Meran (310 m) darf nicht die 2.000-m-Zelle als Stadtklima bekommen."""
+    if not cd.city_elevation_adjusted:
+        pytest.skip("Kein Höhendatensatz in diesem Raster")
+    p = Params(tmax_min=2, tmax_max=25, tmin_min=-8, tmin_max=17.5,
+               tdew_max=14.5, sun_min=0, prec_max=99)
+    rep = cd.point_report(46.6682, 11.1595, p, month=6, period="recent5")
+    assert rep["percentile_basis"] == "cities"
+    assert rep["elevation"]["city_elev_m"] == 310
+    assert rep["elevation"]["grid_elev_m"] > 1500
+    # Vor der Korrektur waren es 31,0 Tage – im echten Meraner Juli (Ø 27–30 °C
+    # Tageshöchstwert) ist das unmöglich.
+    assert rep["days_selected_month"] < 20
+    assert rep["climate"]["months"]["tmax"][6] > 24
+    assert rep["climate"]["months"]["tmin"][6] > 12
 
 
 def test_climatology_event_day_thresholds(cd: ClimateData) -> None:
@@ -314,10 +357,9 @@ def test_zwei_staedte_mit_einem_festen_profil(cd: ClimateData) -> None:
     totals = [candidate["total_days"] for candidate in candidates]
     assert totals == sorted(totals, reverse=True)
 
-    monthly = cd.monthly_counts(profil)
-    city_monthly = monthly[:, cd.city_point_idx]
-    summer_totals = city_monthly[list(sommer)].sum(axis=0)
-    winter_totals = city_monthly[report["winter_months"]].sum(axis=0)
+    monthly = cd.city_monthly_counts(profil)
+    summer_totals = monthly[list(sommer)].sum(axis=0)
+    winter_totals = monthly[report["winter_months"]].sum(axis=0)
     city_lats = np.radians(np.asarray([city["lat"] for city in cd.cities]))
     city_lons = np.radians(np.asarray([city["lon"] for city in cd.cities]))
     expected_best = 0.0
@@ -341,8 +383,8 @@ def test_zwei_staedte_mit_einem_festen_profil(cd: ClimateData) -> None:
         assert summer_city["lat"] != winter_city["lat"] or summer_city["lon"] != winter_city["lon"]
         assert candidate["total_days"] == pytest.approx(
             candidate["summer_days"] + candidate["winter_days"], abs=0.2)
-        summer_index = cd.city_point_idx[city_indexes[(summer_city["lat"], summer_city["lon"])]]
-        winter_index = cd.city_point_idx[city_indexes[(winter_city["lat"], winter_city["lon"])]]
+        summer_index = city_indexes[(summer_city["lat"], summer_city["lon"])]
+        winter_index = city_indexes[(winter_city["lat"], winter_city["lon"])]
         expected_summer = monthly[list(sommer), summer_index].sum()
         expected_winter = monthly[report["winter_months"], winter_index].sum()
         assert candidate["summer_days"] == pytest.approx(expected_summer, abs=0.11)
@@ -360,19 +402,24 @@ def test_escape_report_fixed_home_and_exact_gain(cd: ClimateData, season: str, p
     assert report["winter_months"] == [0, 1, 2, 3, 7, 8, 9, 10, 11]
     assert set(report["home_months"]).isdisjoint(report["away_months"])
     assert sorted(report["home_months"] + report["away_months"]) == list(range(12))
-    home_monthly = cd.point_monthly(p, cd.point_index(lat, lon), period)
+    anchor_city = cd._city_index_at(lat, lon)
+    home_monthly = (cd.city_point_monthly(p, anchor_city, period) if anchor_city is not None
+                    else cd.point_monthly(p, cd.point_index(lat, lon), period))
     baseline = float(home_monthly.sum())
     home_days = float(home_monthly[report["home_months"]].sum())
     assert report["baseline_days"] == pytest.approx(baseline, abs=.051)
     assert report["best"] == report["candidates"][0]
     home_key = "summer_city" if season == "winter" else "winter_city"
+    city_indexes = {(float(city["lat"]), float(city["lon"])): index
+                    for index, city in enumerate(cd.cities)}
     totals = []
     for candidate in report["candidates"]:
         assert candidate[home_key]["lat"] == lat
         assert candidate[home_key]["lon"] == lon
         assert candidate["distance_km"] >= 50
         destination = candidate[season + "_city"]
-        monthly = cd.point_monthly(p, cd.point_index(destination["lat"], destination["lon"]), period)
+        monthly = cd.city_point_monthly(
+            p, city_indexes[(destination["lat"], destination["lon"])], period)
         away_days = float(monthly[report["away_months"]].sum())
         assert candidate["total_days"] == pytest.approx(home_days + away_days, abs=.051)
         assert candidate["gain_days"] == pytest.approx(home_days + away_days - baseline, abs=.051)
@@ -380,13 +427,13 @@ def test_escape_report_fixed_home_and_exact_gain(cd: ClimateData, season: str, p
     assert totals == sorted(totals, reverse=True)
     # No preselection: the winner must be the true best eligible city.
     eligible_values = []
-    for city in cd.cities:
+    for city_idx, city in enumerate(cd.cities):
         a = (math.sin(math.radians(city["lat"] - lat) / 2) ** 2
              + math.cos(math.radians(lat)) * math.cos(math.radians(city["lat"]))
              * math.sin(math.radians(city["lon"] - lon) / 2) ** 2)
         distance = 2 * 6371 * math.asin(math.sqrt(min(1, a)))
         if distance >= 50:
-            monthly = cd.point_monthly(p, cd.point_index(city["lat"], city["lon"]), period)
+            monthly = cd.city_point_monthly(p, city_idx, period)
             eligible_values.append(home_days + float(monthly[report["away_months"]].sum()))
     assert report["best"]["total_days"] == pytest.approx(max(eligible_values), abs=.051)
 
@@ -397,7 +444,9 @@ def test_escape_report_negative_gain_is_not_hidden(cd: ClimateData) -> None:
     p = Params()
     home = np.full(12, 20.0)
     with patch.object(cd, "point_monthly", return_value=home), patch.object(
-            cd, "monthly_counts", return_value=np.zeros((12, cd.n_points))):
+            cd, "monthly_counts", return_value=np.zeros((12, cd.n_points))), patch.object(
+            cd, "city_point_monthly", return_value=home), patch.object(
+            cd, "city_monthly_counts", return_value=np.zeros((12, len(cd.cities)))):
         report = cd.escape_report(52.52, 13.405, "winter", p)
     assert report["best"]["gain_days"] < 0
     assert report["best"]["total_days"] < report["baseline_days"]

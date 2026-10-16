@@ -1,0 +1,10 @@
+{
+  "source": "ETOPO1 (NOAA National Centers for Environmental Information, public domain), 10-Arkminuten-Fassung, Mittel über die Landfläche der Rasterzelle",
+  "license": "public domain (ETOPO1, Amante & Eakins 2009)",
+  "source_url": "https://codeload.github.com/g2e/etopo10/tar.gz/refs/heads/master",
+  "method": "Mittel der ETOPO1-Landfläche (Höhe > 0) über alle 10′-Zellen, deren Mitte innerhalb ±0.375° der Klima-Rasterzelle liegen",
+  "cell_step_deg": 0.75,
+  "n_points": 2250,
+  "unit": "m",
+  "generated_at": "2026-10-16T08:01:43+00:00"
+}

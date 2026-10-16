@@ -37,6 +37,9 @@ from PIL import Image
 from scipy.ndimage import gaussian_filter
 from scipy.spatial import cKDTree
 
+from .elevation import (LAPSE_TMAX_C_PER_KM, LAPSE_TMIN_C_PER_KM, adjustment_info,
+                        dewpoint_c, elevation_diff_m, load_grid_elevation,
+                        temperature_shift_c)
 from .names import search_key
 from .projections import ProjectionCatalog
 
@@ -215,6 +218,17 @@ class Filter:
             return cd.counts(self.winter, self.winter_months, self.period)
         return cd.counts(self.p, self.months, self.period)
 
+    def city_counts(self, cd: "ClimateData") -> np.ndarray:
+        """Wie :meth:`counts`, aber je Stadt und auf die Ortshöhe korrigiert."""
+        if self.kind == "combo":
+            return (cd.city_counts(self.p, self.summer_months, self.period)
+                    + cd.city_counts(self.winter, self.winter_months, self.period))
+        if self.kind == "summer":
+            return cd.city_counts(self.p, self.summer_months, self.period)
+        if self.kind == "winter":
+            return cd.city_counts(self.winter, self.winter_months, self.period)
+        return cd.city_counts(self.p, self.months, self.period)
+
     def days_limit(self, cd: "ClimateData") -> float:
         """Höchstzahl, die die Skala annehmen kann (365,25 bzw. Fensterlänge)."""
         if self.is_winterquarters:
@@ -330,6 +344,10 @@ class ClimateData:
         self.mask_step = mstep
         self.mask_soft = gaussian_filter(self.land_mask.astype(np.float32), 1.3)
 
+        # Mittlere Höhe jeder Rasterzelle (ETOPO1). Nur Stadtwerte werden damit
+        # auf die Ortshöhe korrigiert; die Kartenfläche bleibt das Rasterprodukt.
+        self.grid_elev, self.elevation_meta = load_grid_elevation(data_dir, self.lat, self.lon)
+
         self.xyz = self._to_xyz(self.lat, self.lon)
         self.tree = cKDTree(self.xyz)
         self.repaired = self._repair_sentinels()
@@ -349,6 +367,8 @@ class ClimateData:
             self.projection_error = str(error)
         self._counts_cache: dict = {}
         self._annual_summary_cache: dict[str, dict[str, np.ndarray]] = {}
+        self._city_counts_cache: dict = {}
+        self._city_annual_summary_cache: dict[str, dict[str, np.ndarray]] = {}
         self._city_climate_cache: dict[str, list[dict]] = {}
         self._alpha_cache: "OrderedDict[tuple, np.ndarray]" = OrderedDict()
         self._idw_cache: "OrderedDict[tuple, tuple]" = OrderedDict()
@@ -375,12 +395,40 @@ class ClimateData:
             self.city_point_idx = np.zeros(0, dtype=int)
             self.city_point_km = np.zeros(0)
 
+        # Höhenkorrektur je Stadt: Ortshöhe (GeoNames-DEM) gegen die mittlere
+        # Höhe der zugeordneten Rasterzelle (ETOPO1). Fehlt eine der beiden
+        # Höhen, bleibt der Stadtshift 0 – dann gilt der Rasterwert unverändert.
+        self.city_elev_m = np.array(
+            [float(c["elev_m"]) if c.get("elev_m") is not None else np.nan
+             for c in self.cities], dtype=np.float64)
+        if self.grid_elev is not None and self.city_point_idx.size:
+            self.city_grid_elev_m = self.grid_elev[self.city_point_idx].astype(np.float64)
+        else:
+            self.city_grid_elev_m = np.full(len(self.cities), np.nan)
+        both = np.isfinite(self.city_elev_m) & np.isfinite(self.city_grid_elev_m)
+        self.city_elev_diff_m = np.where(
+            both, elevation_diff_m(self.city_grid_elev_m, self.city_elev_m), 0.0)
+        self.city_shift_c = {
+            "tmax": temperature_shift_c(self.city_elev_diff_m, LAPSE_TMAX_C_PER_KM),
+            "tmin": temperature_shift_c(self.city_elev_diff_m, LAPSE_TMIN_C_PER_KM),
+        }
+        self.city_elevation_adjusted = bool(both.any())
+
     @property
     def is_synthetic(self) -> bool:
         """True, wenn das Raster nicht aus echten ERA5-Daten stammt."""
         model = str(self.meta.get("model", "")).lower()
         source = str(self.meta.get("source", "")).lower()
         return model != "era5" or "synthetisch" in source or "synthetic" in source
+
+    def city_method(self, period: str = "all") -> str:
+        """Maschinenlesbare Methodenangabe für Stadtwerte in der API."""
+        method = "nearest_grid_point"
+        if self.is_projection(period):
+            method += "_regional_delta"
+        if self.city_elevation_adjusted:
+            method += "_elevation_adjusted"
+        return method
 
     def _period_slice(self, period: str = "all") -> slice:
         """Tagesausschnitt für die gewählte historische Bezugsperiode."""
@@ -462,10 +510,30 @@ class ClimateData:
                                     + str(self.projection_error)})
         return options
 
-    def _raw_for(self, name: str, sel, period: str, point: int | slice | None = None) -> np.ndarray:
-        """Raw-unit values; future values are unquantized floats, never int8-clipped."""
-        points = slice(None) if point is None else point if isinstance(point, slice) else slice(point, point + 1)
-        base = self.raw[name][points, sel]
+    def _raw_for(self, name: str, sel, period: str, point=None) -> np.ndarray:
+        """Raw-unit values; future values are unquantized floats, never int8-clipped.
+
+        ``point`` darf ``None`` (alle Punkte), ein Slice, ein einzelner Index
+        oder eine Indexfolge sein (Stadtwerte nutzen die Rasterpunkte ihrer
+        Städte, wobei sich viele Städte eine Zelle teilen).
+        """
+        if point is None:
+            points = slice(None)
+        elif isinstance(point, slice):
+            points = point
+        elif isinstance(point, (int, np.integer)):
+            points = slice(int(point), int(point) + 1)
+        else:
+            points = np.asarray(point, dtype=np.intp)
+
+        def take(arr: np.ndarray) -> np.ndarray:
+            # Indexfolge × Tagesindex braucht ein äußeres Produkt (np.ix_),
+            # sonst versucht NumPy, beide Achsen gegeneinander zu senden.
+            if isinstance(points, np.ndarray) and not isinstance(sel, slice):
+                return arr[np.ix_(points, np.asarray(sel, dtype=np.intp))]
+            return arr[points, sel]
+
+        base = take(self.raw[name])
         if not self.is_projection(period) or name == "sun":
             return base
         months = self.day_month[sel]
@@ -477,8 +545,8 @@ class ClimateData:
             return base.astype(np.float32) * precipitation[points][:, months]
         if name == "tdew":
             from .projections import estimate_dewpoint
-            tmean = (self.raw["tmax"][points, sel].astype(np.float32)
-                     + self.raw["tmin"][points, sel].astype(np.float32)) / 4.0
+            tmean = (take(self.raw["tmax"]).astype(np.float32)
+                     + take(self.raw["tmin"]).astype(np.float32)) / 4.0
             return 2.0 * estimate_dewpoint(tmean, base.astype(np.float32) / 2.0, delta)
         raise ValueError(name)
 
@@ -674,6 +742,180 @@ class ClimateData:
         for m in range(12):
             out[m] = self.days_mask(p, month=m, point=int(idx), period=period)[0].sum() / years
         return out
+
+    # ------------------------------------------------------- Stadtwerte (Höhe)
+    def _city_index_at(self, lat: float, lon: float, max_km: float = 2.0) -> int | None:
+        """Index der geografisch nächsten Stadt, wenn sie praktisch am Ort liegt.
+
+        Das ist bewusst *nicht* :meth:`nearest_city` (das gewichtet nach
+        Einwohnerzahl): Eine Höhenkorrektur darf nur für den Ort angewendet
+        werden, dessen Koordinaten der Nutzer tatsächlich gewählt hat –
+        aus Suche, Ranking oder Kartenmarker sind das die Stadtkoordinaten.
+        """
+        if self.city_tree is None or not self.cities:
+            return None
+        k = int(min(10, len(self.cities)))
+        dist, idx = self.city_tree.query(self._to_xyz(np.array([lat]), np.array([lon]))[0], k=k)
+        dist_km = np.atleast_1d(dist).astype(np.float64) * 6371.0
+        idxs = np.atleast_1d(idx).astype(int)
+        near = [(float(d), int(i)) for d, i in zip(dist_km, idxs) if d <= float(max_km)]
+        if not near:
+            return None
+        # Exakter Treffer (Suche/Ranking/Marker übergeben Stadtkoordinaten):
+        # Bei gleichen Koordinaten gewinnt der größere Ort („Madrid“ statt
+        # des GeoNames-Stadtteils „City Center“).
+        exact = [(d, i) for d, i in near if d <= 0.05]
+        if exact:
+            return max(exact, key=lambda item: int(self.cities[item[1]].get("pop", 0)))[1]
+        # Sonst Relevanz wie in nearest_city: Einwohnerzahl gegen Entfernung.
+        return max(near, key=lambda item: float(max(int(self.cities[item[1]].get("pop", 0)), 1))
+                   / (1.0 + item[0] / 6.0) ** 3)[1]
+
+    def city_adjustment(self, city_idx: int) -> dict | None:
+        """Offenlegung der Höhenkorrektur einer Stadt (``None`` = keine)."""
+        i = int(city_idx)
+        if not (0 <= i < len(self.cities)):
+            return None
+        if not (np.isfinite(self.city_elev_m[i]) and np.isfinite(self.city_grid_elev_m[i])):
+            return None
+        return adjustment_info(float(self.city_elev_m[i]), float(self.city_grid_elev_m[i]),
+                               float(self.city_elev_diff_m[i]))
+
+    def _city_raw_adjusted(self, name: str, sel, period: str, city_indices) -> np.ndarray:
+        """Rohwerte der Stadt-Rasterpunkte, Temperaturen auf Ortshöhe gebracht.
+
+        Rückgabe bleibt in den Roh-Einheiten des Rasters (Temperaturen in
+        0,5-°C-Schritten), damit dieselben Schwellen wie im Raster gelten.
+        Der Taupunkt folgt bei gleicher relativer Feuchte aus dem Tagesmittel.
+        """
+        cities = np.asarray(city_indices, dtype=np.intp)
+        points = self.city_point_idx[cities]
+        if name in ("tmax", "tmin"):
+            shift = self.city_shift_c[name][cities] * SCALES[name]
+            return self._raw_for(name, sel, period, points).astype(np.float64) + shift[:, None]
+        if name == "tdew":
+            tmax = self._raw_for("tmax", sel, period, points).astype(np.float64)
+            tmin = self._raw_for("tmin", sel, period, points).astype(np.float64)
+            base = self._raw_for("tdew", sel, period, points).astype(np.float64)
+            mean_shift = (self.city_shift_c["tmax"][cities]
+                          + self.city_shift_c["tmin"][cities]) / 2.0
+            # Als *Differenz* zur Nullverschiebung angewendet: So bleibt der
+            # Taupunkt bei Shift 0 exakt der Rasterwert, und die Näherung über
+            # das Tagesmittel aus Tmax/Tmin erzeugt keine Sprünge.
+            tmean = (tmax + tmin) / 4.0
+            base_c = base / 2.0
+            adjusted = (base_c + dewpoint_c(tmean, base_c, mean_shift[:, None])
+                        - dewpoint_c(tmean, base_c, 0.0)) * SCALES["tdew"]
+            # Ohne Höhenverschiebung muss der Originalwert exakt gelten: Das
+            # Tagesmittel aus Tmax/Tmin ist nur ein Proxy, eine Umrechnung
+            # über die relative Feuchte würde sonst auch unkorrigierte
+            # Städte still verändern.
+            return np.where((mean_shift != 0.0)[:, None], adjusted, base)
+        return self._raw_for(name, sel, period, points)
+
+    def _city_days_mask(self, p: Params, month=None, period: str = "all",
+                        city_indices=None) -> np.ndarray:
+        """(Städte, Tage) – Wohlfühl-Maske mit höhenkorrigierten Temperaturen."""
+        cities = (np.arange(len(self.cities), dtype=np.intp) if city_indices is None
+                  else np.asarray(city_indices, dtype=np.intp))
+        sel = self._day_sel(month, period)
+
+        def get(name: str) -> np.ndarray:
+            return self._city_raw_adjusted(name, sel, period, cities)
+
+        ok = (get("tmax") >= p.tmax_min * SCALES["tmax"])
+        ok &= (get("tmax") <= p.tmax_max * SCALES["tmax"])
+        ok &= (get("tmin") >= p.tmin_min * SCALES["tmin"])
+        ok &= (get("tmin") <= p.tmin_max * SCALES["tmin"])
+        ok &= (get("tdew") <= p.tdew_max * SCALES["tdew"])
+        ok &= (get("sun") >= p.sun_min * SUN_SECONDS_PER_HOUR * SCALES["sun"])
+        if p.prec_max < 90:
+            ok &= (get("prec") <= p.prec_max * SCALES["prec"])
+        return ok
+
+    def city_counts(self, p: Params, month=None, period: str = "all") -> np.ndarray:
+        """Mittlere Tage pro Jahr bzw. im Monatsfenster – je Stadt, höhenkorrigiert."""
+        if not self.cities:
+            return np.zeros(0, dtype=np.float64)
+        key = (p, norm_months(month), str(period))
+        hit = self._city_counts_cache.get(key)
+        if hit is not None:
+            return hit
+        out = np.empty(len(self.cities), dtype=np.float64)
+        years = self.years_in_period(period)
+        for start in range(0, len(self.cities), 256):
+            stop = min(start + 256, len(self.cities))
+            mask = self._city_days_mask(p, month, period, np.arange(start, stop))
+            out[start:stop] = mask.sum(axis=1).astype(np.float64) / years
+        if len(self._city_counts_cache) > 400:
+            self._city_counts_cache.clear()
+        self._city_counts_cache[key] = out
+        return out
+
+    def city_monthly_counts(self, p: Params, period: str = "all") -> np.ndarray:
+        """(12, Städte) – höhenkorrigierte Wohlfühl-Tage je Kalendermonat."""
+        out = np.zeros((12, len(self.cities)), dtype=np.float64)
+        for m in range(12):
+            out[m] = self.city_counts(p, month=m, period=period)
+        return out
+
+    def city_point_monthly(self, p: Params, city_idx: int, period: str = "all") -> np.ndarray:
+        """(12,) – höhenkorrigierte Wohlfühl-Tage je Monat einer Stadt."""
+        i = int(city_idx)
+        part = self._period_slice(period)
+        days = self._city_days_mask(p, None, period, [i])[0]
+        months = self.day_month[part]
+        years = self.years_in_period(period)
+        return np.array([float(days[months == m].sum()) / years for m in range(12)],
+                        dtype=np.float64)
+
+    def _city_annual_summary(self, period: str = "all") -> dict[str, np.ndarray]:
+        """Jahresmittel und Ereignistage je Stadt (höhenkorrigiert)."""
+        period = str(period)
+        if period in self._city_annual_summary_cache:
+            return self._city_annual_summary_cache[period]
+        summary: dict[str, np.ndarray] = {}
+        if not self.cities:
+            self._city_annual_summary_cache[period] = summary
+            return summary
+        sel = self._period_slice(period)
+        years = self.years_in_period(period)
+
+        def store(key: str, values: np.ndarray, start: int, stop: int) -> None:
+            if key not in summary:
+                summary[key] = np.empty(len(self.cities), dtype=np.float64)
+            summary[key][start:stop] = values
+
+        for start in range(0, len(self.cities), 256):
+            stop = min(start + 256, len(self.cities))
+            cities = np.arange(start, stop)
+            tmax = self._city_raw_adjusted("tmax", sel, period, cities) * UNIT_FACTORS["tmax"]
+            tmin = self._city_raw_adjusted("tmin", sel, period, cities) * UNIT_FACTORS["tmin"]
+            tdew = self._city_raw_adjusted("tdew", sel, period, cities) * UNIT_FACTORS["tdew"]
+            sun = self._city_raw_adjusted("sun", sel, period, cities) * UNIT_FACTORS["sun"]
+            prec = self._city_raw_adjusted("prec", sel, period, cities) * UNIT_FACTORS["prec"]
+
+            def days(mask: np.ndarray) -> np.ndarray:
+                return np.count_nonzero(mask, axis=1).astype(np.float64) / years
+
+            store("tmax", tmax.mean(axis=1), start, stop)
+            store("tmin", tmin.mean(axis=1), start, stop)
+            store("tdew", tdew.mean(axis=1), start, stop)
+            store("sun", sun.mean(axis=1), start, stop)
+            store("prec", prec.sum(axis=1, dtype=np.float64) / years, start, stop)
+            store("frost_days", days(tmin <= 0), start, stop)
+            store("winter_days", days(tmin < 0), start, stop)
+            store("ice_days", days(tmax < 0), start, stop)
+            store("summer_days", days(tmax >= 25), start, stop)
+            store("hot_days", days(tmax > 30), start, stop)
+            store("very_hot_days", days(tmax >= 35), start, stop)
+            store("tropical_nights", days(tmin >= 20), start, stop)
+            store("sultry_days", days(tdew > 15), start, stop)
+            store("wet_days", days(prec >= 1), start, stop)
+            store("heavy_rain_days", days(prec >= 10), start, stop)
+            store("sunny_days", days(sun > 4), start, stop)
+        self._city_annual_summary_cache[period] = summary
+        return summary
 
     # --------------------------------------------------------------- Rendering
     def _pixel_grid(self, width: int) -> tuple[np.ndarray, int, int]:
@@ -974,8 +1216,44 @@ class ClimateData:
             **({"projection": self.projections.point_info(period, idx)} if self.is_projection(period) else {}),
         }
 
+    def city_annual_climatology(self, city_idx: int, period: str = "all") -> dict:
+        """Jahresmittel und Ereignistage einer Stadt (höhenkorrigiert)."""
+        summary = self._city_annual_summary(period)
+        i = int(city_idx)
+        return {
+            "year": {
+                "tmax": round(float(summary["tmax"][i]), 1),
+                "tmin": round(float(summary["tmin"][i]), 1),
+                "tdew": round(float(summary["tdew"][i]), 1),
+                "sun": round(float(summary["sun"][i]), 2),
+                "prec": round(float(summary["prec"][i]), 0),
+            },
+            **{key: round(float(summary[key][i]), 1)
+               for key, _label, _threshold in CITY_DAY_INDICATORS},
+            "frost_days": round(float(summary["frost_days"][i]), 1),
+        }
+
+    def city_climatology(self, city_idx: int, period: str = "all") -> dict:
+        """Monats- und Jahresklima einer Stadt, Temperaturen auf Ortshöhe."""
+        i = int(city_idx)
+        part = self._period_slice(period)
+        vals = {name: self._city_raw_adjusted(name, part, period, [i])[0].astype(np.float64)
+                * UNIT_FACTORS[name] for name in VARS}
+        point = int(self.city_point_idx[i])
+        out = {
+            "months": {name: self._monthly(vals[name], total=(name == "prec"), period=period)
+                       for name in VARS},
+            **self.city_annual_climatology(i, period),
+            **({"projection": self.projections.point_info(period, point)}
+               if self.is_projection(period) else {}),
+        }
+        adjustment = self.city_adjustment(i)
+        if adjustment is not None:
+            out["elevation"] = adjustment
+        return out
+
     def city_climate_rows(self, period: str = "all") -> list[dict]:
-        """Jahresklima aller Städte, am jeweils nächsten ERA5-Gitterpunkt."""
+        """Jahresklima aller Städte: nächster Rasterpunkt, Temperaturen ortshöhenkorrigiert."""
         if period in self._city_climate_cache:
             return self._city_climate_cache[period]
         rows: list[dict] = []
@@ -983,20 +1261,22 @@ class ClimateData:
             self._city_climate_cache[period] = rows
             return rows
 
-        summary = self._annual_summary(period)
+        summary = self._city_annual_summary(period)
         for i, city in enumerate(self.cities):
-            point = int(self.city_point_idx[i])
             climate = {
                 "year": {
-                    "tmax": round(float(summary["tmax"][point]), 1),
-                    "tmin": round(float(summary["tmin"][point]), 1),
-                    "tdew": round(float(summary["tdew"][point]), 1),
-                    "sun": round(float(summary["sun"][point]), 2),
-                    "prec": round(float(summary["prec"][point]), 0),
+                    "tmax": round(float(summary["tmax"][i]), 1),
+                    "tmin": round(float(summary["tmin"][i]), 1),
+                    "tdew": round(float(summary["tdew"][i]), 1),
+                    "sun": round(float(summary["sun"][i]), 2),
+                    "prec": round(float(summary["prec"][i]), 0),
                 },
-                **{key: round(float(summary[key][point]), 1)
+                **{key: round(float(summary[key][i]), 1)
                    for key, _label, _threshold in CITY_DAY_INDICATORS},
             }
+            adjustment = self.city_adjustment(i)
+            if adjustment is not None:
+                climate["elevation"] = adjustment
             rows.append({
                 "name": city["name"],
                 "country": city.get("name_de", city.get("country", "")),
@@ -1006,6 +1286,8 @@ class ClimateData:
                 "lat": float(city["lat"]),
                 "lon": float(city["lon"]),
                 "pop": int(city.get("pop", 0)),
+                "elev_m": (int(round(float(self.city_elev_m[i])))
+                           if np.isfinite(self.city_elev_m[i]) else None),
                 "grid_distance_km": round(float(self.city_point_km[i]), 1),
                 "climate": climate,
             })
@@ -1018,28 +1300,71 @@ class ClimateData:
 
         ``month`` ist der Vergleichszeitraum für ``days_here``/``percentile`` –
         ``None`` (Jahr), eine Monatsnummer oder ein Monatsfenster.
+
+        Liegt die Abfrage auf einer Stadt der Städteliste (Suche, Ranking und
+        Marker übergeben deren Koordinaten), werden die Temperaturen auf die
+        Höhe dieses Ortes korrigiert und die Einordnung unter den Städten
+        gebildet. Sonst gilt der Rasterpunkt unverändert.
         """
         idx = self.point_index(lat, lon)
         part = self._period_slice(period)
-        days = self.days_mask(p, point=idx, period=period)[0]
         selected_months = self.day_month[part]
-        per_month = [round(float(days[selected_months == m].sum() / self.years_in_period(period)), 1)
-                     for m in range(12)]
-        yearly = round(sum(per_month), 1)
+        city_idx = self._city_index_at(lat, lon)
+        adjustment = self.city_adjustment(city_idx) if city_idx is not None else None
 
-        counts = self.counts(p, month, period)
-        own = float(counts[idx])
-        percentile = round(float((counts <= own).mean()) * 100.0, 1)
-        best_idx = int(np.argmax(counts))
-        best = {
-            "days": round(float(counts[best_idx]), 1),
-            "lat": round(float(self.lat[best_idx]), 2),
-            "lon": round(float(self.lon[best_idx]), 2),
-        }
-        best_city = self.nearest_city(float(self.lat[best_idx]), float(self.lon[best_idx]))
-        if best_city:
-            best["place"] = best_city["name"]
-            best["country"] = best_city["name_de"]
+        if city_idx is not None:
+            days = self._city_days_mask(p, None, period, [city_idx])[0]
+            per_month = [round(float(days[selected_months == m].sum()
+                                     / self.years_in_period(period)), 1)
+                         for m in range(12)]
+            yearly = round(sum(per_month), 1)
+            counts = self.city_counts(p, month, period)
+            own = float(counts[city_idx])
+            percentile = round(float((counts <= own).mean()) * 100.0, 1)
+            best_city_idx = int(np.argmax(counts))
+            best_city = self.cities[best_city_idx]
+            best = {
+                "days": round(float(counts[best_city_idx]), 1),
+                "lat": round(float(best_city["lat"]), 2),
+                "lon": round(float(best_city["lon"]), 2),
+                "place": best_city["name"],
+                "country": best_city.get("name_de", ""),
+            }
+            city = self.cities[city_idx]
+            city_info = {
+                "name": city["name"], "country": city.get("country"),
+                "name_de": city.get("name_de", ""), "pop": int(city.get("pop", 0)),
+                "lat": float(city["lat"]), "lon": float(city["lon"]),
+                "dist_km": round(float(111.0 * np.hypot(
+                    float(city["lat"]) - lat,
+                    (float(city["lon"]) - lon) * math.cos(math.radians(lat)))), 1),
+            }
+            if adjustment is not None:
+                city_info["elev_m"] = adjustment["city_elev_m"]
+            climate = self.city_climatology(city_idx, period)
+            percentile_basis = "cities"
+        else:
+            days = self.days_mask(p, point=idx, period=period)[0]
+            per_month = [round(float(days[selected_months == m].sum()
+                                     / self.years_in_period(period)), 1)
+                         for m in range(12)]
+            yearly = round(sum(per_month), 1)
+            counts = self.counts(p, month, period)
+            own = float(counts[idx])
+            percentile = round(float((counts <= own).mean()) * 100.0, 1)
+            best_idx = int(np.argmax(counts))
+            best = {
+                "days": round(float(counts[best_idx]), 1),
+                "lat": round(float(self.lat[best_idx]), 2),
+                "lon": round(float(self.lon[best_idx]), 2),
+            }
+            best_city = self.nearest_city(float(self.lat[best_idx]), float(self.lon[best_idx]))
+            if best_city:
+                best["place"] = best_city["name"]
+                best["country"] = best_city["name_de"]
+            city_info = self.nearest_city(lat, lon)
+            climate = self.climatology(idx, period)
+            percentile_basis = "grid_points"
 
         rep = {
             "lat": float(self.lat[idx]), "lon": float(self.lon[idx]),
@@ -1049,10 +1374,11 @@ class ClimateData:
             "grid_distance_deg": round(float(np.hypot(self.lat[idx] - lat, self.lon[idx] - lon)), 2),
             "grid_distance_km": round(float(111.0 * np.hypot(self.lat[idx] - lat,
                                                              (self.lon[idx] - lon) * math.cos(math.radians(lat))))),
-            "city": self.nearest_city(lat, lon),
-            "climate": self.climatology(idx, period),
+            "city": city_info,
+            "climate": climate,
             "days_here": round(own, 1),
             "percentile": percentile,
+            "percentile_basis": percentile_basis,
             "europe_best": best,
             "params": p.query(),
             "month": month if isinstance(month, int) else None,
@@ -1061,6 +1387,10 @@ class ClimateData:
             "limit": round(self.month_limit(month, period), 1),
             "period": self.period_info(period),
         }
+        if city_idx is not None:
+            rep["city_index"] = int(city_idx)
+        if adjustment is not None:
+            rep["elevation"] = adjustment
         if isinstance(month, (int, np.integer)):
             rep["selected_month"] = int(month)
             rep["days_selected_month"] = per_month[int(month)]
@@ -1069,24 +1399,40 @@ class ClimateData:
     def winterquarters_point(self, lat: float, lon: float, f: Filter) -> dict:
         """Sommer-, Winter- und Kombinations-Tage an einem Ort (Winterquartier-Modus)."""
         idx = self.point_index(lat, lon)
-        sm = self.point_monthly(f.p, idx, f.period)
-        wm = self.point_monthly(f.winter, idx, f.period)
+        city_idx = self._city_index_at(lat, lon)
+        if city_idx is not None:
+            sm = self.city_point_monthly(f.p, city_idx, f.period)
+            wm = self.city_point_monthly(f.winter, city_idx, f.period)
+        else:
+            sm = self.point_monthly(f.p, idx, f.period)
+            wm = self.point_monthly(f.winter, idx, f.period)
         sm_months = list(f.summer_months)
         wm_months = list(f.winter_months)
         summer = float(sm[sm_months].sum())
         winter = float(wm[wm_months].sum())
 
-        # Einordnung an der Kombinations-Kennzahl (gleiche Zahlen wie die Karte)
-        counts = f.counts(self)
+        # Einordnung an der Kombinations-Kennzahl (gleiche Zahlen wie die Karte;
+        # für einen Stadtort unter den höhenkorrigierten Stadtwerten)
         own = summer + winter
-        best_idx = int(np.argmax(counts))
-        best = {"days": round(float(counts[best_idx]), 1),
-                "lat": round(float(self.lat[best_idx]), 2),
-                "lon": round(float(self.lon[best_idx]), 2)}
-        best_city = self.nearest_city(float(self.lat[best_idx]), float(self.lon[best_idx]))
-        if best_city:
-            best["place"] = best_city["name"]
-            best["country"] = best_city["name_de"] or ""
+        if city_idx is not None:
+            counts = f.city_counts(self)
+            best_city_idx = int(np.argmax(counts))
+            best_city = self.cities[best_city_idx]
+            best = {"days": round(float(counts[best_city_idx]), 1),
+                    "lat": round(float(best_city["lat"]), 2),
+                    "lon": round(float(best_city["lon"]), 2),
+                    "place": best_city["name"],
+                    "country": best_city.get("name_de", "") or ""}
+        else:
+            counts = f.counts(self)
+            best_idx = int(np.argmax(counts))
+            best = {"days": round(float(counts[best_idx]), 1),
+                    "lat": round(float(self.lat[best_idx]), 2),
+                    "lon": round(float(self.lon[best_idx]), 2)}
+            best_city = self.nearest_city(float(self.lat[best_idx]), float(self.lon[best_idx]))
+            if best_city:
+                best["place"] = best_city["name"]
+                best["country"] = best_city["name_de"] or ""
         return {
             "percentile": round(float((counts <= own).mean()) * 100.0, 1),
             "europe_best": best,
@@ -1135,13 +1481,14 @@ class ClimateData:
         return sums, windows
 
     def _window_report(self, values: np.ndarray, windows: list[tuple[int, int]],
-                       idx_windows: list[int], limit: int) -> list[dict]:
+                       idx_windows: list[int], limit: int,
+                       city_values: np.ndarray | None = None) -> list[dict]:
         """Beschreibt ausgewählte Fenster: Mittelwert, Bestwert (Ort) und beste Stadt."""
         city_counts = None
-        city_points = None
-        if self.cities and self.city_point_idx.size:
-            city_points = self.city_point_idx
-            city_counts = values[:, city_points]
+        if city_values is not None:
+            city_counts = city_values
+        elif self.cities and self.city_point_idx.size:
+            city_counts = values[:, self.city_point_idx]
         rows: list[dict] = []
         for w in idx_windows[:limit]:
             start, length = windows[w]
@@ -1191,15 +1538,29 @@ class ClimateData:
         wm = self.monthly_counts(winter, period)
         sums, windows = self._window_sums(sm - wm, min_len, max_len)
         values = wm.sum(axis=0)[None, :] + sums       # (S, P) Tage/Jahr
+        # Stadtwerte laufen parallel höhenkorrigiert mit: Die „beste Stadt“ darf
+        # nicht aus denselben unkorrigierten Rasterwerten kommen, die Meran
+        # fälschlich auf 2.000 m Höhe verortet haben.
+        city_values = None
+        if self.cities:
+            sm_c = self.city_monthly_counts(summer, period)
+            wm_c = self.city_monthly_counts(winter, period)
+            sums_c, _ = self._window_sums(sm_c - wm_c, min_len, max_len)
+            city_values = wm_c.sum(axis=0)[None, :] + sums_c
         mean = values.mean(axis=1)
         best_points = values.max(axis=1)
         order = np.argsort(-np.round(best_points, 3))[:max(1, int(limit))]
-        rows = self._window_report(values, windows, [int(i) for i in order], limit)
+        rows = self._window_report(values, windows, [int(i) for i in order], limit,
+                                   city_values=city_values)
 
         # Punktweises Optimum (unabhängig davon, ob eine Aufteilung überall passt)
         per_point = values.argmax(axis=0)
         per_point_days = values[per_point, np.arange(values.shape[1])]
         idx_best = int(np.argmax(per_point_days))
+        city_days = city_windows = None
+        if city_values is not None and city_values.shape[1]:
+            city_windows = city_values.argmax(axis=0)
+            city_days = city_values[city_windows, np.arange(city_values.shape[1])]
         return {
             "period": self.period_info(period),
             "window_range": {"min_months": int(min_len), "max_months": int(max_len)},
@@ -1214,17 +1575,16 @@ class ClimateData:
                 "summer_months": list(cyclic_months(*windows[int(per_point[idx_best])])),
                 "mean_days": round(float(per_point_days.mean()), 1),
             },
-            "city_optimum": self._best_city(per_point_days, windows, per_point),
+            "city_optimum": self._best_city(city_days, windows, city_windows),
         }
 
-    def _best_city(self, per_point_days: np.ndarray, windows: list[tuple[int, int]],
-                   per_point: np.ndarray) -> dict | None:
-        """Beste Stadt im punktweisen Optimum (dort darf die Aufteilung variieren)."""
-        if not self.cities or not self.city_point_idx.size:
+    def _best_city(self, city_days: np.ndarray | None, windows: list[tuple[int, int]],
+                   city_windows: np.ndarray | None) -> dict | None:
+        """Beste Stadt im stadtweisen Optimum (dort darf die Aufteilung variieren)."""
+        if city_days is None or city_windows is None or not self.cities:
             return None
-        city_days = per_point_days[self.city_point_idx]
         ci = int(np.argmax(city_days))
-        start, length = windows[int(per_point[self.city_point_idx[ci]])]
+        start, length = windows[int(city_windows[ci])]
         months = cyclic_months(start, length)
         return {
             "name": self.cities[ci]["name"], "country": self.cities[ci].get("name_de", ""),
@@ -1255,14 +1615,19 @@ class ClimateData:
         want_label = "Winterquartier" if role == "summer" else "Sommerquartier"
 
         anchor = self.point_index(lat, lon)
-        sm_a = self.point_monthly(summer, anchor, period)
-        wm_a = self.point_monthly(winter, anchor, period)
+        anchor_city = self._city_index_at(lat, lon)
+        if anchor_city is not None:
+            sm_a = self.city_point_monthly(summer, anchor_city, period)
+            wm_a = self.city_point_monthly(winter, anchor_city, period)
+        else:
+            sm_a = self.point_monthly(summer, anchor, period)
+            wm_a = self.point_monthly(winter, anchor, period)
         # Eigene Wohlfühl-Tage des Ankers in *seinem* Quartier-Fenster
         own_days = (float(sm_a[list(ms)].sum()) if role == "summer"
                     else float(wm_a[list(rest)].sum()))
 
-        counts = self.counts(cd_want, months_want, period)
-        city_days = counts[self.city_point_idx] if self.city_point_idx.size else np.zeros(0)
+        city_days = (self.city_counts(cd_want, months_want, period)
+                     if self.cities else np.zeros(0))
         order = np.argsort(-city_days)[: max(limit * 6, 40)]
         picked: list[tuple[float, float]] = []
         out: list[dict] = []
@@ -1277,9 +1642,9 @@ class ClimateData:
                    and abs((klon - b) * math.cos(math.radians(klat))) < 0.35 for a, b in picked):
                 continue
             picked.append((klat, klon))
-            # Monatswerte des Kandidaten für beide Profile (jeweils 12 kleine Zählungen)
-            sm_b = self.point_monthly(summer, int(self.city_point_idx[i]), period)
-            wm_b = self.point_monthly(winter, int(self.city_point_idx[i]), period)
+            # Monatswerte des Kandidaten für beide Profile (höhenkorrigiert)
+            sm_b = self.city_point_monthly(summer, i, period)
+            wm_b = self.city_point_monthly(winter, i, period)
             if role == "summer":      # Anker = Sommer, Kandidat = Winter
                 base = float(wm_b.sum())
                 delta = sm_a - wm_b
@@ -1352,10 +1717,13 @@ class ClimateData:
         away = winter if season == "winter" else summer
         home = tuple(m for m in range(12) if m not in away)
         anchor_idx = self.point_index(lat, lon)
-        anchor_monthly = self.point_monthly(p, anchor_idx, period)
+        anchor_city_idx = self._city_index_at(lat, lon)
+        anchor_monthly = (self.city_point_monthly(p, anchor_city_idx, period)
+                          if anchor_city_idx is not None
+                          else self.point_monthly(p, anchor_idx, period))
         home_days = float(anchor_monthly[list(home)].sum())
         baseline = float(anchor_monthly.sum())
-        monthly = self.monthly_counts(p, period)[:, self.city_point_idx]
+        monthly = self.city_monthly_counts(p, period)
         away_days = monthly[list(away)].sum(axis=0)
         anchor_city = self.nearest_city(lat, lon)
         home_city = {"name": anchor_city["name"] if anchor_city else "Wohnort",
@@ -1442,7 +1810,7 @@ class ClimateData:
 
         # (Monat, Stadt); ein und dasselbe Traumwetterprofil wird für beide Orte
         # verwendet. Die komplementären Monatsfenster teilen das Jahr vollständig.
-        monthly = self.monthly_counts(p, period)[:, self.city_point_idx]
+        monthly = self.city_monthly_counts(p, period)
         summer_days = monthly[list(ms)].sum(axis=0)
         winter_days = monthly[list(rest)].sum(axis=0)
         city_lats = np.asarray([c["lat"] for c in self.cities], dtype=np.float64)
@@ -1528,14 +1896,20 @@ class ClimateData:
         }
 
     def ranking(self, p: Params, month=None, limit: int = 12) -> list[dict]:
-        """Beste Städte für ein Wetterprofil (Rückwärtskompatibel, s. a. counts)."""
-        return self.ranking_counts(self.counts(p, month), limit)
+        """Beste Städte für ein Wetterprofil – höhenkorrigierte Stadtwerte."""
+        return self.ranking_city_counts(self.city_counts(p, month), limit)
 
     def ranking_counts(self, counts: np.ndarray, limit: int = 12) -> list[dict]:
-        """Beste Städte zu einer bereits berechneten Tageszahl-Folge."""
+        """Beste Städte zu einer Tageszahl-Folge *je Rasterpunkt* (Altpfad)."""
         if not self.cities:
             return []
-        city_counts = counts[self.city_point_idx]
+        return self.ranking_city_counts(counts[self.city_point_idx], limit)
+
+    def ranking_city_counts(self, city_counts: np.ndarray, limit: int = 12) -> list[dict]:
+        """Beste Städte zu einer bereits berechneten Tageszahl-Folge je Stadt."""
+        if not self.cities:
+            return []
+        city_counts = np.asarray(city_counts, dtype=np.float64)
         order = np.argsort(-city_counts)[: max(limit * 8, 60)]
         seen, picked, out = set(), [], []
         for i in order:
@@ -1551,24 +1925,34 @@ class ClimateData:
                 continue
             seen.add(key)
             picked.append((lat, lon))
-            out.append({
+            row = {
                 "name": c["name"], "country": c["name_de"], "lat": lat, "lon": lon,
                 "pop": c["pop"], "days": round(float(city_counts[i]), 1),
                 "dist_km": round(float(self.city_point_km[i])),
-            })
+            }
+            adjustment = self.city_adjustment(i)
+            if adjustment is not None:
+                row["elevation"] = adjustment
+            out.append(row)
             if len(out) >= limit:
                 break
         return out
 
     def cities_for_map(self, p: Params, month=None, limit: int = 400) -> list[dict]:
         """Die größten Orte (nach Einwohnern) mit ihrer Tageszahl – für Kartenmarker."""
-        return self.cities_for_map_counts(self.counts(p, month), limit)
+        return self.cities_for_map_city_counts(self.city_counts(p, month), limit)
 
     def cities_for_map_counts(self, counts: np.ndarray, limit: int = 400) -> list[dict]:
-        """Wie :meth:`cities_for_map`, aber für eine fertige Tageszahl-Folge."""
+        """Wie :meth:`cities_for_map`, aber für eine Tageszahl-Folge je Rasterpunkt."""
         if not self.cities:
             return []
-        city_counts = counts[self.city_point_idx]
+        return self.cities_for_map_city_counts(counts[self.city_point_idx], limit)
+
+    def cities_for_map_city_counts(self, city_counts: np.ndarray, limit: int = 400) -> list[dict]:
+        """Wie :meth:`cities_for_map`, aber für eine Tageszahl-Folge je Stadt."""
+        if not self.cities:
+            return []
+        city_counts = np.asarray(city_counts, dtype=np.float64)
         pops = np.array([int(c.get("pop", 0)) for c in self.cities], dtype=np.int64)
         order = np.argsort(-pops)[: max(1, min(limit, len(self.cities)))]
         return [{
